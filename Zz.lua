@@ -8,9 +8,9 @@ print("Rayfield loaded successfully!")
 
 -- Create the Window
 local Window = Rayfield:CreateWindow({
-    Name = "Anti OC Spray Debug",
+    Name = "Anti OC Spray Final",
     LoadingTitle = "Loading...",
-    LoadingSubtitle = "Debugging Anti OC Spray",
+    LoadingSubtitle = "Optimized Anti OC Spray",
     ConfigurationSaving = {
         Enabled = false
     },
@@ -25,35 +25,44 @@ local Window = Rayfield:CreateWindow({
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local Camera = game:GetService("Workspace").CurrentCamera
 
 -- Anti OC Spray Logic
 local antiOCSprayEnabled = false
 local defaultWalkSpeed = 16
 local defaultJumpPower = 25 -- Adjusted to match your game's default JumpPower
+local connection = nil -- Initialize connection variable
 
-local PlayerTab = Window:CreateTab("Debug", 4483362458)
+local PlayerTab = Window:CreateTab("Anti OC", 4483362458)
 
 PlayerTab:CreateToggle({
     Name = "Anti OC Spray",
     CurrentValue = false,
-    Flag = "ANTI_OC_SPRAY_DEBUG",
+    Flag = "ANTI_OC_SPRAY_FINAL",
     Callback = function(Value)
         antiOCSprayEnabled = Value
         if antiOCSprayEnabled then
             local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
             if humanoid then
-                defaultWalkSpeed = humanoid.WalkSpeed -- Save default speed
+                defaultWalkSpeed = humanoid.WalkSpeed -- Save current WalkSpeed
                 defaultJumpPower = humanoid.JumpPower or 25 -- Save or set default JumpPower
             end
 
             -- Monitor and disable effects
-            local connection = RunService.Heartbeat:Connect(function()
+            connection = RunService.Heartbeat:Connect(function()
                 if antiOCSprayEnabled then
-                    -- Maintain WalkSpeed and JumpPower
                     local char = LocalPlayer.Character
                     if char and char:FindFirstChild("Humanoid") then
-                        char.Humanoid.WalkSpeed = defaultWalkSpeed
-                        char.Humanoid.JumpPower = defaultJumpPower
+                        local hum = char.Humanoid
+                        -- Maintain WalkSpeed and JumpPower
+                        if hum.WalkSpeed ~= defaultWalkSpeed then
+                            hum.WalkSpeed = defaultWalkSpeed
+                            print("Restored WalkSpeed to: " .. defaultWalkSpeed)
+                        end
+                        if hum.JumpPower ~= defaultJumpPower then
+                            hum.JumpPower = defaultJumpPower
+                            print("Restored JumpPower to: " .. defaultJumpPower)
+                        end
                     end
 
                     -- Disable only OC Spray related GUI
@@ -69,11 +78,9 @@ PlayerTab:CreateToggle({
                     for _, effect in pairs(game:GetService("Lighting"):GetChildren()) do
                         if (effect:IsA("BlurEffect") or effect:IsA("ColorCorrectionEffect")) and effect.Enabled then
                             effect.Enabled = false
-                            print("Disabled effect: " .. effect.Name)
+                            print("Disabled visual effect: " .. effect.Name)
                         end
                     end
-                else
-                    connection:Disconnect()
                 end
             end)
 
@@ -89,14 +96,17 @@ PlayerTab:CreateToggle({
             end)
 
             Rayfield:Notify({
-                Title = "Debug Started",
-                Content = "Anti OC Spray enabled. Check console for logs.",
+                Title = "Protection Activated",
+                Content = "Anti OC Spray enabled. Check console if needed.",
                 Duration = 5,
                 Image = 4483362458
             })
         else
+            if connection then
+                connection:Disconnect() -- Disconnect only if connection exists
+            end
             Rayfield:Notify({
-                Title = "Debug Stopped",
+                Title = "Protection Deactivated",
                 Content = "Anti OC Spray disabled.",
                 Duration = 5,
                 Image = 4483362458
@@ -105,4 +115,4 @@ PlayerTab:CreateToggle({
     end
 })
 
-print("Anti OC Spray Debug UI loaded! Toggle to test and check console.")
+print("Anti OC Spray Final UI loaded! Toggle to test.")
