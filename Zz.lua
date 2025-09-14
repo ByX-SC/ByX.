@@ -1,5 +1,10 @@
 -- // UI LIBRARY
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local success, Rayfield = pcall(function() return loadstring(game:HttpGet('https://sirius.menu/rayfield'))() end)
+if not success then
+    warn("Failed to load Rayfield: " .. tostring(Rayfield))
+    return
+end
+print("Rayfield loaded successfully!")
 
 -- Random theme selection
 local themes = {"Ocean", "Amethyst", "DarkBlue"}
@@ -8,7 +13,7 @@ local randomTheme = themes[randomIndex]
 
 -- Create the Window with KeySystem enabled
 local Window = Rayfield:CreateWindow({
-    Name = "Valley Prison ByX v2!",
+    Name = "Valley Prison ByX",
     LoadingTitle = ".",
     LoadingSubtitle = "ByX",
     ConfigurationSaving = {
@@ -19,7 +24,7 @@ local Window = Rayfield:CreateWindow({
     },
     KeySystem = true,
     KeySettings = {
-        Title = "Valley Prison ByX V2",
+        Title = "Valley Prison ByX",
         Subtitle = "Enter the key to unlock the script",
         Note = ".",
         Key = "BYXVALLYPRISON_BEST2025ioiup_V2",
@@ -37,6 +42,15 @@ if not Window then
 else
     print("KeySystem validated successfully!")
 end
+
+-- Services
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local prisonerTeams = {"Minimum Security", "Medium Security", "Maximum Security"}
 
 -- // INFO TAB
 local InfoTab = Window:CreateTab("Info", 4483362458)
@@ -64,16 +78,14 @@ InfoTab:CreateButton({
     end
 })
 
--- // ESP SECTION
-local ESPTab = Window:CreateTab("ESP", 4483362458)
+-- // VISUALS SECTION (ESP, Xray)
+local VisualsTab = Window:CreateTab("Visuals", 4483362458)
 
 local ESPEnabled = false
 local ShowHealth = false
 local ShowInventory = false
-local prisonerTeams = {"Minimum Security", "Medium Security", "Maximum Security"}
 local ESPObjects = {}
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
+local xrayEnabled = false
 
 local function updateInventory(player, espHolder)
     if not player or not espHolder or not player.Backpack or not player.Character then
@@ -98,7 +110,7 @@ local function updateInventory(player, espHolder)
 end
 
 function CreateESP(player)
-    if player == Players.LocalPlayer then return end
+    if player == LocalPlayer then return end
     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") or not player.Character:FindFirstChild("Humanoid") then return end
     if not ESPObjects[player] then
         local espHolder = {}
@@ -257,7 +269,7 @@ local function RefreshESP()
     end
     ESPObjects = {}
     for _, player in pairs(Players:GetPlayers()) do
-        if player ~= Players.LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
             task.spawn(function()
                 CreateESP(player)
             end)
@@ -272,7 +284,7 @@ local function RefreshESP()
 end
 
 for _, player in pairs(Players:GetPlayers()) do
-    if player ~= Players.LocalPlayer then
+    if player ~= LocalPlayer then
         player.CharacterAdded:Connect(function()
             if ESPEnabled then
                 task.wait(0.5)
@@ -289,7 +301,7 @@ for _, player in pairs(Players:GetPlayers()) do
 end
 
 Players.PlayerAdded:Connect(function(player)
-    if player ~= Players.LocalPlayer then
+    if player ~= LocalPlayer then
         player.CharacterAdded:Connect(function()
             if ESPEnabled then
                 task.wait(0.5)
@@ -306,7 +318,7 @@ end)
 RunService.Heartbeat:Connect(function()
     if ESPEnabled then
         for _, player in pairs(Players:GetPlayers()) do
-            if player ~= Players.LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
                 task.spawn(function()
                     CreateESP(player)
                 end)
@@ -315,7 +327,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-ESPTab:CreateToggle({
+VisualsTab:CreateToggle({
     Name = "Enable ESP",
     CurrentValue = false,
     Flag = "ESP_TOGGLE",
@@ -323,7 +335,7 @@ ESPTab:CreateToggle({
         ESPEnabled = Value
         if ESPEnabled then
             for _, player in pairs(Players:GetPlayers()) do
-                if player ~= Players.LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
+                if player != LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
                     task.spawn(function()
                         CreateESP(player)
                     end)
@@ -343,7 +355,7 @@ ESPTab:CreateToggle({
     end
 })
 
-ESPTab:CreateToggle({
+VisualsTab:CreateToggle({
     Name = "Show Health Bar",
     CurrentValue = false,
     Flag = "SHOW_HEALTH",
@@ -366,7 +378,7 @@ ESPTab:CreateToggle({
     end
 })
 
-ESPTab:CreateToggle({
+VisualsTab:CreateToggle({
     Name = "Show Inventory",
     CurrentValue = false,
     Flag = "SHOW_INVENTORY",
@@ -387,15 +399,37 @@ ESPTab:CreateToggle({
     end
 })
 
-ESPTab:CreateButton({
+VisualsTab:CreateButton({
     Name = "Refresh ESP",
     Callback = function()
         RefreshESP()
     end
 })
 
--- // AIMBOT SECTION (from the second script)
-local AimbotTab = Window:CreateTab("Aimbot", 4483362458)
+VisualsTab:CreateToggle({
+    Name = "Xray",
+    CurrentValue = false,
+    Flag = "Xray",
+    Callback = function(Value)
+        xrayEnabled = Value
+        if Value then
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    v.LocalTransparencyModifier = 0.5
+                end
+            end
+        else
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    v.LocalTransparencyModifier = 0
+                end
+            end
+        end
+    end
+})
+
+-- // COMBAT SECTION (Aimbot, FOV)
+local CombatTab = Window:CreateTab("Combat", 4483362458)
 
 local AimbotEnabled = false
 local SilentAim = false
@@ -410,6 +444,9 @@ local BulletSpeed = 1000
 local CurrentTarget = nil
 local TargetPart = "Head"
 local FOVCircle = nil
+local FOVEnabled = false
+local DefaultFOV = 70
+local CustomFOV = 90
 
 local function CreateFOVCircle()
     if FOVCircle then
@@ -514,6 +551,14 @@ local function GetPredictedPosition(targetPart)
     return targetPart.Position + (velocity * timeToHit)
 end
 
+local function UpdateFOV()
+    if FOVEnabled then
+        Camera.FieldOfView = CustomFOV
+    else
+        Camera.FieldOfView = DefaultFOV
+    end
+end
+
 -- Silent Aim Hook
 local oldIndex = nil
 local silentAimConnection = nil
@@ -549,7 +594,7 @@ local function DisableSilentAim()
     print("Silent Aim disabled")
 end
 
-AimbotTab:CreateToggle({
+CombatTab:CreateToggle({
     Name = "Enable Aimbot",
     CurrentValue = false,
     Flag = "AIMBOT_TOGGLE",
@@ -586,7 +631,7 @@ AimbotTab:CreateToggle({
     end
 })
 
-AimbotTab:CreateToggle({
+CombatTab:CreateToggle({
     Name = "Silent Aim",
     CurrentValue = false,
     Flag = "SILENT_AIM",
@@ -600,7 +645,7 @@ AimbotTab:CreateToggle({
     end
 })
 
-AimbotTab:CreateToggle({
+CombatTab:CreateToggle({
     Name = "Prediction",
     CurrentValue = false,
     Flag = "PREDICTION",
@@ -609,7 +654,7 @@ AimbotTab:CreateToggle({
     end
 })
 
-AimbotTab:CreateSlider({
+CombatTab:CreateSlider({
     Name = "Bullet Speed",
     Range = {500, 5000},
     Increment = 100,
@@ -620,7 +665,7 @@ AimbotTab:CreateSlider({
     end
 })
 
-AimbotTab:CreateDropdown({
+CombatTab:CreateDropdown({
     Name = "Target Part",
     Options = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"},
     CurrentOption = {"Head"},
@@ -631,7 +676,7 @@ AimbotTab:CreateDropdown({
     end
 })
 
-AimbotTab:CreateSlider({
+CombatTab:CreateSlider({
     Name = "FOV Radius",
     Range = {50, 500},
     Increment = 10,
@@ -643,7 +688,7 @@ AimbotTab:CreateSlider({
     end
 })
 
-AimbotTab:CreateSlider({
+CombatTab:CreateSlider({
     Name = "Smoothness (Visible Aim)",
     Range = {0.05, 0.5},
     Increment = 0.01,
@@ -654,7 +699,7 @@ AimbotTab:CreateSlider({
     end
 })
 
-AimbotTab:CreateToggle({
+CombatTab:CreateToggle({
     Name = "Stick to Target",
     CurrentValue = false,
     Flag = "STICK_TARGET",
@@ -666,7 +711,7 @@ AimbotTab:CreateToggle({
     end
 })
 
-AimbotTab:CreateToggle({
+CombatTab:CreateToggle({
     Name = "Ignore Walls",
     CurrentValue = false,
     Flag = "IGNORE_WALLS",
@@ -675,7 +720,7 @@ AimbotTab:CreateToggle({
     end
 })
 
-AimbotTab:CreateToggle({
+CombatTab:CreateToggle({
     Name = "Team Check",
     CurrentValue = false,
     Flag = "TEAM_CHECK",
@@ -685,7 +730,7 @@ AimbotTab:CreateToggle({
     end
 })
 
-AimbotTab:CreateToggle({
+CombatTab:CreateToggle({
     Name = "Show FOV Circle",
     CurrentValue = true,
     Flag = "SHOW_FOV_CIRCLE",
@@ -695,33 +740,17 @@ AimbotTab:CreateToggle({
     end
 })
 
--- // FOV SECTION
-local FOVTab = Window:CreateTab("FOV", 4483362458)
-
-local FOVEnabled = false
-local DefaultFOV = 70
-local CustomFOV = 90
-
-local function UpdateFOV()
-    if FOVEnabled then
-        Camera.FieldOfView = CustomFOV
-    else
-        Camera.FieldOfView = DefaultFOV
-    end
-end
-
-local fovToggle = FOVTab:CreateToggle({
+CombatTab:CreateToggle({
     Name = "Enable Custom FOV",
     CurrentValue = false,
     Flag = "FOV_TOGGLE",
     Callback = function(Value)
         FOVEnabled = Value
         UpdateFOV()
-        print(FOVEnabled and "Custom FOV enabled!" or "Custom FOV disabled!")
     end
 })
 
-local fovSlider = FOVTab:CreateSlider({
+CombatTab:CreateSlider({
     Name = "FOV Value",
     Range = {30, 200},
     Increment = 1,
@@ -732,7 +761,6 @@ local fovSlider = FOVTab:CreateSlider({
         if FOVEnabled then
             Camera.FieldOfView = CustomFOV
         end
-        print("FOV set to: " .. CustomFOV)
     end
 })
 
@@ -871,10 +899,15 @@ ItemsTab:CreateButton({
     end
 })
 
--- // STAMINA SECTION (renamed to Player)
+-- // PLAYER SECTION
 local PlayerTab = Window:CreateTab("Player", 4483362458)
 
 local infiniteStaminaEnabled = false
+local noclip = false
+local speed = 16
+local infjumpv2 = false
+local fakerun = false
+local walkfling = false
 
 PlayerTab:CreateButton({
     Name = "Infinite Stamina",
@@ -932,140 +965,110 @@ PlayerTab:CreateButton({
     end
 })
 
--- Added from old script (literal copy paste)
-local noclip = false
-local speed = 16
-local infjumpv2 = false
-local fakerun = false
-local xrayEnabled = false
-local walkfling = false
-
 PlayerTab:CreateSlider({
-	Name = "Speed",
-	Range = {1, 100},
-	Increment = 1,
-	Suffix = "USpeed",
-	CurrentValue = 16,
-	Flag = "UserSpeed",
-	Callback = function(Value)
-		game.Players.LocalPlayer.Character:WaitForChild("Humanoid").WalkSpeed = Value
-		speed = Value
-	end,
+    Name = "Speed",
+    Range = {1, 100},
+    Increment = 1,
+    Suffix = "USpeed",
+    CurrentValue = 16,
+    Flag = "UserSpeed",
+    Callback = function(Value)
+        game.Players.LocalPlayer.Character:WaitForChild("Humanoid").WalkSpeed = Value
+        speed = Value
+    end
 })
 
-local Toggle = PlayerTab:CreateToggle({
-	Name = "Fake Run",
-	CurrentValue = false,
-	Flag = "FR", 
-	Callback = function(Value)
-		fakerun = Value
-	end,
+PlayerTab:CreateToggle({
+    Name = "Fake Run",
+    CurrentValue = false,
+    Flag = "FR",
+    Callback = function(Value)
+        fakerun = Value
+    end
 })
 
-local Toggle = PlayerTab:CreateToggle({
-	Name = "(Stable) Inf Jump",
-	CurrentValue = false,
-	Flag = "IJ", 
-	Callback = function(Value)
-		infjumpv2 = Value
-	end,
+PlayerTab:CreateToggle({
+    Name = "(Stable) Inf Jump",
+    CurrentValue = false,
+    Flag = "IJ",
+    Callback = function(Value)
+        infjumpv2 = Value
+    end
 })
 
-local Toggle = PlayerTab:CreateToggle({
-	Name = "Xray",
-	CurrentValue = false,
-	Flag = "Xray",
-	Callback = function(Value)
-		xrayEnabled = Value
-		if Value == true then
-			for i,v in pairs(workspace:GetDescendants()) do
-				if v:IsA("BasePart") then
-					v.LocalTransparencyModifier = 0.5
-				end
-			end
-		else
-			for i,v in pairs(workspace:GetDescendants()) do
-				if v:IsA("BasePart") then
-					v.LocalTransparencyModifier = 0
-				end
-			end
-		end
-	end,
+PlayerTab:CreateToggle({
+    Name = "Walkfling",
+    CurrentValue = false,
+    Flag = "WF",
+    Callback = function(Value)
+        walkfling = Value
+    end
 })
 
-local Toggle = PlayerTab:CreateToggle({
-	Name = "Walkfling",
-	CurrentValue = false,
-	Flag = "WF",
-	Callback = function(Value)
-		walkfling = Value
-	end,
-})
-
--- RenderStepped connections from old script (literal copy paste)
+-- RenderStepped connections
 RunService.RenderStepped:Connect(function()
-	local char = player.Character
-	if not char then return end
+    local char = LocalPlayer.Character
+    if not char then return end
 
-	for _, v in ipairs(char:GetDescendants()) do
-		if v:IsA("BasePart") then
-			if noclip then
-				v.CanCollide = false
-				v.LocalTransparencyModifier = 0.5
-			else
-				v.LocalTransparencyModifier = 0
-			end
-		end
-	end
+    for _, v in ipairs(char:GetDescendants()) do
+        if v:IsA("BasePart") then
+            if noclip then
+                v.CanCollide = false
+                v.LocalTransparencyModifier = 0.5
+            else
+                v.LocalTransparencyModifier = 0
+            end
+        end
+    end
 
-	char:WaitForChild("Humanoid").WalkSpeed = speed
+    char:WaitForChild("Humanoid").WalkSpeed = speed
 end)
 
 local function RunRenderFakeRun()
-	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	if not root then return end
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
 
-	if fakerun then
-		root.AssemblyLinearVelocity = Vector3.new(0,0,50)
-		root.Anchored = true
-	else
-		root.Anchored = false
-	end
+    if fakerun then
+        root.AssemblyLinearVelocity = Vector3.new(0, 0, 50)
+        root.Anchored = true
+    else
+        root.Anchored = false
+    end
 end
 RunService.RenderStepped:Connect(RunRenderFakeRun)
 
 local running = false
 local function start()
-	if running or not walkfling then return end
-	running = true
+    if running or not walkfling then return end
+    running = true
 
-	while walkfling and task.wait() do
-		for _, v in ipairs(workspace:GetChildren()) do
-			if v:IsA("Model") then
-				local p = Players:GetPlayerFromCharacter(v)
-				if p then
-					local char = p.Character
-					if char then
-						local root = char:FindFirstChild("HumanoidRootPart")
-						if root then
-							root.AssemblyLinearVelocity = Vector3.new(0,1000000,0)
-						end
-					end
-				end
-			end
-		end
-	end
-	running = false
+    while walkfling and task.wait() do
+        for _, v in ipairs(workspace:GetChildren()) do
+            if v:IsA("Model") then
+                local p = Players:GetPlayerFromCharacter(v)
+                if p then
+                    local char = p.Character
+                    if char then
+                        local root = char:FindFirstChild("HumanoidRootPart")
+                        if root then
+                            root.AssemblyLinearVelocity = Vector3.new(0, 1000000, 0)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    running = false
 end
 RunService.RenderStepped:Connect(start)
 
 UserInputService.JumpRequest:Connect(function()
-	local char = player.Character
-	if not char then return end
-	local humanoid = char:FindFirstChildOfClass("Humanoid")
-	if infjumpv2 and humanoid then
-		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-	end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if infjumpv2 and humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
 end)
 
 print("✅ Script loaded successfully!")
