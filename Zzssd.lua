@@ -22,7 +22,7 @@ local Window = Rayfield:CreateWindow({
     Discord = {
         Enabled = false
     },
-    KeySystem = false,
+    KeySystem = true,
     KeySettings = {
         Title = "Valley Prison ByX",
         Subtitle = "Enter the key to unlock the script",
