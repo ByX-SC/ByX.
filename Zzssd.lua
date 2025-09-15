@@ -96,7 +96,7 @@ function CreateESP(player)
         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         highlight.FillTransparency = 0.3
         highlight.FillColor = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255)
-        highlight.OutlineTransparency = 1
+        highlight.OutlineTransparency = 1 -- Remove white outlines (no borders)
         
         local billboard = Instance.new("BillboardGui", player.Character)
         billboard.Name = "ESP_Billboard"
@@ -221,7 +221,7 @@ Players.PlayerAdded:Connect(function(player)
     if player ~= LocalPlayer then
         player.CharacterAdded:Connect(function()
             if ESPEnabled then task.wait(0.5) CreateESP(player) end
-        end)
+        end
     end
 end)
 
@@ -762,6 +762,7 @@ local infjumpv2 = false
 local antiOCSprayEnabled = false
 local connection = nil
 local antiArrestEnabled = false
+local antiBAFEnabled = false
 local antiTazeEnabled = false
 
 PlayerTab:CreateButton({
@@ -861,97 +862,149 @@ PlayerTab:CreateToggle({
 })
 
 local antiArrestConnection
+local originalCuffsState = false
 PlayerTab:CreateToggle({
     Name = "Anti Arrest/Handcuffs",
     CurrentValue = false,
     Flag = "ANTI_ARREST",
     Callback = function(Value)
         antiArrestEnabled = Value
-        if antiArrestEnabled then
-            antiArrestConnection = RunService.Heartbeat:Connect(function()
-                local disabledCount = 0
-                for _, script in pairs(LocalPlayer.PlayerScripts:GetDescendants()) do
-                    if script:IsA("LocalScript") and (script.Name:lower():find("arrest") or script.Name:lower():find("handcuff") or script.Name:lower():find("cuff")) then
-                        script.Disabled = true
-                        disabledCount = disabledCount + 1
-                    end
-                end
-                for _, script in pairs(LocalPlayer.Character:GetDescendants()) do
-                    if script:IsA("LocalScript") and (script.Name:lower():find("arrest") or script.Name:lower():find("handcuff") or script.Name:lower():find("cuff")) then
-                        script.Disabled = true
-                        disabledCount = disabledCount + 1
-                    end
-                end
-                LocalPlayer.Backpack.ChildAdded:Connect(function(child)
-                    if antiArrestEnabled and (child.Name:lower():find("handcuff") or child.Name:lower():find("cuff")) then
-                        child:Destroy()
-                    end
-                end)
-                LocalPlayer.Character.ChildAdded:Connect(function(child)
-                    if antiArrestEnabled and (child.Name:lower():find("handcuff") or child.Name:lower():find("cuff")) then
-                        child:Destroy()
-                    end
-                end)
-                if disabledCount > 0 then
-                    Rayfield:Notify({ Title = "Activated", Content = disabledCount .. " arrest/handcuff scripts disabled.", Duration = 5, Image = 4483362458 })
-                else
-                    Rayfield:Notify({ Title = "Warning", Content = "No arrest/handcuff scripts found. Ensure you're in a valid state.", Duration = 5, Image = 4483362458 })
+        local cuffsScript = LocalPlayer.PlayerScripts:FindFirstChild("CuffsLocal")
+        if antiArrestEnabled and cuffsScript then
+            originalCuffsState = cuffsScript.Disabled
+            cuffsScript.Disabled = true
+            antiArrestConnection = cuffsScript.AncestryChanged:Connect(function()
+                if antiArrestEnabled and cuffsScript.Parent then
+                    cuffsScript.Disabled = true
                 end
             end)
-            Rayfield:Notify({ Title = "Activated", Content = "Anti Arrest/Handcuffs enabled.", Duration = 5, Image = 4483362458 })
-        else
+            LocalPlayer.Backpack.ChildAdded:Connect(function(child)
+                if antiArrestEnabled and (child.Name:lower():find("handcuff") or child.Name:lower():find("cuff")) then
+                    child:Destroy()
+                end
+            end)
+            LocalPlayer.Character.ChildAdded:Connect(function(child)
+                if antiArrestEnabled and (child.Name:lower():find("handcuff") or child.Name:lower():find("cuff")) then
+                    child:Destroy()
+                end
+            end)
+            Rayfield:Notify({ Title = "Activated", Content = "Anti Arrest/Handcuffs enabled (CuffsLocal disabled).", Duration = 5, Image = 4483362458 })
+        elseif not antiArrestEnabled and cuffsScript then
             if antiArrestConnection then antiArrestConnection:Disconnect(); antiArrestConnection = nil end
+            cuffsScript.Disabled = originalCuffsState
             Rayfield:Notify({ Title = "Deactivated", Content = "Anti Arrest/Handcuffs disabled.", Duration = 5, Image = 4483362458 })
+        elseif not cuffsScript then
+            Rayfield:Notify({ Title = "Warning", Content = "CuffsLocal script not found.", Duration = 5, Image = 4483362458 })
         end
     end
 })
 
-local antiTazeConnection
+local antiBAFConnection
 PlayerTab:CreateToggle({
-    Name = "Anti Taze/Stun",
+    Name = "Anti BAF",
     CurrentValue = false,
-    Flag = "ANTI_TAZE",
+    Flag = "ANTI_BAF",
     Callback = function(Value)
-        antiTazeEnabled = Value
-        if antiTazeEnabled then
-            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                local defaultWalkSpeed = humanoid.WalkSpeed
-                local defaultJumpPower = humanoid.JumpPower or 25
-            end
-            antiTazeConnection = RunService.Heartbeat:Connect(function()
-                if antiTazeEnabled then
-                    local char = LocalPlayer.Character
-                    if char and char:FindFirstChild("Humanoid") then
-                        local hum = char.Humanoid
-                        hum.WalkSpeed = defaultWalkSpeed
-                        hum.JumpPower = defaultJumpPower
-                        hum:ChangeState(Enum.HumanoidStateType.Running)
-                    end
-                    local playerGui = LocalPlayer.PlayerGui
-                    for _, gui in pairs(playerGui:GetChildren()) do
-                        if gui:IsA("ScreenGui") and gui.Enabled and (gui.Name:lower():find("taze") or gui.Name:lower():find("stun")) then
-                            gui.Enabled = false
-                        end
-                    end
-                    for _, effect in pairs(game:GetService("Lighting"):GetChildren()) do
-                        if (effect:IsA("BlurEffect") or effect:IsA("ColorCorrectionEffect")) and effect.Enabled then
-                            effect.Enabled = false
-                        end
+        antiBAFEnabled = Value
+        if antiBAFEnabled then
+            antiBAFConnection = RunService.Heartbeat:Connect(function()
+                for _, script in pairs(LocalPlayer.PlayerScripts:GetDescendants()) do
+                    if script:IsA("LocalScript") and script.Name:lower():find("baf") then
+                        script.Disabled = true
                     end
                 end
             end)
-            LocalPlayer.Backpack.ChildAdded:Connect(function(child)
-                if antiTazeEnabled and child.Name:lower():find("tazer") then
-                    child:Destroy()
-                end
-            end)
-            Rayfield:Notify({ Title = "Activated", Content = "Anti Taze/Stun enabled.", Duration = 5, Image = 4483362458 })
+            Rayfield:Notify({ Title = "Activated", Content = "Anti BAF enabled.", Duration = 5, Image = 4483362458 })
         else
-            if antiTazeConnection then antiTazeConnection:Disconnect() end
-            Rayfield:Notify({ Title = "Deactivated", Content = "Anti Taze/Stun disabled.", Duration = 5, Image = 4483362458 })
+            if antiBAFConnection then antiBAFConnection:Disconnect() end
+            Rayfield:Notify({ Title = "Deactivated", Content = "Anti BAF disabled.", Duration = 5, Image = 4483362458 })
         end
     end
+})
+
+local hitboxPart = nil
+local hitboxHighlight = nil
+local hitboxSize = Vector3.new(5, 5, 5) -- Default size
+
+PlayerTab:CreateToggle({
+    Name = "Hitbox Protection",
+    CurrentValue = false,
+    Flag = "HITBOX_PROTECTION",
+    Callback = function(Value)
+        if Value then
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                hitboxPart = Instance.new("Part")
+                hitboxPart.Name = "HitboxProtection"
+                hitboxPart.Size = hitboxSize
+                hitboxPart.Transparency = 1
+                hitboxPart.CanCollide = true
+                hitboxPart.Anchored = false
+                hitboxPart.Parent = workspace
+                local weld = Instance.new("WeldConstraint")
+                weld.Part0 = LocalPlayer.Character.HumanoidRootPart
+                weld.Part1 = hitboxPart
+                weld.Parent = hitboxPart
+                hitboxHighlight = Instance.new("Highlight")
+                hitboxHighlight.Adornee = hitboxPart
+                hitboxHighlight.FillTransparency = 1
+                hitboxHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                hitboxHighlight.OutlineTransparency = 0
+                hitboxHighlight.Parent = hitboxPart
+                Rayfield:Notify({ Title = "Activated", Content = "Hitbox Protection enabled.", Duration = 5, Image = 4483362458 })
+            else
+                Rayfield:Notify({ Title = "Error", Content = "Character not found.", Duration = 5, Image = 4483362458 })
+            end
+        else
+            if hitboxPart then hitboxPart:Destroy(); hitboxPart = nil end
+            Rayfield:Notify({ Title = "Deactivated", Content = "Hitbox Protection disabled.", Duration = 5, Image = 4483362458 })
+        end
+    end
+})
+
+PlayerTab:CreateSlider({
+    Name = "Hitbox Size",
+    Range = {1, 20},
+    Increment = 1,
+    CurrentValue = 5,
+    Flag = "HITBOX_SIZE",
+    Callback = function(Value)
+        hitboxSize = Vector3.new(Value, Value, Value)
+        if hitboxPart then hitboxPart.Size = hitboxSize end
+    end
+})
+
+-- Debug function to print arrest-related scripts
+local function debugArrestScripts()
+    local foundScripts = {}
+    for _, script in pairs(LocalPlayer.PlayerScripts:GetDescendants()) do
+        if script:IsA("LocalScript") and (script.Name:lower():find("arrest") or script.Name:lower():find("handcuff") or script.Name:lower():find("cuff")) then
+            table.insert(foundScripts, "PlayerScripts: " .. script.Name .. " (Path: " .. script:GetFullName() .. ")")
+        end
+    end
+    for _, script in pairs(LocalPlayer.Character:GetDescendants()) do
+        if script:IsA("LocalScript") and (script.Name:lower():find("arrest") or script.Name:lower():find("handcuff") or script.Name:lower():find("cuff")) then
+            table.insert(foundScripts, "Character: " .. script.Name .. " (Path: " .. script:GetFullName() .. ")")
+        end
+    end
+    for _, item in pairs(LocalPlayer.Backpack:GetChildren()) do
+        if item.Name:lower():find("handcuff") or item.Name:lower():find("cuff") then
+            table.insert(foundScripts, "Backpack: " .. item.Name .. " (Path: " .. item:GetFullName() .. ")")
+        end
+    end
+    if #foundScripts > 0 then
+        print("Found arrest/handcuff-related scripts/items:")
+        for _, script in pairs(foundScripts) do
+            print(script)
+        end
+    else
+        print("No arrest/handcuff-related scripts or items found.")
+    end
+    Rayfield:Notify({ Title = "Debug", Content = "Check console for arrest script results.", Duration = 5, Image = 4483362458 })
+end
+
+PlayerTab:CreateButton({
+    Name = "Debug Arrest Scripts",
+    Callback = debugArrestScripts
 })
 
 -- RenderStepped connections
