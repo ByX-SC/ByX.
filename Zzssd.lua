@@ -221,7 +221,7 @@ Players.PlayerAdded:Connect(function(player)
     if player ~= LocalPlayer then
         player.CharacterAdded:Connect(function()
             if ESPEnabled then task.wait(0.5) CreateESP(player) end
-        end
+        end)
     end
 end)
 
@@ -670,7 +670,7 @@ CombatTab:CreateToggle({
 
 CombatTab:CreateToggle({
     Name = "Team Check", CurrentValue = false, Flag = "TEAM_CHECK",
-    Callback = function(Value) TeamCheck = Value CurrentTarget = nil end end
+    Callback = function(Value) TeamCheck = Value CurrentTarget = nil end
 })
 
 CombatTab:CreateToggle({
@@ -753,59 +753,17 @@ ItemsTab:CreateButton({
     end
 })
 
--- Function to add 999 of a material (Plastic or Metal)
-local function addMaterial(materialName)
-    local player = LocalPlayer
-    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-        Rayfield:Notify({ Title = "Error", Content = "Cannot find your character!", Duration = 3, Image = 4483362458 })
-        return
-    end
-    local foundItem = nil
-    for _, container in pairs({workspace, game:GetService("ReplicatedStorage"), game:GetService("ServerStorage")}) do
-        for _, obj in pairs(container:GetDescendants()) do
-            if obj:IsA("Tool") and obj.Name:lower() == materialName:lower() then 
-                foundItem = obj 
-                break 
-            end
-        end
-        if foundItem then break end
-    end
-    if foundItem and foundItem:FindFirstChild("Handle") then
-        for i = 1, 999 do
-            local clonedItem = foundItem:Clone()
-            clonedItem.Parent = player.Backpack
-        end
-        Rayfield:Notify({ Title = "Success", Content = "Added 999 " .. materialName .. " to Backpack!", Duration = 3, Image = 4483362458 })
-    else
-        Rayfield:Notify({ Title = "Error", Content = materialName .. " not found in game. Try again.", Duration = 5, Image = 4483362458 })
-    end
-end
-
-ItemsTab:CreateButton({
-    Name = "Add 999 Plastic",
-    Callback = function()
-        addMaterial("Plastic")
-    end
-})
-
-ItemsTab:CreateButton({
-    Name = "Add 999 Metal",
-    Callback = function()
-        addMaterial("Metal")
-    end
-})
-
 -- // PLAYER SECTION
 local PlayerTab = Window:CreateTab("Player", 4483362458)
 
 local infiniteStaminaEnabled = false
+local noclip = false
 local speed = 16
 local infjumpv2 = false
+local fakerun = false
+local walkfling = false
 local antiOCSprayEnabled = false
 local connection = nil
-
-local antiArrestEnabled = false
-local antiTazeEnabled = false
 
 PlayerTab:CreateButton({
     Name = "Infinite Stamina",
@@ -843,17 +801,22 @@ PlayerTab:CreateButton({
 
 PlayerTab:CreateSlider({
     Name = "Speed", Range = {1, 100}, Increment = 1, Suffix = "USpeed", CurrentValue = 16, Flag = "UserSpeed",
-    Callback = function(Value) 
-        speed = Value
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            LocalPlayer.Character.Humanoid.WalkSpeed = Value
-        end
-    end
+    Callback = function(Value) LocalPlayer.Character:WaitForChild("Humanoid").WalkSpeed = Value speed = Value end
+})
+
+PlayerTab:CreateToggle({
+    Name = "Fake Run", CurrentValue = false, Flag = "FR",
+    Callback = function(Value) fakerun = Value end
 })
 
 PlayerTab:CreateToggle({
     Name = "(Stable) Inf Jump", CurrentValue = false, Flag = "IJ",
     Callback = function(Value) infjumpv2 = Value end
+})
+
+PlayerTab:CreateToggle({
+    Name = "Walkfling", CurrentValue = false, Flag = "WF",
+    Callback = function(Value) walkfling = Value end
 })
 
 PlayerTab:CreateToggle({
@@ -903,99 +866,47 @@ PlayerTab:CreateToggle({
     end
 })
 
-local antiArrestConnection
-PlayerTab:CreateToggle({
-    Name = "Anti Arrest/Handcuffs",
-    CurrentValue = false,
-    Flag = "ANTI_ARREST",
-    Callback = function(Value)
-        antiArrestEnabled = Value
-        if antiArrestEnabled then
-            antiArrestConnection = RunService.Heartbeat:Connect(function()
-                for _, script in pairs(LocalPlayer.PlayerScripts:GetDescendants()) do
-                    if script:IsA("LocalScript") and (script.Name:lower():find("arrest") or script.Name:lower():find("handcuffs") or script.Name:lower():find("cuff")) then
-                        script.Disabled = true
-                    end
-                end
-                for _, script in pairs(LocalPlayer.Character:GetDescendants()) do
-                    if script:IsA("LocalScript") and (script.Name:lower():find("arrest") or script.Name:lower():find("handcuffs") or script.Name:lower():find("cuff")) then
-                        script.Disabled = true
-                    end
-                end
-            end)
-            LocalPlayer.Backpack.ChildAdded:Connect(function(child)
-                if antiArrestEnabled and child.Name:lower():find("handcuffs") then
-                    child:Destroy()
-                end
-            end)
-            LocalPlayer.Character.ChildAdded:Connect(function(child)
-                if antiArrestEnabled and child.Name:lower():find("handcuffs") then
-                    child:Destroy()
-                end
-            end)
-            Rayfield:Notify({ Title = "Activated", Content = "Anti Arrest/Handcuffs enabled.", Duration = 5, Image = 4483362458 })
-        else
-            if antiArrestConnection then antiArrestConnection:Disconnect() end
-            Rayfield:Notify({ Title = "Deactivated", Content = "Anti Arrest/Handcuffs disabled.", Duration = 5, Image = 4483362458 })
-        end
-    end
-})
-
-local antiTazeConnection
-PlayerTab:CreateToggle({
-    Name = "Anti Taze/Stun",
-    CurrentValue = false,
-    Flag = "ANTI_TAZE",
-    Callback = function(Value)
-        antiTazeEnabled = Value
-        if antiTazeEnabled then
-            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                defaultWalkSpeed = humanoid.WalkSpeed
-                defaultJumpPower = humanoid.JumpPower or 25
-            end
-            antiTazeConnection = RunService.Heartbeat:Connect(function()
-                if antiTazeEnabled then
-                    local char = LocalPlayer.Character
-                    if char and char:FindFirstChild("Humanoid") then
-                        local hum = char.Humanoid
-                        hum.WalkSpeed = defaultWalkSpeed
-                        hum.JumpPower = defaultJumpPower
-                        hum:ChangeState(Enum.HumanoidStateType.Running) -- Prevent stun state
-                    end
-                    local playerGui = LocalPlayer.PlayerGui
-                    for _, gui in pairs(playerGui:GetChildren()) do
-                        if gui:IsA("ScreenGui") and gui.Enabled and (gui.Name:lower():find("taze") or gui.Name:lower():find("stun")) then
-                            gui.Enabled = false
-                        end
-                    end
-                    for _, effect in pairs(game:GetService("Lighting"):GetChildren()) do
-                        if (effect:IsA("BlurEffect") or effect:IsA("ColorCorrectionEffect")) and effect.Enabled then
-                            effect.Enabled = false
-                        end
-                    end
-                end
-            end)
-            LocalPlayer.Backpack.ChildAdded:Connect(function(child)
-                if antiTazeEnabled and child.Name:lower():find("tazer") then
-                    child:Destroy()
-                end
-            end)
-            Rayfield:Notify({ Title = "Activated", Content = "Anti Taze/Stun enabled.", Duration = 5, Image = 4483362458 })
-        else
-            if antiTazeConnection then antiTazeConnection:Disconnect() end
-            Rayfield:Notify({ Title = "Deactivated", Content = "Anti Taze/Stun disabled.", Duration = 5, Image = 4483362458 })
-        end
-    end
-})
-
 -- RenderStepped connections
 RunService.RenderStepped:Connect(function()
     local char = LocalPlayer.Character
-    if char and char:FindFirstChild("Humanoid") then
-        char.Humanoid.WalkSpeed = speed
+    if not char then return end
+    for _, v in ipairs(char:GetDescendants()) do
+        if v:IsA("BasePart") then
+            v.CanCollide = noclip and false or true
+            v.LocalTransparencyModifier = noclip and 0.5 or 0
+        end
     end
+    char:WaitForChild("Humanoid").WalkSpeed = speed
 end)
+
+local function RunRenderFakeRun()
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if root and fakerun then
+        root.AssemblyLinearVelocity = Vector3.new(0, 0, 50)
+        root.Anchored = true
+    elseif root then
+        root.Anchored = false
+    end
+end
+RunService.RenderStepped:Connect(RunRenderFakeRun)
+
+local running = false
+local function start()
+    if running or not walkfling then return end
+    running = true
+    while walkfling and task.wait() do
+        for _, v in ipairs(workspace:GetChildren()) do
+            if v:IsA("Model") then
+                local p = Players:GetPlayerFromCharacter(v)
+                if p and p ~= LocalPlayer and v:FindFirstChild("HumanoidRootPart") then
+                    v.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0, 1000000, 0)
+                end
+            end
+        end
+    end
+    running = false
+end
+RunService.RenderStepped:Connect(start)
 
 UserInputService.JumpRequest:Connect(function()
     local char = LocalPlayer.Character
