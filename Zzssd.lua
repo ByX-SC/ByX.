@@ -96,7 +96,7 @@ function CreateESP(player)
         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         highlight.FillTransparency = 0.3
         highlight.FillColor = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255)
-        highlight.OutlineTransparency = 1 -- Remove white outlines (no borders)
+        highlight.OutlineTransparency = 1
         
         local billboard = Instance.new("BillboardGui", player.Character)
         billboard.Name = "ESP_Billboard"
@@ -420,161 +420,85 @@ local function EnableDesync()
     if not root then return end
     desyncConnection = RunService.RenderStepped:Connect(function()
         if DesyncEnabled and root then
-            root.CFrame = root.CFrame * CFrame.new(0, math.random(-0.2, 0.2), 0) -- Smooth Desync
+            root.CFrame = root.CFrame * CFrame.new(0, math.random(-0.2, 0.2), 0)
         end
     end)
 end
 
 local function DisableDesync()
-    if desyncConnection then desyncConnection:Disconnect() desyncConnection = nil end
+    if desyncConnection then desyncConnection:Disconnect(); desyncConnection = nil end
 end
 
 local function EnableKillAllAimbot()
     if killAllCameraConnection then return end
-    
     killAllCameraConnection = RunService.RenderStepped:Connect(function()
         if killAllAimbotEnabled and CurrentTarget and CurrentTarget.Character and CurrentTarget.Character:FindFirstChild(TargetPart) then
-            -- تثبيت الكاميرا على الهدف
             Camera.CFrame = CFrame.new(Camera.CFrame.Position, GetPredictedPosition(CurrentTarget.Character[TargetPart]))
         end
     end)
 end
 
 local function DisableKillAllAimbot()
-    if killAllCameraConnection then
-        killAllCameraConnection:Disconnect()
-        killAllCameraConnection = nil
-    end
+    if killAllCameraConnection then killAllCameraConnection:Disconnect(); killAllCameraConnection = nil end
 end
 
 local function EnableKillAll()
     if killAllConnection then 
-        Rayfield:Notify({ 
-            Title = "Info", 
-            Content = "Kill All is already running!", 
-            Duration = 3, 
-            Image = 4483362458 
-        })
+        Rayfield:Notify({ Title = "Info", Content = "Kill All is already running!", Duration = 3, Image = 4483362458 })
         return 
     end
-    
     local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not root then 
-        Rayfield:Notify({ 
-            Title = "Error", 
-            Content = "Character not found!", 
-            Duration = 3, 
-            Image = 4483362458 
-        })
+        Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 })
         return 
     end
-    
     originalPosition = root.CFrame
     originalFOV = Camera.FieldOfView
-    
     local targetPlayers = {}
     local function addPlayer(player)
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") 
-           and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
             table.insert(targetPlayers, player)
         end
     end
-    
-    for _, player in pairs(Players:GetPlayers()) do
-        addPlayer(player)
-    end
-    
+    for _, player in pairs(Players:GetPlayers()) do addPlayer(player) end
     playerAddedConnection = Players.PlayerAdded:Connect(function(player)
-        if killAllEnabled then
-            player.CharacterAdded:Wait()
-            addPlayer(player)
-        end
+        if killAllEnabled then player.CharacterAdded:Wait(); addPlayer(player) end
     end)
-    
     if #targetPlayers == 0 then
-        Rayfield:Notify({ 
-            Title = "Info", 
-            Content = "No valid targets found!", 
-            Duration = 3, 
-            Image = 4483362458 
-        })
+        Rayfield:Notify({ Title = "Info", Content = "No valid targets found!", Duration = 3, Image = 4483362458 })
         return
     end
-    
     local currentIndex = 1
     local rotationAngle = 0
-
     killAllAimbotEnabled = true
     EnableKillAllAimbot()
-    
     killAllConnection = RunService.Heartbeat:Connect(function()
-        if not killAllEnabled or not root then
-            DisableKillAll()
-            return
-        end
-        
-        -- Refresh targetPlayers if empty
-        if #targetPlayers == 0 then
-            for _, player in pairs(Players:GetPlayers()) do
-                addPlayer(player)
-            end
-            if #targetPlayers == 0 then return end -- If still empty, wait for new players
-        end
-        
+        if not killAllEnabled or not root then DisableKillAll(); return end
+        if #targetPlayers == 0 then for _, player in pairs(Players:GetPlayers()) do addPlayer(player) end; if #targetPlayers == 0 then return end end
         local target = targetPlayers[currentIndex]
-        
-        if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") 
-           or target.Character.Humanoid.Health <= 0 then
-            
+        if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") or target.Character.Humanoid.Health <= 0 then
             table.remove(targetPlayers, currentIndex)
-            if currentIndex > #targetPlayers then
-                currentIndex = 1
-            end
+            if currentIndex > #targetPlayers then currentIndex = 1 end
             return
         end
-        
         CurrentTarget = target
-        
-        -- الدوران اللانهائي حول الهدف (أسرع x5)
-        rotationAngle = (rotationAngle + 0.25) % (2 * math.pi)  -- Increased from 0.05 to 0.25 for x5 speed
+        rotationAngle = (rotationAngle + 0.25) % (2 * math.pi)
         local offset = Vector3.new(math.cos(rotationAngle) * 5, 0, math.sin(rotationAngle) * 5)
         root.CFrame = CFrame.new(target.Character.HumanoidRootPart.Position + offset, target.Character.HumanoidRootPart.Position)
-        
-        -- توجيه الشخصية نحو الهدف أثناء الدوران
         local lookAt = (target.Character.HumanoidRootPart.Position - root.Position).Unit
         root.CFrame = CFrame.new(root.Position, root.Position + lookAt)
     end)
 end
 
 local function DisableKillAll()
-    if killAllConnection then
-        killAllConnection:Disconnect()
-        killAllConnection = nil
-    end
-    
-    if playerAddedConnection then
-        playerAddedConnection:Disconnect()
-        playerAddedConnection = nil
-    end
-    
+    if killAllConnection then killAllConnection:Disconnect(); killAllConnection = nil end
+    if playerAddedConnection then playerAddedConnection:Disconnect(); playerAddedConnection = nil end
     killAllAimbotEnabled = false
     DisableKillAllAimbot()
-    
     local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if root and originalPosition then
-        root.CFrame = originalPosition
-    end
-    
-    if originalFOV then
-        Camera.FieldOfView = originalFOV
-    end
-    
-    Rayfield:Notify({ 
-        Title = "Kill All Deactivated", 
-        Content = "Returned to original position.", 
-        Duration = 3, 
-        Image = 4483362458 
-    })
+    if root and originalPosition then root.CFrame = originalPosition end
+    if originalFOV then Camera.FieldOfView = originalFOV end
+    Rayfield:Notify({ Title = "Kill All Deactivated", Content = "Returned to original position.", Duration = 3, Image = 4483362458 })
 end
 
 CombatTab:CreateToggle({
@@ -592,10 +516,7 @@ CombatTab:CreateToggle({
                 end
             else conn:Disconnect() end
         end) or nil
-        if not AimbotEnabled then
-            if FOVCircle then FOVCircle:Remove() FOVCircle = nil end
-            DisableSilentAim()
-        end
+        if not AimbotEnabled then if FOVCircle then FOVCircle:Remove(); FOVCircle = nil end; DisableSilentAim() end
     end
 })
 
@@ -621,15 +542,8 @@ CombatTab:CreateToggle({
         killAllEnabled = Value
         if killAllEnabled then
             EnableKillAll()
-            Rayfield:Notify({
-                Title = "Kill All Activated",
-                Content = "Rotating around target with locked camera!",
-                Duration = 5,
-                Image = 4483362458
-            })
-        else
-            DisableKillAll()
-        end
+            Rayfield:Notify({ Title = "Kill All Activated", Content = "Rotating around target with locked camera!", Duration = 5, Image = 4483362458 })
+        else DisableKillAll() end
     end
 })
 
@@ -650,7 +564,7 @@ CombatTab:CreateDropdown({
 
 CombatTab:CreateSlider({
     Name = "FOV Radius", Range = {50, 500}, Increment = 10, CurrentValue = 150, Flag = "FOV_RADIUS",
-    Callback = function(Value) FOVRadius = Value UpdateFOVCircle() end
+    Callback = function(Value) FOVRadius = Value; UpdateFOVCircle() end
 })
 
 CombatTab:CreateSlider({
@@ -660,7 +574,7 @@ CombatTab:CreateSlider({
 
 CombatTab:CreateToggle({
     Name = "Stick to Target", CurrentValue = false, Flag = "STICK_TARGET",
-    Callback = function(Value) StickToTarget = Value if not StickToTarget then CurrentTarget = nil end end
+    Callback = function(Value) StickToTarget = Value; if not StickToTarget then CurrentTarget = nil end end
 })
 
 CombatTab:CreateToggle({
@@ -670,22 +584,22 @@ CombatTab:CreateToggle({
 
 CombatTab:CreateToggle({
     Name = "Team Check", CurrentValue = false, Flag = "TEAM_CHECK",
-    Callback = function(Value) TeamCheck = Value CurrentTarget = nil end
+    Callback = function(Value) TeamCheck = Value; CurrentTarget = nil end
 })
 
 CombatTab:CreateToggle({
     Name = "Show FOV Circle", CurrentValue = true, Flag = "SHOW_FOV_CIRCLE",
-    Callback = function(Value) ShowFOVCircle = Value UpdateFOVCircle() end
+    Callback = function(Value) ShowFOVCircle = Value; UpdateFOVCircle() end
 })
 
 CombatTab:CreateToggle({
     Name = "Enable Custom FOV", CurrentValue = false, Flag = "FOV_TOGGLE",
-    Callback = function(Value) FOVEnabled = Value UpdateFOV() end
+    Callback = function(Value) FOVEnabled = Value; UpdateFOV() end
 })
 
 CombatTab:CreateSlider({
     Name = "FOV Value", Range = {30, 200}, Increment = 1, CurrentValue = 90, Flag = "FOV_SLIDER",
-    Callback = function(Value) CustomFOV = Value if FOVEnabled then Camera.FieldOfView = CustomFOV end end
+    Callback = function(Value) CustomFOV = Value; if FOVEnabled then Camera.FieldOfView = CustomFOV end end
 })
 
 -- // TELEPORT SECTION
@@ -731,7 +645,7 @@ ItemsTab:CreateButton({
             local foundItem = nil
             for _, container in pairs({workspace, game:GetService("ReplicatedStorage"), game:GetService("ServerStorage")}) do
                 for _, obj in pairs(container:GetDescendants()) do
-                    if obj:IsA("Tool") and obj.Name:lower():find("keycard") then foundItem = obj break end
+                    if obj:IsA("Tool") and obj.Name:lower():find("keycard") then foundItem = obj; break end
                 end
                 if foundItem then break end
             end
@@ -753,17 +667,55 @@ ItemsTab:CreateButton({
     end
 })
 
+-- Function to add 999 of a material (Plastic or Metal)
+local function addMaterial(materialName)
+    local player = LocalPlayer
+    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+        Rayfield:Notify({ Title = "Error", Content = "Cannot find your character!", Duration = 3, Image = 4483362458 })
+        return
+    end
+    local foundItem = nil
+    for _, container in pairs({workspace, game:GetService("ReplicatedStorage"), game:GetService("ServerStorage")}) do
+        for _, obj in pairs(container:GetDescendants()) do
+            if obj:IsA("Tool") and obj.Name:lower() == materialName:lower() then foundItem = obj; break end
+        end
+        if foundItem then break end
+    end
+    if foundItem and foundItem:FindFirstChild("Handle") then
+        for i = 1, 999 do
+            local clonedItem = foundItem:Clone()
+            clonedItem.Parent = player.Backpack
+        end
+        Rayfield:Notify({ Title = "Success", Content = "Added 999 " .. materialName .. " to Backpack!", Duration = 3, Image = 4483362458 })
+    else
+        Rayfield:Notify({ Title = "Error", Content = materialName .. " not found in game. Try again.", Duration = 5, Image = 4483362458 })
+    end
+end
+
+ItemsTab:CreateButton({
+    Name = "Add 999 Plastic",
+    Callback = function()
+        addMaterial("Plastic")
+    end
+})
+
+ItemsTab:CreateButton({
+    Name = "Add 999 Metal",
+    Callback = function()
+        addMaterial("Metal")
+    end
+})
+
 -- // PLAYER SECTION
 local PlayerTab = Window:CreateTab("Player", 4483362458)
 
 local infiniteStaminaEnabled = false
-local noclip = false
 local speed = 16
 local infjumpv2 = false
-local fakerun = false
-local walkfling = false
 local antiOCSprayEnabled = false
 local connection = nil
+local antiArrestEnabled = false
+local antiTazeEnabled = false
 
 PlayerTab:CreateButton({
     Name = "Infinite Stamina",
@@ -801,22 +753,17 @@ PlayerTab:CreateButton({
 
 PlayerTab:CreateSlider({
     Name = "Speed", Range = {1, 100}, Increment = 1, Suffix = "USpeed", CurrentValue = 16, Flag = "UserSpeed",
-    Callback = function(Value) LocalPlayer.Character:WaitForChild("Humanoid").WalkSpeed = Value speed = Value end
-})
-
-PlayerTab:CreateToggle({
-    Name = "Fake Run", CurrentValue = false, Flag = "FR",
-    Callback = function(Value) fakerun = Value end
+    Callback = function(Value) 
+        speed = Value
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = Value
+        end
+    end
 })
 
 PlayerTab:CreateToggle({
     Name = "(Stable) Inf Jump", CurrentValue = false, Flag = "IJ",
     Callback = function(Value) infjumpv2 = Value end
-})
-
-PlayerTab:CreateToggle({
-    Name = "Walkfling", CurrentValue = false, Flag = "WF",
-    Callback = function(Value) walkfling = Value end
 })
 
 PlayerTab:CreateToggle({
@@ -828,8 +775,8 @@ PlayerTab:CreateToggle({
         if antiOCSprayEnabled then
             local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
             if humanoid then
-                defaultWalkSpeed = humanoid.WalkSpeed
-                defaultJumpPower = humanoid.JumpPower or 25
+                local defaultWalkSpeed = humanoid.WalkSpeed
+                local defaultJumpPower = humanoid.JumpPower or 25
             end
             connection = RunService.Heartbeat:Connect(function()
                 if antiOCSprayEnabled then
@@ -866,47 +813,99 @@ PlayerTab:CreateToggle({
     end
 })
 
+local antiArrestConnection
+PlayerTab:CreateToggle({
+    Name = "Anti Arrest/Handcuffs",
+    CurrentValue = false,
+    Flag = "ANTI_ARREST",
+    Callback = function(Value)
+        antiArrestEnabled = Value
+        if antiArrestEnabled then
+            antiArrestConnection = RunService.Heartbeat:Connect(function()
+                for _, script in pairs(LocalPlayer.PlayerScripts:GetDescendants()) do
+                    if script:IsA("LocalScript") and (script.Name:lower():find("arrest") or script.Name:lower():find("handcuffs") or script.Name:lower():find("cuff")) then
+                        script.Disabled = true
+                    end
+                end
+                for _, script in pairs(LocalPlayer.Character:GetDescendants()) do
+                    if script:IsA("LocalScript") and (script.Name:lower():find("arrest") or script.Name:lower():find("handcuffs") or script.Name:lower():find("cuff")) then
+                        script.Disabled = true
+                    end
+                end
+            end)
+            LocalPlayer.Backpack.ChildAdded:Connect(function(child)
+                if antiArrestEnabled and child.Name:lower():find("handcuffs") then
+                    child:Destroy()
+                end
+            end)
+            LocalPlayer.Character.ChildAdded:Connect(function(child)
+                if antiArrestEnabled and child.Name:lower():find("handcuffs") then
+                    child:Destroy()
+                end
+            end)
+            Rayfield:Notify({ Title = "Activated", Content = "Anti Arrest/Handcuffs enabled.", Duration = 5, Image = 4483362458 })
+        else
+            if antiArrestConnection then antiArrestConnection:Disconnect() end
+            Rayfield:Notify({ Title = "Deactivated", Content = "Anti Arrest/Handcuffs disabled.", Duration = 5, Image = 4483362458 })
+        end
+    end
+})
+
+local antiTazeConnection
+PlayerTab:CreateToggle({
+    Name = "Anti Taze/Stun",
+    CurrentValue = false,
+    Flag = "ANTI_TAZE",
+    Callback = function(Value)
+        antiTazeEnabled = Value
+        if antiTazeEnabled then
+            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                local defaultWalkSpeed = humanoid.WalkSpeed
+                local defaultJumpPower = humanoid.JumpPower or 25
+            end
+            antiTazeConnection = RunService.Heartbeat:Connect(function()
+                if antiTazeEnabled then
+                    local char = LocalPlayer.Character
+                    if char and char:FindFirstChild("Humanoid") then
+                        local hum = char.Humanoid
+                        hum.WalkSpeed = defaultWalkSpeed
+                        hum.JumpPower = defaultJumpPower
+                        hum:ChangeState(Enum.HumanoidStateType.Running)
+                    end
+                    local playerGui = LocalPlayer.PlayerGui
+                    for _, gui in pairs(playerGui:GetChildren()) do
+                        if gui:IsA("ScreenGui") and gui.Enabled and (gui.Name:lower():find("taze") or gui.Name:lower():find("stun")) then
+                            gui.Enabled = false
+                        end
+                    end
+                    for _, effect in pairs(game:GetService("Lighting"):GetChildren()) do
+                        if (effect:IsA("BlurEffect") or effect:IsA("ColorCorrectionEffect")) and effect.Enabled then
+                            effect.Enabled = false
+                        end
+                    end
+                end
+            end)
+            LocalPlayer.Backpack.ChildAdded:Connect(function(child)
+                if antiTazeEnabled and child.Name:lower():find("tazer") then
+                    child:Destroy()
+                end
+            end)
+            Rayfield:Notify({ Title = "Activated", Content = "Anti Taze/Stun enabled.", Duration = 5, Image = 4483362458 })
+        else
+            if antiTazeConnection then antiTazeConnection:Disconnect() end
+            Rayfield:Notify({ Title = "Deactivated", Content = "Anti Taze/Stun disabled.", Duration = 5, Image = 4483362458 })
+        end
+    end
+})
+
 -- RenderStepped connections
 RunService.RenderStepped:Connect(function()
     local char = LocalPlayer.Character
-    if not char then return end
-    for _, v in ipairs(char:GetDescendants()) do
-        if v:IsA("BasePart") then
-            v.CanCollide = noclip and false or true
-            v.LocalTransparencyModifier = noclip and 0.5 or 0
-        end
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.WalkSpeed = speed
     end
-    char:WaitForChild("Humanoid").WalkSpeed = speed
 end)
-
-local function RunRenderFakeRun()
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if root and fakerun then
-        root.AssemblyLinearVelocity = Vector3.new(0, 0, 50)
-        root.Anchored = true
-    elseif root then
-        root.Anchored = false
-    end
-end
-RunService.RenderStepped:Connect(RunRenderFakeRun)
-
-local running = false
-local function start()
-    if running or not walkfling then return end
-    running = true
-    while walkfling and task.wait() do
-        for _, v in ipairs(workspace:GetChildren()) do
-            if v:IsA("Model") then
-                local p = Players:GetPlayerFromCharacter(v)
-                if p and p ~= LocalPlayer and v:FindFirstChild("HumanoidRootPart") then
-                    v.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0, 1000000, 0)
-                end
-            end
-        end
-    end
-    running = false
-end
-RunService.RenderStepped:Connect(start)
 
 UserInputService.JumpRequest:Connect(function()
     local char = LocalPlayer.Character
