@@ -456,16 +456,27 @@ local function EnableKillAll()
     originalFOV = Camera.FieldOfView
     local targetPlayers = {}
     local function addPlayer(player)
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") 
+           and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
             table.insert(targetPlayers, player)
         end
     end
-    for _, player in pairs(Players:GetPlayers()) do addPlayer(player) end
+    for _, player in pairs(Players:GetPlayers()) do
+        addPlayer(player)
+    end
     playerAddedConnection = Players.PlayerAdded:Connect(function(player)
-        if killAllEnabled then player.CharacterAdded:Wait(); addPlayer(player) end
+        if killAllEnabled then
+            player.CharacterAdded:Wait()
+            addPlayer(player)
+        end
     end)
     if #targetPlayers == 0 then
-        Rayfield:Notify({ Title = "Info", Content = "No valid targets found!", Duration = 3, Image = 4483362458 })
+        Rayfield:Notify({ 
+            Title = "Info", 
+            Content = "No valid targets found!", 
+            Duration = 3, 
+            Image = 4483362458 
+        })
         return
     end
     local currentIndex = 1
@@ -473,12 +484,23 @@ local function EnableKillAll()
     killAllAimbotEnabled = true
     EnableKillAllAimbot()
     killAllConnection = RunService.Heartbeat:Connect(function()
-        if not killAllEnabled or not root then DisableKillAll(); return end
-        if #targetPlayers == 0 then for _, player in pairs(Players:GetPlayers()) do addPlayer(player) end; if #targetPlayers == 0 then return end end
+        if not killAllEnabled or not root then
+            DisableKillAll()
+            return
+        end
+        if #targetPlayers == 0 then
+            for _, player in pairs(Players:GetPlayers()) do
+                addPlayer(player)
+            end
+            if #targetPlayers == 0 then return end
+        end
         local target = targetPlayers[currentIndex]
-        if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") or target.Character.Humanoid.Health <= 0 then
+        if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") 
+           or target.Character.Humanoid.Health <= 0 then
             table.remove(targetPlayers, currentIndex)
-            if currentIndex > #targetPlayers then currentIndex = 1 end
+            if currentIndex > #targetPlayers then
+                currentIndex = 1
+            end
             return
         end
         CurrentTarget = target
@@ -491,14 +513,29 @@ local function EnableKillAll()
 end
 
 local function DisableKillAll()
-    if killAllConnection then killAllConnection:Disconnect(); killAllConnection = nil end
-    if playerAddedConnection then playerAddedConnection:Disconnect(); playerAddedConnection = nil end
+    if killAllConnection then
+        killAllConnection:Disconnect()
+        killAllConnection = nil
+    end
+    if playerAddedConnection then
+        playerAddedConnection:Disconnect()
+        playerAddedConnection = nil
+    end
     killAllAimbotEnabled = false
     DisableKillAllAimbot()
     local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if root and originalPosition then root.CFrame = originalPosition end
-    if originalFOV then Camera.FieldOfView = originalFOV end
-    Rayfield:Notify({ Title = "Kill All Deactivated", Content = "Returned to original position.", Duration = 3, Image = 4483362458 })
+    if root and originalPosition then
+        root.CFrame = originalPosition
+    end
+    if originalFOV then
+        Camera.FieldOfView = originalFOV
+    end
+    Rayfield:Notify({ 
+        Title = "Kill All Deactivated", 
+        Content = "Returned to original position.", 
+        Duration = 3, 
+        Image = 4483362458 
+    })
 end
 
 CombatTab:CreateToggle({
@@ -516,7 +553,10 @@ CombatTab:CreateToggle({
                 end
             else conn:Disconnect() end
         end) or nil
-        if not AimbotEnabled then if FOVCircle then FOVCircle:Remove(); FOVCircle = nil end; DisableSilentAim() end
+        if not AimbotEnabled then
+            if FOVCircle then FOVCircle:Remove() FOVCircle = nil end
+            DisableSilentAim()
+        end
     end
 })
 
@@ -542,8 +582,15 @@ CombatTab:CreateToggle({
         killAllEnabled = Value
         if killAllEnabled then
             EnableKillAll()
-            Rayfield:Notify({ Title = "Kill All Activated", Content = "Rotating around target with locked camera!", Duration = 5, Image = 4483362458 })
-        else DisableKillAll() end
+            Rayfield:Notify({
+                Title = "Kill All Activated",
+                Content = "Rotating around target with locked camera!",
+                Duration = 5,
+                Image = 4483362458
+            })
+        else
+            DisableKillAll()
+        end
     end
 })
 
@@ -822,30 +869,38 @@ PlayerTab:CreateToggle({
         antiArrestEnabled = Value
         if antiArrestEnabled then
             antiArrestConnection = RunService.Heartbeat:Connect(function()
+                local disabledCount = 0
                 for _, script in pairs(LocalPlayer.PlayerScripts:GetDescendants()) do
-                    if script:IsA("LocalScript") and (script.Name:lower():find("arrest") or script.Name:lower():find("handcuffs") or script.Name:lower():find("cuff")) then
+                    if script:IsA("LocalScript") and (script.Name:lower():find("arrest") or script.Name:lower():find("handcuff") or script.Name:lower():find("cuff")) then
                         script.Disabled = true
+                        disabledCount = disabledCount + 1
                     end
                 end
                 for _, script in pairs(LocalPlayer.Character:GetDescendants()) do
-                    if script:IsA("LocalScript") and (script.Name:lower():find("arrest") or script.Name:lower():find("handcuffs") or script.Name:lower():find("cuff")) then
+                    if script:IsA("LocalScript") and (script.Name:lower():find("arrest") or script.Name:lower():find("handcuff") or script.Name:lower():find("cuff")) then
                         script.Disabled = true
+                        disabledCount = disabledCount + 1
                     end
                 end
-            end)
-            LocalPlayer.Backpack.ChildAdded:Connect(function(child)
-                if antiArrestEnabled and child.Name:lower():find("handcuffs") then
-                    child:Destroy()
-                end
-            end)
-            LocalPlayer.Character.ChildAdded:Connect(function(child)
-                if antiArrestEnabled and child.Name:lower():find("handcuffs") then
-                    child:Destroy()
+                LocalPlayer.Backpack.ChildAdded:Connect(function(child)
+                    if antiArrestEnabled and (child.Name:lower():find("handcuff") or child.Name:lower():find("cuff")) then
+                        child:Destroy()
+                    end
+                end)
+                LocalPlayer.Character.ChildAdded:Connect(function(child)
+                    if antiArrestEnabled and (child.Name:lower():find("handcuff") or child.Name:lower():find("cuff")) then
+                        child:Destroy()
+                    end
+                end)
+                if disabledCount > 0 then
+                    Rayfield:Notify({ Title = "Activated", Content = disabledCount .. " arrest/handcuff scripts disabled.", Duration = 5, Image = 4483362458 })
+                else
+                    Rayfield:Notify({ Title = "Warning", Content = "No arrest/handcuff scripts found. Ensure you're in a valid state.", Duration = 5, Image = 4483362458 })
                 end
             end)
             Rayfield:Notify({ Title = "Activated", Content = "Anti Arrest/Handcuffs enabled.", Duration = 5, Image = 4483362458 })
         else
-            if antiArrestConnection then antiArrestConnection:Disconnect() end
+            if antiArrestConnection then antiArrestConnection:Disconnect(); antiArrestConnection = nil end
             Rayfield:Notify({ Title = "Deactivated", Content = "Anti Arrest/Handcuffs disabled.", Duration = 5, Image = 4483362458 })
         end
     end
