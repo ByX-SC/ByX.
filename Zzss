@@ -68,67 +68,10 @@ InfoTab:CreateButton({
 local VisualsTab = Window:CreateTab("Visuals", 4483362458)
 
 local ESPEnabled = false
-local ESPType = "Highlight" -- أنواع الـ ESP: "Highlight", "Dot", "Line", "Box"
 local ShowHealth = false
 local ShowInventory = false
 local ESPObjects = {}
 local xrayEnabled = false
-
--- إعدادات الـ ESP الجديدة
-local DotSize = 3
-local LineThickness = 1
-local BoxThickness = 1
-
--- وظيفة لإنشاء Dot ESP
-local function CreateDotESP(player, espHolder)
-    if not player.Character or not player.Character:FindFirstChild("Head") then return end
-    
-    if not espHolder.Dot then
-        local dot = Drawing.new("Circle")
-        dot.Visible = false
-        dot.Color = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255)
-        dot.Thickness = 1
-        dot.Filled = true
-        dot.Transparency = 1
-        dot.Radius = DotSize
-        espHolder.Dot = dot
-    end
-    
-    return espHolder.Dot
-end
-
--- وظيفة لإنشاء Line ESP
-local function CreateLineESP(player, espHolder)
-    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
-    
-    if not espHolder.Line then
-        local line = Drawing.new("Line")
-        line.Visible = false
-        line.Color = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255)
-        line.Thickness = LineThickness
-        line.Transparency = 1
-        espHolder.Line = line
-    end
-    
-    return espHolder.Line
-end
-
--- وظيفة لإنشاء Box ESP
-local function CreateBoxESP(player, espHolder)
-    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
-    
-    if not espHolder.Box then
-        local box = Drawing.new("Square")
-        box.Visible = false
-        box.Color = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255)
-        box.Thickness = BoxThickness
-        box.Filled = false
-        box.Transparency = 1
-        espHolder.Box = box
-    end
-    
-    return espHolder.Box
-end
 
 local function updateInventory(player, espHolder)
     if not player or not espHolder or not player.Backpack or not player.Character then
@@ -148,24 +91,12 @@ function CreateESP(player)
     if player == LocalPlayer or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") or not player.Character:FindFirstChild("Humanoid") then return end
     if not ESPObjects[player] then
         local espHolder = {}
-        
-        -- إنشاء Highlight (النوع الأساسي)
         local highlight = Instance.new("Highlight", player.Character)
         highlight.Adornee = player.Character
         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         highlight.FillTransparency = 0.3
         highlight.FillColor = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255)
-        highlight.OutlineTransparency = 1
-        highlight.Enabled = ESPEnabled and ESPType == "Highlight"
-        
-        -- إنشاء أنواع الـ ESP الأخرى
-        if ESPType == "Dot" then
-            CreateDotESP(player, espHolder)
-        elseif ESPType == "Line" then
-            CreateLineESP(player, espHolder)
-        elseif ESPType == "Box" then
-            CreateBoxESP(player, espHolder)
-        end
+        highlight.OutlineTransparency = 1 -- Remove white outlines (no borders)
         
         local billboard = Instance.new("BillboardGui", player.Character)
         billboard.Name = "ESP_Billboard"
@@ -255,9 +186,6 @@ function RemoveESP(player)
     if ESPObjects[player] then
         if ESPObjects[player].Highlight then ESPObjects[player].Highlight:Destroy() end
         if ESPObjects[player].Billboard then ESPObjects[player].Billboard:Destroy() end
-        if ESPObjects[player].Dot then ESPObjects[player].Dot:Remove() end
-        if ESPObjects[player].Line then ESPObjects[player].Line:Remove() end
-        if ESPObjects[player].Box then ESPObjects[player].Box:Remove() end
         ESPObjects[player] = nil
     end
 end
@@ -270,9 +198,6 @@ local function RefreshESP()
     for _, espHolder in pairs(ESPObjects) do
         if espHolder.Highlight then espHolder.Highlight:Destroy() end
         if espHolder.Billboard then espHolder.Billboard:Destroy() end
-        if espHolder.Dot then espHolder.Dot:Remove() end
-        if espHolder.Line then espHolder.Line:Remove() end
-        if espHolder.Box then espHolder.Box:Remove() end
     end
     ESPObjects = {}
     for _, player in pairs(Players:GetPlayers()) do
@@ -282,76 +207,6 @@ local function RefreshESP()
     end
     Rayfield:Notify({ Title = "Success", Content = "ESP refreshed for all players!", Duration = 3, Image = 4483362458 })
 end
-
--- تحديث أنواع الـ ESP
-local function UpdateESPType()
-    for player, espHolder in pairs(ESPObjects) do
-        if espHolder.Highlight then
-            espHolder.Highlight.Enabled = ESPEnabled and ESPType == "Highlight"
-        end
-        
-        if espHolder.Dot then
-            espHolder.Dot.Visible = ESPEnabled and ESPType == "Dot"
-        end
-        
-        if espHolder.Line then
-            espHolder.Line.Visible = ESPEnabled and ESPType == "Line"
-        end
-        
-        if espHolder.Box then
-            espHolder.Box.Visible = ESPEnabled and ESPType == "Box"
-        end
-    end
-end
-
--- تحديث الرسومات كل إطار
-RunService.RenderStepped:Connect(function()
-    if not ESPEnabled then return end
-    
-    for player, espHolder in pairs(ESPObjects) do
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local rootPart = player.Character.HumanoidRootPart
-            local head = player.Character:FindFirstChild("Head")
-            
-            if ESPType == "Dot" and head and espHolder.Dot then
-                local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                if onScreen then
-                    espHolder.Dot.Position = Vector2.new(screenPos.X, screenPos.Y)
-                    espHolder.Dot.Visible = true
-                else
-                    espHolder.Dot.Visible = false
-                end
-            end
-            
-            if ESPType == "Line" and rootPart and espHolder.Line then
-                local screenPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-                if onScreen then
-                    espHolder.Line.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-                    espHolder.Line.To = Vector2.new(screenPos.X, screenPos.Y)
-                    espHolder.Line.Visible = true
-                else
-                    espHolder.Line.Visible = false
-                end
-            end
-            
-            if ESPType == "Box" and rootPart and head and espHolder.Box then
-                local rootScreenPos, rootOnScreen = Camera:WorldToViewportPoint(rootPart.Position)
-                local headScreenPos, headOnScreen = Camera:WorldToViewportPoint(head.Position)
-                
-                if rootOnScreen and headOnScreen then
-                    local height = math.abs(headScreenPos.Y - rootScreenPos.Y) * 2
-                    local width = height / 2
-                    
-                    espHolder.Box.Size = Vector2.new(width, height)
-                    espHolder.Box.Position = Vector2.new(rootScreenPos.X - width / 2, rootScreenPos.Y - height / 2)
-                    espHolder.Box.Visible = true
-                else
-                    espHolder.Box.Visible = false
-                end
-            end
-        end
-    end
-end)
 
 for _, player in pairs(Players:GetPlayers()) do
     if player ~= LocalPlayer then
@@ -396,74 +251,8 @@ VisualsTab:CreateToggle({
             for _, espHolder in pairs(ESPObjects) do
                 if espHolder.Highlight then espHolder.Highlight:Destroy() end
                 if espHolder.Billboard then espHolder.Billboard:Destroy() end
-                if espHolder.Dot then espHolder.Dot:Remove() end
-                if espHolder.Line then espHolder.Line:Remove() end
-                if espHolder.Box then espHolder.Box:Remove() end
             end
             ESPObjects = {}
-        end
-    end
-})
-
-VisualsTab:CreateDropdown({
-    Name = "ESP Type",
-    Options = {"Highlight", "Dot", "Line", "Box"},
-    CurrentOption = "Highlight",
-    MultipleOptions = false,
-    Flag = "ESP_TYPE",
-    Callback = function(Option)
-        ESPType = Option[1]
-        UpdateESPType()
-    end
-})
-
-VisualsTab:CreateSlider({
-    Name = "Dot Size",
-    Range = {1, 10},
-    Increment = 1,
-    Suffix = "px",
-    CurrentValue = 3,
-    Flag = "DOT_SIZE",
-    Callback = function(Value)
-        DotSize = Value
-        for _, espHolder in pairs(ESPObjects) do
-            if espHolder.Dot then
-                espHolder.Dot.Radius = DotSize
-            end
-        end
-    end
-})
-
-VisualsTab:CreateSlider({
-    Name = "Line Thickness",
-    Range = {1, 5},
-    Increment = 1,
-    Suffix = "px",
-    CurrentValue = 1,
-    Flag = "LINE_THICKNESS",
-    Callback = function(Value)
-        LineThickness = Value
-        for _, espHolder in pairs(ESPObjects) do
-            if espHolder.Line then
-                espHolder.Line.Thickness = LineThickness
-            end
-        end
-    end
-})
-
-VisualsTab:CreateSlider({
-    Name = "Box Thickness",
-    Range = {1, 5},
-    Increment = 1,
-    Suffix = "px",
-    CurrentValue = 1,
-    Flag = "BOX_THICKNESS",
-    Callback = function(Value)
-        BoxThickness = Value
-        for _, espHolder in pairs(ESPObjects) do
-            if espHolder.Box then
-                espHolder.Box.Thickness = BoxThickness
-            end
         end
     end
 })
@@ -525,18 +314,9 @@ local Smoothness = 0.15
 local StickToTarget = false
 local IgnoreWalls = false
 local TeamCheck = false
-local FriendsCheck = false
-local ForcefieldCheck = false
-local VelocityCheck = false
-local HealthCheck = false
-local FirstPersonCheck = false
-local WallCheck = true
-local VisibilityCheck = true
 local ShowFOVCircle = true
 local PredictionEnabled = false
 local BulletSpeed = 1000
-local ShakeEnabled = false
-local ShakeIntensity = 5
 local CurrentTarget = nil
 local TargetPart = "Head"
 local FOVCircle = nil
@@ -582,49 +362,12 @@ end
 
 local function IsValidTarget(player)
     if player == LocalPlayer then return false end
-    
-    -- Team Check
     if TeamCheck and LocalPlayer.Team and player.Team then
         local localIsPrisoner = table.find(prisonerTeams, LocalPlayer.Team.Name)
         local targetIsPrisoner = table.find(prisonerTeams, player.Team.Name)
         if localIsPrisoner and targetIsPrisoner or LocalPlayer.Team == player.Team then return false end
     end
-    
-    -- Friends Check
-    if FriendsCheck and player:IsFriendsWith(LocalPlayer.UserId) then return false end
-    
-    -- Forcefield Check
-    if ForcefieldCheck and player.Character and player.Character:FindFirstChildOfClass("ForceField") then return false end
-    
-    -- Velocity Check
-    if VelocityCheck and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        local velocity = player.Character.HumanoidRootPart.Velocity.Magnitude
-        if velocity > 100 then return false end -- سرعة غير طبيعية
-    end
-    
-    -- Health Check
-    if HealthCheck and player.Character and player.Character:FindFirstChild("Humanoid") then
-        if player.Character.Humanoid.Health <= 0 then return false end
-    end
-    
-    -- First Person Check
-    if FirstPersonCheck then
-        local cameraSubject = Camera.CameraSubject
-        if cameraSubject and cameraSubject:IsA("Humanoid") and cameraSubject.Parent == LocalPlayer.Character then
-            return false -- اللاعب في وضع الأول شخص
-        end
-    end
-    
-    -- Wall Check
-    if WallCheck and not IsVisible(player) then return false end
-    
-    -- Visibility Check
-    if VisibilityCheck and player.Character and player.Character:FindFirstChild(TargetPart) then
-        local screenPos, onScreen = Camera:WorldToViewportPoint(player.Character[TargetPart].Position)
-        if not onScreen then return false end
-    end
-    
-    return player.Character and player.Character:FindFirstChild(TargetPart) and player.Character:FindFirstChild("Humanoid")
+    return player.Character and player.Character:FindFirstChild(TargetPart) and player.Character:FindFirstChild("Humanoid") and IsVisible(player)
 end
 
 local function GetClosestPlayerInFOV()
@@ -649,14 +392,6 @@ local function GetPredictedPosition(targetPart)
     return PredictionEnabled and targetPart.Position + (targetPart.Velocity * ((Camera.CFrame.Position - targetPart.Position).Magnitude / BulletSpeed)) or targetPart.Position
 end
 
-local function ApplyShake(position)
-    if not ShakeEnabled then return position end
-    local shakeX = math.random(-ShakeIntensity, ShakeIntensity) / 100
-    local shakeY = math.random(-ShakeIntensity, ShakeIntensity) / 100
-    local shakeZ = math.random(-ShakeIntensity, ShakeIntensity) / 100
-    return position + Vector3.new(shakeX, shakeY, shakeZ)
-end
-
 local function UpdateFOV()
     Camera.FieldOfView = FOVEnabled and CustomFOV or DefaultFOV
 end
@@ -667,9 +402,7 @@ local function EnableSilentAim()
     oldIndex = getmetatable(game).__index
     getmetatable(game).__index = function(self, index)
         if (AimbotEnabled or killAllAimbotEnabled) and SilentAim and CurrentTarget and self == Mouse and (index == "Hit" or index == "Target") then
-            local predictedPos = GetPredictedPosition(CurrentTarget.Character[TargetPart])
-            local shakenPos = ApplyShake(predictedPos)
-            return CFrame.new(shakenPos)
+            return CFrame.new(GetPredictedPosition(CurrentTarget.Character[TargetPart]))
         end
         return oldIndex(self, index)
     end
@@ -700,9 +433,7 @@ local function EnableKillAllAimbot()
     if killAllCameraConnection then return end
     killAllCameraConnection = RunService.RenderStepped:Connect(function()
         if killAllAimbotEnabled and CurrentTarget and CurrentTarget.Character and CurrentTarget.Character:FindFirstChild(TargetPart) then
-            local predictedPos = GetPredictedPosition(CurrentTarget.Character[TargetPart])
-            local shakenPos = ApplyShake(predictedPos)
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position, shakenPos)
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, GetPredictedPosition(CurrentTarget.Character[TargetPart]))
         end
     end)
 end
@@ -818,9 +549,7 @@ CombatTab:CreateToggle({
             if AimbotEnabled then
                 CurrentTarget = StickToTarget and CurrentTarget and IsValidTarget(CurrentTarget) and CurrentTarget or GetClosestPlayerInFOV()
                 if not SilentAim and CurrentTarget and CurrentTarget.Character and CurrentTarget.Character:FindFirstChild(TargetPart) then
-                    local predictedPos = GetPredictedPosition(CurrentTarget.Character[TargetPart])
-                    local shakenPos = ApplyShake(predictedPos)
-                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, shakenPos), Smoothness)
+                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(CurrentTarget.Character[TargetPart])), Smoothness)
                 end
             else conn:Disconnect() end
         end) or nil
@@ -870,16 +599,6 @@ CombatTab:CreateToggle({
     Callback = function(Value) PredictionEnabled = Value end
 })
 
-CombatTab:CreateToggle({
-    Name = "Shake Enabled", CurrentValue = false, Flag = "SHAKE_ENABLED",
-    Callback = function(Value) ShakeEnabled = Value end
-})
-
-CombatTab:CreateSlider({
-    Name = "Shake Intensity", Range = {1, 20}, Increment = 1, CurrentValue = 5, Flag = "SHAKE_INTENSITY",
-    Callback = function(Value) ShakeIntensity = Value end
-})
-
 CombatTab:CreateSlider({
     Name = "Bullet Speed", Range = {500, 5000}, Increment = 100, CurrentValue = 1000, Flag = "BULLET_SPEED",
     Callback = function(Value) BulletSpeed = Value end
@@ -913,41 +632,6 @@ CombatTab:CreateToggle({
 CombatTab:CreateToggle({
     Name = "Team Check", CurrentValue = false, Flag = "TEAM_CHECK",
     Callback = function(Value) TeamCheck = Value; CurrentTarget = nil end
-})
-
-CombatTab:CreateToggle({
-    Name = "Friends Check", CurrentValue = false, Flag = "FRIENDS_CHECK",
-    Callback = function(Value) FriendsCheck = Value; CurrentTarget = nil end
-})
-
-CombatTab:CreateToggle({
-    Name = "Forcefield Check", CurrentValue = false, Flag = "FORCEFIELD_CHECK",
-    Callback = function(Value) ForcefieldCheck = Value; CurrentTarget = nil end
-})
-
-CombatTab:CreateToggle({
-    Name = "Velocity Check", CurrentValue = false, Flag = "VELOCITY_CHECK",
-    Callback = function(Value) VelocityCheck = Value; CurrentTarget = nil end
-})
-
-CombatTab:CreateToggle({
-    Name = "Health Check", CurrentValue = false, Flag = "HEALTH_CHECK",
-    Callback = function(Value) HealthCheck = Value; CurrentTarget = nil end
-})
-
-CombatTab:CreateToggle({
-    Name = "First Person Check", CurrentValue = false, Flag = "FIRST_PERSON_CHECK",
-    Callback = function(Value) FirstPersonCheck = Value; CurrentTarget = nil end
-})
-
-CombatTab:CreateToggle({
-    Name = "Wall Check", CurrentValue = true, Flag = "WALL_CHECK",
-    Callback = function(Value) WallCheck = Value; CurrentTarget = nil end
-})
-
-CombatTab:CreateToggle({
-    Name = "Visibility Check", CurrentValue = true, Flag = "VISIBILITY_CHECK",
-    Callback = function(Value) VisibilityCheck = Value; CurrentTarget = nil end
 })
 
 CombatTab:CreateToggle({
@@ -991,7 +675,7 @@ TeleportTab:CreateButton({ Name = "Keycard (💳)", Callback = function() LocalP
 local ItemsTab = Window:CreateTab("Items", 4483362458)
 
 ItemsTab:CreateButton({
-    Name = "Get FAKE Keycard (Players can see it",
+    Name = "Get FAKE Keycard (Players can see it)",
     Callback = function()
         local player = LocalPlayer
         if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
@@ -1027,6 +711,45 @@ ItemsTab:CreateButton({
             end
         end
         tryGetKeycard()
+    end
+})
+
+-- Function to add 999 of a material (Plastic or Metal)
+local function addMaterial(materialName)
+    local player = LocalPlayer
+    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+        Rayfield:Notify({ Title = "Error", Content = "Cannot find your character!", Duration = 3, Image = 4483362458 })
+        return
+    end
+    local foundItem = nil
+    for _, container in pairs({workspace, game:GetService("ReplicatedStorage"), game:GetService("ServerStorage")}) do
+        for _, obj in pairs(container:GetDescendants()) do
+            if obj:IsA("Tool") and obj.Name:lower() == materialName:lower() then foundItem = obj; break end
+        end
+        if foundItem then break end
+    end
+    if foundItem and foundItem:FindFirstChild("Handle") then
+        for i = 1, 999 do
+            local clonedItem = foundItem:Clone()
+            clonedItem.Parent = player.Backpack
+        end
+        Rayfield:Notify({ Title = "Success", Content = "Added 999 " .. materialName .. " to Backpack!", Duration = 3, Image = 4483362458 })
+    else
+        Rayfield:Notify({ Title = "Error", Content = materialName .. " not found in game. Try again.", Duration = 5, Image = 4483362458 })
+    end
+end
+
+ItemsTab:CreateButton({
+    Name = "Add 999 Plastic",
+    Callback = function()
+        addMaterial("Plastic")
+    end
+})
+
+ItemsTab:CreateButton({
+    Name = "Add 999 Metal",
+    Callback = function()
+        addMaterial("Metal")
     end
 })
 
@@ -1140,7 +863,7 @@ PlayerTab:CreateToggle({
 local antiArrestConnection
 local originalCuffsState = false
 PlayerTab:CreateToggle({
-    Name = "Anti Taze/Stun",
+    Name = "Anti Arrest/Handcuffs",
     CurrentValue = false,
     Flag = "ANTI_ARREST",
     Callback = function(Value)
@@ -1154,11 +877,21 @@ PlayerTab:CreateToggle({
                     cuffsScript.Disabled = true
                 end
             end)
-            Rayfield:Notify({ Title = "Activated", Content = "Anti Taze/Stun enabled (CuffsLocal disabled).", Duration = 5, Image = 4483362458 })
+            LocalPlayer.Backpack.ChildAdded:Connect(function(child)
+                if antiArrestEnabled and (child.Name:lower():find("handcuff") or child.Name:lower():find("cuff")) then
+                    child:Destroy()
+                end
+            end)
+            LocalPlayer.Character.ChildAdded:Connect(function(child)
+                if antiArrestEnabled and (child.Name:lower():find("handcuff") or child.Name:lower():find("cuff")) then
+                    child:Destroy()
+                end
+            end)
+            Rayfield:Notify({ Title = "Activated", Content = "Anti Arrest/Handcuffs enabled (CuffsLocal disabled).", Duration = 5, Image = 4483362458 })
         elseif not antiArrestEnabled and cuffsScript then
             if antiArrestConnection then antiArrestConnection:Disconnect(); antiArrestConnection = nil end
             cuffsScript.Disabled = originalCuffsState
-            Rayfield:Notify({ Title = "Deactivated", Content = "Anti Taze/Stun disabled.", Duration = 5, Image = 4483362458 })
+            Rayfield:Notify({ Title = "Deactivated", Content = "Anti Arrest/Handcuffs disabled.", Duration = 5, Image = 4483362458 })
         elseif not cuffsScript then
             Rayfield:Notify({ Title = "Warning", Content = "CuffsLocal script not found.", Duration = 5, Image = 4483362458 })
         end
@@ -1171,7 +904,7 @@ local antiTazeGuiConnection
 local antiTazeEffectConnection
 local antiTazeToolConnection
 PlayerTab:CreateToggle({
-    Name = "Anti Arrest/Handcuffs",
+    Name = "Anti Taze/Stun",
     CurrentValue = false,
     Flag = "ANTI_TAZE",
     Callback = function(Value)
@@ -1190,7 +923,7 @@ PlayerTab:CreateToggle({
                     if antiTazeEnabled and humanoid.JumpPower < defaultJumpPower then
                         humanoid.JumpPower = defaultJumpPower
                     end
-                end
+                end)
             end
             antiTazeGuiConnection = LocalPlayer.PlayerGui.ChildAdded:Connect(function(gui)
                 if antiTazeEnabled and gui:IsA("ScreenGui") and (gui.Name:lower():find("taze") or gui.Name:lower():find("stun")) then
@@ -1212,16 +945,50 @@ PlayerTab:CreateToggle({
                     child:Destroy()
                 end
             end)
-            Rayfield:Notify({ Title = "Activated", Content = "Anti Arrest/Handcuffs enabled.", Duration = 5, Image = 4483362458 })
+            Rayfield:Notify({ Title = "Activated", Content = "Anti Taze/Stun enabled.", Duration = 5, Image = 4483362458 })
         else
             if antiTazeHumanoidConnection then antiTazeHumanoidConnection:Disconnect() end
             if antiTazeHumanoidConnection2 then antiTazeHumanoidConnection2:Disconnect() end
             if antiTazeGuiConnection then antiTazeGuiConnection:Disconnect() end
             if antiTazeEffectConnection then antiTazeEffectConnection:Disconnect() end
             if antiTazeToolConnection then antiTazeToolConnection:Disconnect() end
-            Rayfield:Notify({ Title = "Deactivated", Content = "Anti Arrest/Handcuffs disabled.", Duration = 5, Image = 4483362458 })
+            Rayfield:Notify({ Title = "Deactivated", Content = "Anti Taze/Stun disabled.", Duration = 5, Image = 4483362458 })
         end
     end
+})
+
+-- Debug function to print arrest-related scripts
+local function debugArrestScripts()
+    local foundScripts = {}
+    for _, script in pairs(LocalPlayer.PlayerScripts:GetDescendants()) do
+        if script:IsA("LocalScript") and (script.Name:lower():find("arrest") or script.Name:lower():find("handcuff") or script.Name:lower():find("cuff")) then
+            table.insert(foundScripts, "PlayerScripts: " .. script.Name .. " (Path: " .. script:GetFullName() .. ")")
+        end
+    end
+    for _, script in pairs(LocalPlayer.Character:GetDescendants()) do
+        if script:IsA("LocalScript") and (script.Name:lower():find("arrest") or script.Name:lower():find("handcuff") or script.Name:lower():find("cuff")) then
+            table.insert(foundScripts, "Character: " .. script.Name .. " (Path: " .. script:GetFullName() .. ")")
+        end
+    end
+    for _, item in pairs(LocalPlayer.Backpack:GetChildren()) do
+        if item.Name:lower():find("handcuff") or item.Name:lower():find("cuff") then
+            table.insert(foundScripts, "Backpack: " .. item.Name .. " (Path: " .. item:GetFullName() .. ")")
+        end
+    end
+    if #foundScripts > 0 then
+        print("Found arrest/handcuff-related scripts/items:")
+        for _, script in pairs(foundScripts) do
+            print(script)
+        end
+    else
+        print("No arrest/handcuff-related scripts or items found.")
+    end
+    Rayfield:Notify({ Title = "Debug", Content = "Check console for arrest script results.", Duration = 5, Image = 4483362458 })
+end
+
+PlayerTab:CreateButton({
+    Name = "Debug Arrest Scripts",
+    Callback = debugArrestScripts
 })
 
 -- RenderStepped connections
