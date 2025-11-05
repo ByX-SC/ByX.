@@ -1750,11 +1750,8 @@ local Stats = { Kills = 0, Misses = 0 }  -- Table لتخزين الـ stats
 local NoMissBullets = false  -- ميزة جديدة: No Miss Bullets (تضمن إصابة كل الرصاص)
 local BulletMagnetStrength = 0.5  -- Slider لـ Bullet Magnet Strength (0-1, قوة جذب الرصاص نحو الهدف)
 
--- New: Moving FOV Circle
-local movingFOVEnabled = false
-local movingFOVRadius = 150
-local movingFOVColor = Color3.fromRGB(255, 0, 0)
-local movingFOVThickness = 2
+-- New: Moving FOV circle
+local movingFOVCircleEnabled = false
 
 -- دالة Humanization Factor لإضافة عشوائية للتصويب
 local function ApplyHumanization(position)
@@ -1822,7 +1819,7 @@ local function CreateFOVCircle()
     FOVCircle = Drawing.new("Circle") 
     FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
     FOVCircle.Radius = FOVRadius 
-    FOVCircle.Color = FOVColor 
+    FOVCircle.Color = Color3.new(math.random(), math.random(), math.random())  -- Random color on creation
     FOVCircle.Thickness = 2 
     FOVCircle.Filled = false 
     FOVCircle.Visible = (AimbotEnabled or killAllAimbotEnabled) and ShowFOVCircle 
@@ -1830,11 +1827,10 @@ end
 
 local function UpdateFOVCircle() 
     if FOVCircle then 
-        if movingFOVEnabled then
-            FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)
-            FOVCircle.Radius = movingFOVRadius
-            FOVCircle.Color = movingFOVColor
-            FOVCircle.Thickness = movingFOVThickness
+        if movingFOVCircleEnabled then
+            FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)  -- Follow mouse
+            FOVCircle.Radius = FOVRadius
+            FOVCircle.Color = FOVColor
         else
             FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
             local currentRadius = FOVRadius
@@ -1882,13 +1878,14 @@ end
 -- تعديل GetClosestPlayerInFOV لدعم TargetPriority
 local function GetBestTarget() 
     local bestPlayer, bestScore = nil, math.huge
-    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
+    local center = movingFOVCircleEnabled and Vector2.new(Mouse.X, Mouse.Y) or Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
     for _, player in pairs(Players:GetPlayers()) do 
         if IsValidTarget(player) then 
             local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(player) or player.Character[TargetPart]
             local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position) 
             if onScreen then 
                 local distance = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude 
+                if distance > FOVRadius then continue end  -- Ensure within FOV circle
                 local score = distance
                 if TargetPriority == "Lowest Health" then
                     score = player.Character.Humanoid.Health
@@ -1977,9 +1974,7 @@ local function EnableKillAll()
     if killAllConnection then return end 
     local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
     if not root then 
-        if not noNotifications then
-            Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 }) 
-        end
+        Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 }) 
         return 
     end 
     originalPosition = root.CFrame 
@@ -2001,14 +1996,12 @@ local function EnableKillAll()
         end 
     end) 
     if #targetPlayers == 0 then 
-        if not noNotifications then
-            Rayfield:Notify({ 
-                Title = "Info", 
-                Content = "No valid targets found!", 
-                Duration = 3, 
-                Image = 4483362458 
-            }) 
-        end
+        Rayfield:Notify({ 
+            Title = "Info", 
+            Content = "No valid targets found!", 
+            Duration = 3, 
+            Image = 4483362458 
+        }) 
         return 
     end 
     local currentIndex = 1 
@@ -2081,9 +2074,7 @@ local function EnableKillMonitor()
             if CurrentTarget.Character.Humanoid.Health <= 0 then
                 if EnableStats then
                     Stats.Kills = Stats.Kills + 1
-                    if not noNotifications then
-                        Rayfield:Notify({ Title = "Stats", Content = "Kills: " .. Stats.Kills .. " | Misses: " .. Stats.Misses, Duration = 3 })
-                    end
+                    Rayfield:Notify({ Title = "Stats", Content = "Kills: " .. Stats.Kills .. " | Misses: " .. Stats.Misses, Duration = 3 })
                 end
                 if AutoSwitchOnKill then
                     CurrentTarget = GetBestTarget()
@@ -2101,9 +2092,7 @@ RunService.RenderStepped:Connect(function()
     if AimbotEnabled or SilentAim then 
         CurrentTarget = StickToTarget and CurrentTarget and IsValidTarget(CurrentTarget) and CurrentTarget or GetBestTarget() 
         if SilentAim and not CurrentTarget and not hasNotifiedNoTarget then 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Silent Aim", Content = "No valid target found in FOV!", Duration = 2, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Silent Aim", Content = "No valid target found in FOV!", Duration = 2, Image = 4483362458 }) 
             hasNotifiedNoTarget = true 
         elseif CurrentTarget then 
             hasNotifiedNoTarget = false 
@@ -2141,7 +2130,6 @@ CombatTab:CreateToggle({
         CurrentTarget = nil 
         hasNotifiedNoTarget = false 
         if AimbotEnabled then 
-            FOVColor = Color3.new(math.random(), math.random(), math.random())
             CreateFOVCircle() 
             EnableKillMonitor()
             aimbotConnection = RunService.RenderStepped:Connect(function() 
@@ -2226,9 +2214,7 @@ CombatTab:CreateSlider({
     Flag = "HUMANIZATION", 
     Callback = function(Value) 
         HumanizationFactor = Value 
-        if not noNotifications then
-            Rayfield:Notify({ Title = "Humanization", Content = "تم تغيير عامل العشوائية إلى " .. Value, Duration = 3 }) 
-        end
+        Rayfield:Notify({ Title = "Humanization", Content = "تم تغيير عامل العشوائية إلى " .. Value, Duration = 3 }) 
     end 
 })
 
@@ -2483,46 +2469,11 @@ CombatTab:CreateSlider({
     Callback = function(Value) BulletMagnetStrength = Value end 
 })
 
--- New Moving FOV Circle Toggle
 CombatTab:CreateToggle({ 
     Name = "Moving FOV Circle", 
     CurrentValue = false, 
-    Callback = function(Value) 
-        movingFOVEnabled = Value 
-        UpdateFOVCircle()
-    end 
-})
-
--- Settings for Moving FOV Circle
-CombatTab:CreateSlider({ 
-    Name = "Moving FOV Radius", 
-    Range = {50, 500}, 
-    Increment = 10, 
-    CurrentValue = 150, 
-    Callback = function(Value) 
-        movingFOVRadius = Value 
-        UpdateFOVCircle()
-    end 
-})
-
-CombatTab:CreateColorPicker({ 
-    Name = "Moving FOV Color", 
-    Color = Color3.fromRGB(255, 0, 0), 
-    Callback = function(Value) 
-        movingFOVColor = Value 
-        UpdateFOVCircle()
-    end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Moving FOV Thickness", 
-    Range = {1, 5}, 
-    Increment = 1, 
-    CurrentValue = 2, 
-    Callback = function(Value) 
-        movingFOVThickness = Value 
-        UpdateFOVCircle()
-    end 
+    Flag = "MOVING_FOV_CIRCLE", 
+    Callback = function(Value) movingFOVCircleEnabled = Value; UpdateFOVCircle() end 
 })
  
 -- // TELEPORT SECTION 
