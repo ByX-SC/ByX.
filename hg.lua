@@ -76,6 +76,9 @@ local antiTazeHumanoidConnection2 = nil
 local antiTazeGuiConnection = nil 
 local antiTazeEffectConnection = nil 
 local antiTazeToolConnection = nil 
+
+-- Global notification toggle
+local noNotifications = false
  
 -- // INFO TAB 
 local InfoTab = Window:CreateTab("Info", 4483362458) 
@@ -86,9 +89,13 @@ InfoTab:CreateButton({
         local link = "https://www.youtube.com/@6rb-l5r" 
         if setclipboard then 
             setclipboard(link) 
-            Rayfield:Notify({ Title = "Link Copied!", Content = "The link has been copied to your clipboard.", Duration = 3, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Link Copied!", Content = "The link has been copied to your clipboard.", Duration = 3, Image = 4483362458 }) 
+            end
         else 
-            Rayfield:Notify({ Title = "Error", Content = "Your executor does not support clipboard copying. Link: " .. link, Duration = 5, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Error", Content = "Your executor does not support clipboard copying. Link: " .. link, Duration = 5, Image = 4483362458 }) 
+            end
         end 
     end 
 }) 
@@ -133,7 +140,7 @@ local camera = workspace.CurrentCamera
 -- State variables for new ESP features
 local enableMainESP = false
 local showBox = false
-local show3DBox = false
+local show3DBox1 = false -- Renamed to 3D Box 1
 local showHealthNew = false
 local showName = false
 local showDist = false
@@ -173,7 +180,7 @@ local function createNewESP(player)
     box.Color = Color3.new(1, 1, 1)
     box.Visible = false
 
-    -- 3D Box Lines (12 lines for a full box)
+    -- 3D Box 1 Lines (original 12 lines)
     local lines = {}
     for i = 1, 12 do
         local line = Drawing.new("Line")
@@ -183,7 +190,7 @@ local function createNewESP(player)
         lines[i] = line
     end
 
-    -- Health Bar
+    -- Health Bar 1
     local healthBg = Drawing.new("Line")
     healthBg.Color = Color3.new(0, 0, 0) -- Black background/border
     healthBg.Visible = false
@@ -281,8 +288,8 @@ local function updateNewESP()
                     draws.box.Visible = false
                 end
 
-                -- 3D Box (if enabled)
-                if show3DBox then
+                -- 3D Box 1 (original version, if enabled)
+                if show3DBox1 then
                     local teamColor = player.Team and player.Team.TeamColor.Color or Color3.new(1, 1, 1)
                     local halfSize = Vector3.new(2, 5, 1) / 2  -- Approx character size: width 2, height 5, depth 1
                     local corners = {
@@ -329,7 +336,7 @@ local function updateNewESP()
                     for _, line in ipairs(draws.lines) do line.Visible = false end
                 end
 
-                -- Health Bar (if enabled) with black borders
+                -- Health Bar 1 (if enabled) with black borders
                 if showHealthNew then
                     local healthPct = humanoid.Health / humanoid.MaxHealth
                     local barHeight = sizeY
@@ -425,7 +432,7 @@ end
 
 local function refreshNewESP()
     disableNewESP()
-    if showBox or show3DBox or showHealthNew or showName or showDist or showTool then
+    if showBox or show3DBox1 or showHealthNew or showName or showDist or showTool then
         enableNewESP()
     end
 end
@@ -1259,7 +1266,9 @@ VisualsTab:CreateToggle({
         end
         UpdateESPVisibilities()
         CleanupUnusedESP()
-        Rayfield:Notify({ Title = "Activated", Content = "ESP enabled.", Duration = 5, Image = 4483362458 })
+        if not noNotifications then
+            Rayfield:Notify({ Title = "Activated", Content = "ESP enabled.", Duration = 5, Image = 4483362458 })
+        end
     end
 })
 
@@ -1295,7 +1304,7 @@ VisualsTab:CreateToggle({
             connections.playerAdded = Players.PlayerAdded:Connect(function(player)
                 player.CharacterAdded:Connect(function()
                     Create3DBox(player)
-                end)
+                end
             end)
             connections.renderStepped = RunService.RenderStepped:Connect(function()
                 for player in pairs(Box3DObjects) do
@@ -1441,7 +1450,7 @@ VisualsTab:CreateToggle({
             connections.playerAdded = Players.PlayerAdded:Connect(function(player)
                 player.CharacterAdded:Connect(function()
                     RefreshAllESP()
-                end)
+                end
             end)
             connections.playerRemoving = Players.PlayerRemoving:Connect(function()
                 RefreshAllESP()
@@ -1457,7 +1466,9 @@ VisualsTab:CreateToggle({
                     RefreshAllESP()
                 end
             end)
-            Rayfield:Notify({ Title = "Activated", Content = "Auto Refresh enabled for all Visuals.", Duration = 5, Image = 4483362458 })
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Activated", Content = "Auto Refresh enabled for all Visuals.", Duration = 5, Image = 4483362458 })
+            end
         else 
             for key, connection in pairs(connections) do 
                 if key:find("_CharacterAdded") or key == "PlayerAdded" then 
@@ -1465,7 +1476,9 @@ VisualsTab:CreateToggle({
                 end 
             end 
             if autoRefreshConnection then autoRefreshConnection:Disconnect() end
-            Rayfield:Notify({ Title = "Deactivated", Content = "Auto Refresh disabled.", Duration = 5, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Deactivated", Content = "Auto Refresh disabled.", Duration = 5, Image = 4483362458 })
+            end
         end 
     end 
 }) 
@@ -1570,6 +1583,33 @@ VisualsTab:CreateSlider({
       maxDistance = Value
    end,
 })
+
+VisualsTab:CreateToggle({
+    Name = "2D Box",
+    CurrentValue = false,
+    Callback = function(Value)
+        showBox = Value
+        refreshNewESP()
+    end
+})
+
+VisualsTab:CreateToggle({
+    Name = "Health Bar 1",
+    CurrentValue = false,
+    Callback = function(Value)
+        showHealthNew = Value
+        refreshNewESP()
+    end
+})
+
+VisualsTab:CreateToggle({
+    Name = "3D Box 1",
+    CurrentValue = false,
+    Callback = function(Value)
+        show3DBox1 = Value
+        refreshNewESP()
+    end
+})
  
 -- // COMBAT SECTION (Aimbot, FOV, Desync, Silent Aim, Kill All Showcase) 
 local CombatTab = Window:CreateTab("Combat", 4483362458) 
@@ -1637,6 +1677,12 @@ local EnableStats = false  -- Toggle لـ Enable Stats
 local Stats = { Kills = 0, Misses = 0 }  -- Table لتخزين الـ stats
 local NoMissBullets = false  -- ميزة جديدة: No Miss Bullets (تضمن إصابة كل الرصاص)
 local BulletMagnetStrength = 0.5  -- Slider لـ Bullet Magnet Strength (0-1, قوة جذب الرصاص نحو الهدف)
+
+-- New: Moving FOV Circle
+local movingFOVEnabled = false
+local movingFOVRadius = 150
+local movingFOVColor = Color3.fromRGB(255, 0, 0)
+local movingFOVThickness = 2
 
 -- دالة Humanization Factor لإضافة عشوائية للتصويب
 local function ApplyHumanization(position)
@@ -1712,14 +1758,21 @@ end
 
 local function UpdateFOVCircle() 
     if FOVCircle then 
-        FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
-        local currentRadius = FOVRadius
-        if DynamicFOV and CurrentTarget then
-            local distance = (Camera.CFrame.Position - CurrentTarget.Character[TargetPart].Position).Magnitude
-            currentRadius = math.clamp(MinFOVRadius + (distance * DynamicFOVMultiplier), MinFOVRadius, MaxFOVRadius)
+        if movingFOVEnabled then
+            FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)
+            FOVCircle.Radius = movingFOVRadius
+            FOVCircle.Color = movingFOVColor
+            FOVCircle.Thickness = movingFOVThickness
+        else
+            FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
+            local currentRadius = FOVRadius
+            if DynamicFOV and CurrentTarget then
+                local distance = (Camera.CFrame.Position - CurrentTarget.Character[TargetPart].Position).Magnitude
+                currentRadius = math.clamp(MinFOVRadius + (distance * DynamicFOVMultiplier), MinFOVRadius, MaxFOVRadius)
+            end
+            FOVCircle.Radius = currentRadius 
+            FOVCircle.Color = FOVColor 
         end
-        FOVCircle.Radius = currentRadius 
-        FOVCircle.Color = FOVColor 
         FOVCircle.Visible = (AimbotEnabled or killAllAimbotEnabled) and ShowFOVCircle 
     end 
 end 
@@ -1852,7 +1905,9 @@ local function EnableKillAll()
     if killAllConnection then return end 
     local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
     if not root then 
-        Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 }) 
+        if not noNotifications then
+            Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 }) 
+        end
         return 
     end 
     originalPosition = root.CFrame 
@@ -1874,12 +1929,14 @@ local function EnableKillAll()
         end 
     end) 
     if #targetPlayers == 0 then 
-        Rayfield:Notify({ 
-            Title = "Info", 
-            Content = "No valid targets found!", 
-            Duration = 3, 
-            Image = 4483362458 
-        }) 
+        if not noNotifications then
+            Rayfield:Notify({ 
+                Title = "Info", 
+                Content = "No valid targets found!", 
+                Duration = 3, 
+                Image = 4483362458 
+            }) 
+        end
         return 
     end 
     local currentIndex = 1 
@@ -1952,7 +2009,9 @@ local function EnableKillMonitor()
             if CurrentTarget.Character.Humanoid.Health <= 0 then
                 if EnableStats then
                     Stats.Kills = Stats.Kills + 1
-                    Rayfield:Notify({ Title = "Stats", Content = "Kills: " .. Stats.Kills .. " | Misses: " .. Stats.Misses, Duration = 3 })
+                    if not noNotifications then
+                        Rayfield:Notify({ Title = "Stats", Content = "Kills: " .. Stats.Kills .. " | Misses: " .. Stats.Misses, Duration = 3 })
+                    end
                 end
                 if AutoSwitchOnKill then
                     CurrentTarget = GetBestTarget()
@@ -1970,7 +2029,9 @@ RunService.RenderStepped:Connect(function()
     if AimbotEnabled or SilentAim then 
         CurrentTarget = StickToTarget and CurrentTarget and IsValidTarget(CurrentTarget) and CurrentTarget or GetBestTarget() 
         if SilentAim and not CurrentTarget and not hasNotifiedNoTarget then 
-            Rayfield:Notify({ Title = "Silent Aim", Content = "No valid target found in FOV!", Duration = 2, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Silent Aim", Content = "No valid target found in FOV!", Duration = 2, Image = 4483362458 }) 
+            end
             hasNotifiedNoTarget = true 
         elseif CurrentTarget then 
             hasNotifiedNoTarget = false 
@@ -2008,6 +2069,7 @@ CombatTab:CreateToggle({
         CurrentTarget = nil 
         hasNotifiedNoTarget = false 
         if AimbotEnabled then 
+            FOVColor = Color3.new(math.random(), math.random(), math.random())
             CreateFOVCircle() 
             EnableKillMonitor()
             aimbotConnection = RunService.RenderStepped:Connect(function() 
@@ -2092,7 +2154,9 @@ CombatTab:CreateSlider({
     Flag = "HUMANIZATION", 
     Callback = function(Value) 
         HumanizationFactor = Value 
-        Rayfield:Notify({ Title = "Humanization", Content = "تم تغيير عامل العشوائية إلى " .. Value, Duration = 3 }) 
+        if not noNotifications then
+            Rayfield:Notify({ Title = "Humanization", Content = "تم تغيير عامل العشوائية إلى " .. Value, Duration = 3 }) 
+        end
     end 
 })
 
@@ -2346,6 +2410,48 @@ CombatTab:CreateSlider({
     Flag = "BULLET_MAGNET", 
     Callback = function(Value) BulletMagnetStrength = Value end 
 })
+
+-- New Moving FOV Circle Toggle
+CombatTab:CreateToggle({ 
+    Name = "Moving FOV Circle", 
+    CurrentValue = false, 
+    Callback = function(Value) 
+        movingFOVEnabled = Value 
+        UpdateFOVCircle()
+    end 
+})
+
+-- Settings for Moving FOV Circle
+CombatTab:CreateSlider({ 
+    Name = "Moving FOV Radius", 
+    Range = {50, 500}, 
+    Increment = 10, 
+    CurrentValue = 150, 
+    Callback = function(Value) 
+        movingFOVRadius = Value 
+        UpdateFOVCircle()
+    end 
+})
+
+CombatTab:CreateColorPicker({ 
+    Name = "Moving FOV Color", 
+    Color = Color3.fromRGB(255, 0, 0), 
+    Callback = function(Value) 
+        movingFOVColor = Value 
+        UpdateFOVCircle()
+    end 
+})
+
+CombatTab:CreateSlider({ 
+    Name = "Moving FOV Thickness", 
+    Range = {1, 5}, 
+    Increment = 1, 
+    CurrentValue = 2, 
+    Callback = function(Value) 
+        movingFOVThickness = Value 
+        UpdateFOVCircle()
+    end 
+})
  
 -- // TELEPORT SECTION 
 local TeleportTab = Window:CreateTab("Teleports", 4483362458) 
@@ -2377,12 +2483,16 @@ ItemsTab:CreateButton({
     Callback = function() 
         local player = LocalPlayer 
         if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then 
-            Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 }) 
+            end
             return 
         end 
         local isPrisoner = player.Team and table.find(prisonerTeams, player.Team.Name) 
         if not isPrisoner then 
-            Rayfield:Notify({ Title = "Access Denied", Content = "Only prisoners can take this item!", Duration = 3, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Access Denied", Content = "Only prisoners can take this item!", Duration = 3, Image = 4483362458 }) 
+            end
             return 
         end 
         local maxAttempts, attempt = 3, 1 
@@ -2399,13 +2509,17 @@ ItemsTab:CreateButton({
                 clonedTool.Parent = player.Backpack 
                 local humanoid = player.Character:FindFirstChild("Humanoid") 
                 if humanoid then humanoid:EquipTool(clonedTool) end 
-                Rayfield:Notify({ Title = "Success", Content = "Keycard added to inventory!", Duration = 3, Image = 4483362458 }) 
+                if not noNotifications then
+                    Rayfield:Notify({ Title = "Success", Content = "Keycard added to inventory!", Duration = 3, Image = 4483362458 }) 
+                end
             elseif attempt < maxAttempts then 
                 attempt = attempt + 1 
                 task.wait(0.5) 
                 tryGetKeycard() 
             else 
-                Rayfield:Notify({ Title = "Error", Content = "Keycard not found. Try again.", Duration = 5, Image = 4483362458 }) 
+                if not noNotifications then
+                    Rayfield:Notify({ Title = "Error", Content = "Keycard not found. Try again.", Duration = 5, Image = 4483362458 }) 
+                end
             end 
         end 
         tryGetKeycard() 
@@ -2434,16 +2548,24 @@ PlayerTab:CreateButton({
                             staminaConnection:Disconnect() 
                         end 
                     end) 
-                    Rayfield:Notify({ Title = "Success", Content = "Infinite stamina enabled!", Duration = 5, Image = 4483362458 }) 
+                    if not noNotifications then
+                        Rayfield:Notify({ Title = "Success", Content = "Infinite stamina enabled!", Duration = 5, Image = 4483362458 }) 
+                    end
                 else 
-                    Rayfield:Notify({ Title = "Info", Content = "Infinite stamina disabled!", Duration = 5, Image = 4483362458 }) 
+                    if not noNotifications then
+                        Rayfield:Notify({ Title = "Info", Content = "Infinite stamina disabled!", Duration = 5, Image = 4483362458 }) 
+                    end
                 end 
             else 
-                Rayfield:Notify({ Title = "Error", Content = "Stamina not found.", Duration = 5, Image = 4483362458 }) 
+                if not noNotifications then
+                    Rayfield:Notify({ Title = "Error", Content = "Stamina not found.", Duration = 5, Image = 4483362458 }) 
+                end
                 infiniteStaminaEnabled = false 
             end 
         else 
-            Rayfield:Notify({ Title = "Error", Content = "Try again.", Duration = 5, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Error", Content = "Try again.", Duration = 5, Image = 4483362458 }) 
+            end
             infiniteStaminaEnabled = false 
         end 
     end 
@@ -2493,9 +2615,9 @@ PlayerTab:CreateToggle({
                     end 
                 end) 
             end 
-            antiOCSprayGuiConnection = LocalPlayer.PlayerGui.ChildAdded:Connect(function(g)
-                if antiOCSprayEnabled and g:IsA("ScreenGui") and (g.Name:lower():find("pepper") or g.Name:lower():find("spray") or g.Name:lower():find("ocspray")) then 
-                    g.Enabled = false 
+            antiOCSprayGuiConnection = LocalPlayer.PlayerGui.ChildAdded:Connect(function(gui) 
+                if antiOCSprayEnabled and gui:IsA("ScreenGui") and (gui.Name:lower():find("pepper") or gui.Name:lower():find("spray") or gui.Name:lower():find("ocspray")) then 
+                    gui.Enabled = false 
                 end 
             end) 
             antiOCSprayEffectConnection = game:GetService("Lighting").ChildAdded:Connect(function(effect) 
@@ -2509,18 +2631,22 @@ PlayerTab:CreateToggle({
                     if localScript then localScript.Disabled = true end 
                 end 
             end) 
-            Rayfield:Notify({ Title = "Enabled", Content = "Anti OC Spray enabled.", Duration = 5, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Enabled", Content = "Anti OC Spray enabled.", Duration = 5, Image = 4483362458 }) 
+            end
         else 
             if antiOCSprayHumanoidConnection then antiOCSprayHumanoidConnection:Disconnect() end 
             if antiOCSprayHumanoidConnection2 then antiOCSprayHumanoidConnection2:Disconnect() end 
             if antiOCSprayGuiConnection then antiOCSprayGuiConnection:Disconnect() end 
             if antiOCSprayEffectConnection then antiOCSprayEffectConnection:Disconnect() end 
             if antiOCSprayToolConnection then antiOCSprayToolConnection:Disconnect() end 
-            Rayfield:Notify({ Title = "Disabled", Content = "Anti OC Spray disabled.", Duration = 5, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Disabled", Content = "Anti OC Spray disabled.", Duration = 5, Image = 4483362458 }) 
+            end
         end 
     end 
 }) 
-
+ 
 PlayerTab:CreateToggle({ 
     Name = "Lock Jump Button", 
     CurrentValue = true, 
@@ -2559,18 +2685,22 @@ PlayerTab:CreateToggle({
                     if localScript then localScript.Disabled = true end 
                 end 
             end) 
-            Rayfield:Notify({ Title = "Enabled", Content = "Anti OC Spray enabled.", Duration = 5, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Enabled", Content = "Anti OC Spray enabled.", Duration = 5, Image = 4483362458 }) 
+            end
         else 
             if antiOCSprayHumanoidConnection then antiOCSprayHumanoidConnection:Disconnect() end 
             if antiOCSprayHumanoidConnection2 then antiOCSprayHumanoidConnection2:Disconnect() end 
             if antiOCSprayGuiConnection then antiOCSprayGuiConnection:Disconnect() end 
             if antiOCSprayEffectConnection then antiOCSprayEffectConnection:Disconnect() end 
             if antiOCSprayToolConnection then antiOCSprayToolConnection:Disconnect() end 
-            Rayfield:Notify({ Title = "Disabled", Content = "Anti OC Spray disabled.", Duration = 5, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Disabled", Content = "Anti OC Spray disabled.", Duration = 5, Image = 4483362458 }) 
+            end
         end 
     end 
 }) 
-
+ 
 PlayerTab:CreateToggle({ 
     Name = "Anti Taze/Stun", 
     CurrentValue = false, 
@@ -2579,7 +2709,9 @@ PlayerTab:CreateToggle({
         antiArrestEnabled = Value 
         local cuffsScript = LocalPlayer.PlayerScripts:FindFirstChild("CuffsLocal") 
         if not cuffsScript then 
-            Rayfield:Notify({ Title = "Warning", Content = "CuffsLocal script not found. Game structure may have changed.", Duration = 5, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Warning", Content = "CuffsLocal script not found. Game structure may have changed.", Duration = 5, Image = 4483362458 }) 
+            end
             return 
         end 
         if antiArrestEnabled and cuffsScript then 
@@ -2590,15 +2722,19 @@ PlayerTab:CreateToggle({
                     cuffsScript.Disabled = true 
                 end 
             end) 
-            Rayfield:Notify({ Title = "Enabled", Content = "Anti Taze/Stun enabled (CuffsLocal disabled).", Duration = 5, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Enabled", Content = "Anti Taze/Stun enabled (CuffsLocal disabled).", Duration = 5, Image = 4483362458 }) 
+            end
         elseif not antiArrestEnabled and cuffsScript then 
             if antiArrestConnection then antiArrestConnection:Disconnect(); antiArrestConnection = nil end 
             cuffsScript.Disabled = originalCuffsState 
-            Rayfield:Notify({ Title = "Disabled", Content = "Anti Taze/Stun disabled.", Duration = 5, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Disabled", Content = "Anti Taze/Stun disabled.", Duration = 5, Image = 4483362458 }) 
+            end
         end 
     end 
 }) 
-
+ 
 PlayerTab:CreateToggle({ 
     Name = "Anti Arrest/Cuffs", 
     CurrentValue = false, 
@@ -2641,14 +2777,18 @@ PlayerTab:CreateToggle({
                     child:Destroy() 
                 end 
             end) 
-            Rayfield:Notify({ Title = "Enabled", Content = "Anti Arrest/Cuffs enabled.", Duration = 5, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Enabled", Content = "Anti Arrest/Cuffs enabled.", Duration = 5, Image = 4483362458 }) 
+            end
         else 
             if antiTazeHumanoidConnection then antiTazeHumanoidConnection:Disconnect() end 
             if antiTazeHumanoidConnection2 then antiTazeHumanoidConnection2:Disconnect() end 
             if antiTazeGuiConnection then antiTazeGuiConnection:Disconnect() end 
             if antiTazeEffectConnection then antiTazeEffectConnection:Disconnect() end 
             if antiTazeToolConnection then antiTazeToolConnection:Disconnect() end 
-            Rayfield:Notify({ Title = "Disabled", Content = "Anti Arrest/Cuffs disabled.", Duration = 5, Image = 4483362458 }) 
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Disabled", Content = "Anti Arrest/Cuffs disabled.", Duration = 5, Image = 4483362458 }) 
+            end
         end 
     end 
 }) 
@@ -2691,18 +2831,30 @@ PlayerTab:CreateButton({
             player.CameraMaxZoomDistance = 99999
             player.CameraMode = Enum.CameraMode.Classic
             isUnlocked = true
-            Rayfield:Notify({ Title = "Activated", Content = "Camera unlocked for First/Third Person!", Duration = 3, Image = 4483362458 })
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Activated", Content = "Camera unlocked for First/Third Person!", Duration = 3, Image = 4483362458 })
+            end
         else
             player.CameraMaxZoomDistance = 400 -- Default max zoom distance
             player.CameraMode = Enum.CameraMode.LockFirstPerson -- Reset to default or game-specific mode
             isUnlocked = false
-            Rayfield:Notify({ Title = "Deactivated", Content = "Camera reverted to default!", Duration = 3, Image = 4483362458 })
+            if not noNotifications then
+                Rayfield:Notify({ Title = "Deactivated", Content = "Camera reverted to default!", Duration = 3, Image = 4483362458 })
+            end
         end
     end
 })
  
 -- // MISC SECTION 
 local MiscTab = Window:CreateTab("Misc", 4483362458) 
+
+MiscTab:CreateToggle({
+    Name = "Disable All Notifications",
+    CurrentValue = false,
+    Callback = function(Value)
+        noNotifications = Value
+    end
+})
  
 -- // RenderStepped connections 
 RunService.RenderStepped:Connect(function() 
@@ -2718,5 +2870,11 @@ UserInputService.JumpRequest:Connect(function()
         char:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping) 
     end 
 end) 
- 
+
+-- Random FOV Color on script load
+FOVColor = Color3.new(math.random(), math.random(), math.random())
+
+-- To mitigate frame drops, reduce auto refresh frequency (e.g., every 10 seconds instead of 5)
+-- Also, ensure connections are minimal and use Heartbeat where possible
+
 print("✅ Script loaded successfully!")
