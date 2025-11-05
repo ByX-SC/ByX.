@@ -76,9 +76,6 @@ local antiTazeHumanoidConnection2 = nil
 local antiTazeGuiConnection = nil 
 local antiTazeEffectConnection = nil 
 local antiTazeToolConnection = nil 
-
--- Global notification toggle
-local noNotifications = false
  
 -- // INFO TAB 
 local InfoTab = Window:CreateTab("Info", 4483362458) 
@@ -89,13 +86,9 @@ InfoTab:CreateButton({
         local link = "https://www.youtube.com/@6rb-l5r" 
         if setclipboard then 
             setclipboard(link) 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Link Copied!", Content = "The link has been copied to your clipboard.", Duration = 3, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Link Copied!", Content = "The link has been copied to your clipboard.", Duration = 3, Image = 4483362458 }) 
         else 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Error", Content = "Your executor does not support clipboard copying. Link: " .. link, Duration = 5, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Error", Content = "Your executor does not support clipboard copying. Link: " .. link, Duration = 5, Image = 4483362458 }) 
         end 
     end 
 }) 
@@ -140,7 +133,7 @@ local camera = workspace.CurrentCamera
 -- State variables for new ESP features
 local enableMainESP = false
 local showBox = false
-local show3DBox1 = false -- Renamed to 3D Box 1
+local show3DBox = false
 local showHealthNew = false
 local showName = false
 local showDist = false
@@ -180,7 +173,7 @@ local function createNewESP(player)
     box.Color = Color3.new(1, 1, 1)
     box.Visible = false
 
-    -- 3D Box 1 Lines (original 12 lines)
+    -- 3D Box Lines (12 lines for a full box)
     local lines = {}
     for i = 1, 12 do
         local line = Drawing.new("Line")
@@ -190,7 +183,7 @@ local function createNewESP(player)
         lines[i] = line
     end
 
-    -- Health Bar 1
+    -- Health Bar
     local healthBg = Drawing.new("Line")
     healthBg.Color = Color3.new(0, 0, 0) -- Black background/border
     healthBg.Visible = false
@@ -288,8 +281,8 @@ local function updateNewESP()
                     draws.box.Visible = false
                 end
 
-                -- 3D Box 1 (original version, if enabled)
-                if show3DBox1 then
+                -- 3D Box (if enabled)
+                if show3DBox then
                     local teamColor = player.Team and player.Team.TeamColor.Color or Color3.new(1, 1, 1)
                     local halfSize = Vector3.new(2, 5, 1) / 2  -- Approx character size: width 2, height 5, depth 1
                     local corners = {
@@ -336,7 +329,7 @@ local function updateNewESP()
                     for _, line in ipairs(draws.lines) do line.Visible = false end
                 end
 
-                -- Health Bar 1 (if enabled) with black borders
+                -- Health Bar (if enabled) with black borders
                 if showHealthNew then
                     local healthPct = humanoid.Health / humanoid.MaxHealth
                     local barHeight = sizeY
@@ -432,7 +425,7 @@ end
 
 local function refreshNewESP()
     disableNewESP()
-    if showBox or show3DBox1 or showHealthNew or showName or showDist or showTool then
+    if showBox or show3DBox or showHealthNew or showName or showDist or showTool then
         enableNewESP()
     end
 end
@@ -1230,12 +1223,12 @@ function enableStickmanESP()
             espObjects[player] = nil
         end
     end)
-    connections.renderStepped = RunService.RenderStepped:Connect(updateStickmanESP)
+    connections.renderUpdate = game:GetService("RunService").Heartbeat:Connect(updateStickmanESP)  -- Changed to Heartbeat
 end
 
 function disableStickmanESP()
-    for key, conn in pairs(connections) do
-        if conn then conn:Disconnect() end
+    for _, connection in pairs(connections) do
+        connection:Disconnect()
     end
     connections = {}
     for player, esp in pairs(espObjects) do
@@ -1249,37 +1242,95 @@ function disableStickmanESP()
     espObjects = {}
 end
 
-local function RefreshAllStickman()
-    disableStickmanESP()
-    if espSettings.Enabled then
-        enableStickmanESP()
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        player.CharacterAdded:Connect(function()
+            if ESPEnabled or ShowHealth or ShowInventory then task.wait(0.5) CreateESP(player) end
+            if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end
+            if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end
+            if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end
+        end)
+        if player.Character and (ESPEnabled or ShowHealth or ShowInventory) then task.spawn(function() task.wait(0.5) CreateESP(player) end) end
+        if player.Character and Box3DEnabled then task.spawn(function() task.wait(0.5) Create3DBox(player) end) end
+        if player.Character and (showBox or show3DBox or showHealthNew or showName or showDist or showTool) then task.spawn(function() task.wait(0.5) createNewESP(player) end) end
     end
 end
+
+Players.PlayerAdded:Connect(function(player)
+    if player ~= LocalPlayer then
+        player.CharacterAdded:Connect(function()
+            if ESPEnabled or ShowHealth or ShowInventory then task.wait(0.5) CreateESP(player) end
+            if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end
+            if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end
+            if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end
+        end)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    RemoveESP(player)
+    Remove3DBox(player)
+end)
+
+game:GetService("RunService").Heartbeat:Connect(function()
+    if ESPEnabled or ShowHealth or ShowInventory then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
+                task.spawn(function() CreateESP(player) end)
+            end
+        end
+    end
+    if Box3DEnabled then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
+                task.spawn(function() Create3DBox(player) Update3DBox(player) end)
+            end
+        end
+    end
+end)
+
+-- Players Visuals Section (بدل الدروب داون، عناوين وتوجلات فردية)
+VisualsTab:CreateLabel("Players Visuals")  -- نص عنوان "Players Visuals"
 
 VisualsTab:CreateToggle({
     Name = "Enable ESP",
     CurrentValue = false,
     Callback = function(Value)
         ESPEnabled = Value
-        if Value then
-            RefreshESP()
-        end
-        UpdateESPVisibilities()
-        CleanupUnusedESP()
-        if not noNotifications then
-            Rayfield:Notify({ Title = "Activated", Content = "ESP enabled.", Duration = 5, Image = 4483362458 })
+        if ESPEnabled then
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
+                    task.spawn(function() CreateESP(player) end)
+                end
+            end
+            UpdateESPVisibilities()
+        else
+            for _, espHolder in pairs(ESPObjects) do
+                if espHolder.Highlight then espHolder.Highlight:Destroy() end
+                espHolder.Highlight = nil
+            end
+            UpdateESPVisibilities()
+            CleanupUnusedESP()
         end
     end
 })
 
 VisualsTab:CreateToggle({
-    Name = "Show Health",
+    Name = "Show Health Bar",
     CurrentValue = false,
     Callback = function(Value)
         ShowHealth = Value
-        if ShowHealth then RefreshESP() end
-        UpdateESPVisibilities()
-        CleanupUnusedESP()
+        if ShowHealth then
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
+                    task.spawn(function() CreateESP(player) end)
+                end
+            end
+            UpdateESPVisibilities()
+        else
+            UpdateESPVisibilities()
+            CleanupUnusedESP()
+        end
     end
 })
 
@@ -1288,125 +1339,60 @@ VisualsTab:CreateToggle({
     CurrentValue = false,
     Callback = function(Value)
         ShowInventory = Value
-        if ShowInventory then RefreshESP() end
-        UpdateESPVisibilities()
-        CleanupUnusedESP()
+        if ShowInventory then
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
+                    task.spawn(function() CreateESP(player) end)
+                end
+            end
+            UpdateESPVisibilities()
+        else
+            UpdateESPVisibilities()
+            CleanupUnusedESP()
+        end
     end
 })
 
 VisualsTab:CreateToggle({
-    Name = "3D Box ESP",
+    Name = "Enable 3D Box ESP",
     CurrentValue = false,
     Callback = function(Value)
         Box3DEnabled = Value
-        Refresh3DBox()
-        if Value then
-            connections.playerAdded = Players.PlayerAdded:Connect(function(player)
-                player.CharacterAdded:Connect(function()
-                    Create3DBox(player)
+        if Box3DEnabled then
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    task.spawn(function() Create3DBox(player) Update3DBox(player) end)
                 end
-            end)
-            connections.renderStepped = RunService.RenderStepped:Connect(function()
-                for player in pairs(Box3DObjects) do
-                    Update3DBox(player)
-                end
-            end)
-        else
-            for key, conn in pairs(connections) do
-                if key:find("3DBox") then conn:Disconnect() end
             end
+            local updateConnection
+            updateConnection = game:GetService("RunService").Heartbeat:Connect(function()  -- Changed to Heartbeat
+                if not Box3DEnabled then
+                    updateConnection:Disconnect()
+                    return
+                end
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                        Update3DBox(player)
+                    end
+                end
+            end)
+            Rayfield:Notify({ Title = "3D Box ESP", Content = "تم تفعيل 3D Box ESP", Duration = 3, Image = 4483362458 })
+        else
             for player in pairs(Box3DObjects) do
                 Remove3DBox(player)
             end
+            Box3DObjects = {}
+            Rayfield:Notify({ Title = "3D Box ESP", Content = "تم إيقاف 3D Box ESP", Duration = 3, Image = 4483362458 })
         end
     end
 })
 
 VisualsTab:CreateToggle({
-    Name = "Material ESP",
-    CurrentValue = false,
-    Callback = function(Value)
-        materialESPEnabled = Value
-        refreshMaterialESP()
-        if Value then
-            connections.workspaceDescendantAdded = workspace.DescendantAdded:Connect(function(obj)
-                if materialESPEnabled and obj:IsA("BasePart") and (obj.Material == Enum.Material.Plastic or obj.Material == Enum.Material.Metal) then
-                    createMaterialESP(obj)
-                end
-            end)
-        else
-            if connections.workspaceDescendantAdded then connections.workspaceDescendantAdded:Disconnect() end
-            refreshMaterialESP()
-        end
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "Box ESP",
-    CurrentValue = false,
-    Callback = function(Value)
-        boxEnabled = Value
-        refreshBoxESP()
-        if Value then
-            connections.workspaceDescendantAdded = workspace.DescendantAdded:Connect(function(obj)
-                if boxEnabled and (obj:IsA("Part") or obj:IsA("BasePart")) and (obj.Name:lower():find("metal") or obj.Name:lower():find("plastic")) then
-                    createBoxESP(obj)
-                    updateBoxESP(obj)
-                end
-            end)
-        else
-            if connections.workspaceDescendantAdded then connections.workspaceDescendantAdded:Disconnect() end
-            refreshBoxESP()
-        end
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "Vents ESP",
-    CurrentValue = false,
-    Callback = function(Value)
-        ventsEnabled = Value
-        refreshVents()
-        if Value then
-            connections.workspaceDescendantAdded = workspace.DescendantAdded:Connect(function(obj)
-                if ventsEnabled and obj:IsA("Model") and obj.Name:lower():find("vent") then
-                    createVentHighlight(obj)
-                    updateVentHighlight(obj)
-                end
-            end)
-        else
-            if connections.workspaceDescendantAdded then connections.workspaceDescendantAdded:Disconnect() end
-            refreshVents()
-        end
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "Garbage ESP",
-    CurrentValue = false,
-    Callback = function(Value)
-        garbageEnabled = Value
-        refreshGarbage()
-        if Value then
-            connections.workspaceDescendantAdded = workspace.DescendantAdded:Connect(function(obj)
-                if garbageEnabled and (obj:IsA("Model") or obj:IsA("Part") or obj:IsA("BasePart")) and obj.Name:lower():find("bin") then
-                    createGarbageHighlight(obj)
-                    updateGarbageHighlight(obj)
-                end
-            end)
-        else
-            if connections.workspaceDescendantAdded then connections.workspaceDescendantAdded:Disconnect() end
-            refreshGarbage()
-        end
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "Stickman ESP",
+    Name = "Skeleton ESP 2",
     CurrentValue = false,
     Callback = function(Value)
         espSettings.Enabled = Value
-        if Value then
+        if espSettings.Enabled then
             enableStickmanESP()
         else
             disableStickmanESP()
@@ -1415,70 +1401,183 @@ VisualsTab:CreateToggle({
 })
 
 VisualsTab:CreateToggle({
+   Name = "Show 2D Box (Rectangle)",
+   CurrentValue = false,
+   Callback = function(state)
+      showBox = state
+      refreshNewESP()
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Show 3D Box 1",
+   CurrentValue = false,
+   Callback = function(state)
+      show3DBox = state
+      refreshNewESP()
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Show Health Bar 1",
+   CurrentValue = false,
+   Callback = function(state)
+      showHealthNew = state
+      refreshNewESP()
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Show Name",
+   CurrentValue = false,
+   Callback = function(state)
+      showName = state
+      refreshNewESP()
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Show Distance",
+   CurrentValue = false,
+   Callback = function(state)
+      showDist = state
+      refreshNewESP()
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Show Equipped Tool",
+   CurrentValue = false,
+   Callback = function(state)
+      showTool = state
+      refreshNewESP()
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Enable ESP (Main)",
+   CurrentValue = false,
+   Callback = function(state)
+      enableMainESP = state
+      if state then
+         showBox = true
+         show3DBox = true
+         showHealthNew = true
+         showName = true
+         showDist = true
+         showTool = true
+         refreshNewESP()
+      else
+         showBox = false
+         show3DBox = false
+         showHealthNew = false
+         showName = false
+         showDist = false
+         showTool = false
+         refreshNewESP()
+      end
+   end,
+})
+
+-- Map Visuals Section (عنوان وتوجلات فردية)
+VisualsTab:CreateLabel("Map Visuals")  -- نص عنوان "Map Visuals"
+
+VisualsTab:CreateToggle({
+    Name = "Show Metal/Plastic",
+    CurrentValue = false,
+    Callback = function(Value)
+        boxEnabled = Value
+        refreshBoxESP()
+        print(Value and "Show Metal/Plastic enabled!" or "Show Metal/Plastic disabled!")
+    end
+})
+
+VisualsTab:CreateToggle({
+    Name = "Show Vents",
+    CurrentValue = false,
+    Callback = function(Value)
+        ventsEnabled = Value
+        refreshVents()
+        print(Value and "Vents ESP enabled!" or "Vents ESP disabled!")
+    end
+})
+
+VisualsTab:CreateToggle({
+    Name = "Show Garbage",
+    CurrentValue = false,
+    Callback = function(Value)
+        garbageEnabled = Value
+        refreshGarbage()
+        print(Value and "Garbage ESP enabled!" or "Garbage ESP disabled!")
+    end
+})
+
+VisualsTab:CreateToggle({
     Name = "Xray",
     CurrentValue = false,
     Callback = function(Value)
         xrayEnabled = Value
-        if Value then
-            connections.workspaceDescendantAdded = workspace.DescendantAdded:Connect(function(obj)
-                if xrayEnabled and obj:IsA("BasePart") then
-                    obj.Transparency = 0.8
-                end
-            end)
-            for _, obj in pairs(workspace:GetDescendants()) do
-                if obj:IsA("BasePart") then
-                    obj.Transparency = 0.8
-                end
+        if xrayEnabled then
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v:IsA("BasePart") then v.LocalTransparencyModifier = 0.5 end
             end
         else
-            if connections.workspaceDescendantAdded then connections.workspaceDescendantAdded:Disconnect() end
-            for _, obj in pairs(workspace:GetDescendants()) do
-                if obj:IsA("BasePart") then
-                    obj.Transparency = 0
-                end
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v:IsA("BasePart") then v.LocalTransparencyModifier = 0 end
             end
         end
     end
 })
 
-VisualsTab:CreateToggle({
-    Name = "Auto Refresh",
-    CurrentValue = false,
-    Callback = function(Value)
-        autoRefreshEnabled = Value
-        if Value then
-            connections.playerAdded = Players.PlayerAdded:Connect(function(player)
-                player.CharacterAdded:Connect(function()
-                    RefreshAllESP()
-                end
-            end)
-            connections.playerRemoving = Players.PlayerRemoving:Connect(function()
-                RefreshAllESP()
-            end)
-            connections.characterAdded = LocalPlayer.CharacterAdded:Connect(function()
-                RefreshAllESP()
-            end)
-            autoRefreshConnection = RunService.Heartbeat:Connect(function()
-                if autoRefreshEnabled then
+-- الفاصل
+VisualsTab:CreateLabel("__________")  -- خط فاصل "____" (طولته شوية عشان يبدو أفضل)
+
+-- Auto Refresh Toggle (كما هو، بعد الفاصل)
+VisualsTab:CreateToggle({ 
+    Name = "Auto Refresh", 
+    CurrentValue = false, 
+    Flag = "AUTO_REFRESH", 
+    Callback = function(Value) 
+        autoRefreshEnabled = Value 
+        if autoRefreshEnabled then 
+            for _, player in pairs(Players:GetPlayers()) do 
+                if player ~= LocalPlayer then 
+                    connections[player.Name .. "_CharacterAdded"] = player.CharacterAdded:Connect(function() 
+                        if ESPEnabled then task.wait(0.5) CreateESP(player) end 
+                        if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end 
+                        if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end 
+                        if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end 
+                    end) 
+                end 
+            end 
+            connections.PlayerAdded = Players.PlayerAdded:Connect(function(player) 
+                if player ~= LocalPlayer then 
+                    connections[player.Name .. "_CharacterAdded"] = player.CharacterAdded:Connect(function() 
+                        if ESPEnabled then task.wait(0.5) CreateESP(player) end 
+                        if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end 
+                        if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end 
+                        if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end 
+                    end) 
+                end 
+            end) 
+            RefreshAllESP() 
+            autoRefreshConnection = RunService.Heartbeat:Connect(function() 
+                if autoRefreshEnabled then 
                     autoRefreshEnabled = false 
                     task.wait(5) 
                     autoRefreshEnabled = true 
-                    RefreshAllESP()
-                end
-            end)
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Activated", Content = "Auto Refresh enabled for all Visuals.", Duration = 5, Image = 4483362458 })
-            end
+                    RefreshAllESP() 
+                end 
+            end) 
+            Rayfield:Notify({ Title = "Activated", Content = "Auto Refresh enabled for all Visuals.", Duration = 5, Image = 4483362458 }) 
         else 
             for key, connection in pairs(connections) do 
                 if key:find("_CharacterAdded") or key == "PlayerAdded" then 
                     connection:Disconnect() 
                 end 
             end 
-            if autoRefreshConnection then autoRefreshConnection:Disconnect() end
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Deactivated", Content = "Auto Refresh disabled.", Duration = 5, Image = 4483362458 })
-            end
+            if autoRefreshConnection then autoRefreshConnection:Disconnect() end 
+            Rayfield:Notify({ Title = "Deactivated", Content = "Auto Refresh disabled.", Duration = 5, Image = 4483362458 }) 
         end 
     end 
 }) 
@@ -1582,33 +1681,6 @@ VisualsTab:CreateSlider({
    Callback = function(Value)
       maxDistance = Value
    end,
-})
-
-VisualsTab:CreateToggle({
-    Name = "2D Box",
-    CurrentValue = false,
-    Callback = function(Value)
-        showBox = Value
-        refreshNewESP()
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "Health Bar 1",
-    CurrentValue = false,
-    Callback = function(Value)
-        showHealthNew = Value
-        refreshNewESP()
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "3D Box 1",
-    CurrentValue = false,
-    Callback = function(Value)
-        show3DBox1 = Value
-        refreshNewESP()
-    end
 })
  
 -- // COMBAT SECTION (Aimbot, FOV, Desync, Silent Aim, Kill All Showcase) 
@@ -2483,16 +2555,12 @@ ItemsTab:CreateButton({
     Callback = function() 
         local player = LocalPlayer 
         if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 }) 
             return 
         end 
         local isPrisoner = player.Team and table.find(prisonerTeams, player.Team.Name) 
         if not isPrisoner then 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Access Denied", Content = "Only prisoners can take this item!", Duration = 3, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Access Denied", Content = "Only prisoners can take this item!", Duration = 3, Image = 4483362458 }) 
             return 
         end 
         local maxAttempts, attempt = 3, 1 
@@ -2509,17 +2577,13 @@ ItemsTab:CreateButton({
                 clonedTool.Parent = player.Backpack 
                 local humanoid = player.Character:FindFirstChild("Humanoid") 
                 if humanoid then humanoid:EquipTool(clonedTool) end 
-                if not noNotifications then
-                    Rayfield:Notify({ Title = "Success", Content = "Keycard added to inventory!", Duration = 3, Image = 4483362458 }) 
-                end
+                Rayfield:Notify({ Title = "Success", Content = "Keycard added to inventory!", Duration = 3, Image = 4483362458 }) 
             elseif attempt < maxAttempts then 
                 attempt = attempt + 1 
                 task.wait(0.5) 
                 tryGetKeycard() 
             else 
-                if not noNotifications then
-                    Rayfield:Notify({ Title = "Error", Content = "Keycard not found. Try again.", Duration = 5, Image = 4483362458 }) 
-                end
+                Rayfield:Notify({ Title = "Error", Content = "Keycard not found. Try again.", Duration = 5, Image = 4483362458 }) 
             end 
         end 
         tryGetKeycard() 
@@ -2548,24 +2612,16 @@ PlayerTab:CreateButton({
                             staminaConnection:Disconnect() 
                         end 
                     end) 
-                    if not noNotifications then
-                        Rayfield:Notify({ Title = "Success", Content = "Infinite stamina enabled!", Duration = 5, Image = 4483362458 }) 
-                    end
+                    Rayfield:Notify({ Title = "Success", Content = "Infinite stamina enabled!", Duration = 5, Image = 4483362458 }) 
                 else 
-                    if not noNotifications then
-                        Rayfield:Notify({ Title = "Info", Content = "Infinite stamina disabled!", Duration = 5, Image = 4483362458 }) 
-                    end
+                    Rayfield:Notify({ Title = "Info", Content = "Infinite stamina disabled!", Duration = 5, Image = 4483362458 }) 
                 end 
             else 
-                if not noNotifications then
-                    Rayfield:Notify({ Title = "Error", Content = "Stamina not found.", Duration = 5, Image = 4483362458 }) 
-                end
+                Rayfield:Notify({ Title = "Error", Content = "Stamina not found.", Duration = 5, Image = 4483362458 }) 
                 infiniteStaminaEnabled = false 
             end 
         else 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Error", Content = "Try again.", Duration = 5, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Error", Content = "Try again.", Duration = 5, Image = 4483362458 }) 
             infiniteStaminaEnabled = false 
         end 
     end 
@@ -2631,18 +2687,14 @@ PlayerTab:CreateToggle({
                     if localScript then localScript.Disabled = true end 
                 end 
             end) 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Enabled", Content = "Anti OC Spray enabled.", Duration = 5, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Enabled", Content = "Anti OC Spray enabled.", Duration = 5, Image = 4483362458 }) 
         else 
             if antiOCSprayHumanoidConnection then antiOCSprayHumanoidConnection:Disconnect() end 
             if antiOCSprayHumanoidConnection2 then antiOCSprayHumanoidConnection2:Disconnect() end 
             if antiOCSprayGuiConnection then antiOCSprayGuiConnection:Disconnect() end 
             if antiOCSprayEffectConnection then antiOCSprayEffectConnection:Disconnect() end 
             if antiOCSprayToolConnection then antiOCSprayToolConnection:Disconnect() end 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Disabled", Content = "Anti OC Spray disabled.", Duration = 5, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Disabled", Content = "Anti OC Spray disabled.", Duration = 5, Image = 4483362458 }) 
         end 
     end 
 }) 
@@ -2685,18 +2737,14 @@ PlayerTab:CreateToggle({
                     if localScript then localScript.Disabled = true end 
                 end 
             end) 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Enabled", Content = "Anti OC Spray enabled.", Duration = 5, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Enabled", Content = "Anti OC Spray enabled.", Duration = 5, Image = 4483362458 }) 
         else 
             if antiOCSprayHumanoidConnection then antiOCSprayHumanoidConnection:Disconnect() end 
             if antiOCSprayHumanoidConnection2 then antiOCSprayHumanoidConnection2:Disconnect() end 
             if antiOCSprayGuiConnection then antiOCSprayGuiConnection:Disconnect() end 
             if antiOCSprayEffectConnection then antiOCSprayEffectConnection:Disconnect() end 
             if antiOCSprayToolConnection then antiOCSprayToolConnection:Disconnect() end 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Disabled", Content = "Anti OC Spray disabled.", Duration = 5, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Disabled", Content = "Anti OC Spray disabled.", Duration = 5, Image = 4483362458 }) 
         end 
     end 
 }) 
@@ -2709,9 +2757,7 @@ PlayerTab:CreateToggle({
         antiArrestEnabled = Value 
         local cuffsScript = LocalPlayer.PlayerScripts:FindFirstChild("CuffsLocal") 
         if not cuffsScript then 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Warning", Content = "CuffsLocal script not found. Game structure may have changed.", Duration = 5, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Warning", Content = "CuffsLocal script not found. Game structure may have changed.", Duration = 5, Image = 4483362458 }) 
             return 
         end 
         if antiArrestEnabled and cuffsScript then 
@@ -2722,15 +2768,11 @@ PlayerTab:CreateToggle({
                     cuffsScript.Disabled = true 
                 end 
             end) 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Enabled", Content = "Anti Taze/Stun enabled (CuffsLocal disabled).", Duration = 5, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Enabled", Content = "Anti Taze/Stun enabled (CuffsLocal disabled).", Duration = 5, Image = 4483362458 }) 
         elseif not antiArrestEnabled and cuffsScript then 
             if antiArrestConnection then antiArrestConnection:Disconnect(); antiArrestConnection = nil end 
             cuffsScript.Disabled = originalCuffsState 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Disabled", Content = "Anti Taze/Stun disabled.", Duration = 5, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Disabled", Content = "Anti Taze/Stun disabled.", Duration = 5, Image = 4483362458 }) 
         end 
     end 
 }) 
@@ -2777,18 +2819,14 @@ PlayerTab:CreateToggle({
                     child:Destroy() 
                 end 
             end) 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Enabled", Content = "Anti Arrest/Cuffs enabled.", Duration = 5, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Enabled", Content = "Anti Arrest/Cuffs enabled.", Duration = 5, Image = 4483362458 }) 
         else 
             if antiTazeHumanoidConnection then antiTazeHumanoidConnection:Disconnect() end 
             if antiTazeHumanoidConnection2 then antiTazeHumanoidConnection2:Disconnect() end 
             if antiTazeGuiConnection then antiTazeGuiConnection:Disconnect() end 
             if antiTazeEffectConnection then antiTazeEffectConnection:Disconnect() end 
             if antiTazeToolConnection then antiTazeToolConnection:Disconnect() end 
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Disabled", Content = "Anti Arrest/Cuffs disabled.", Duration = 5, Image = 4483362458 }) 
-            end
+            Rayfield:Notify({ Title = "Disabled", Content = "Anti Arrest/Cuffs disabled.", Duration = 5, Image = 4483362458 }) 
         end 
     end 
 }) 
@@ -2831,30 +2869,18 @@ PlayerTab:CreateButton({
             player.CameraMaxZoomDistance = 99999
             player.CameraMode = Enum.CameraMode.Classic
             isUnlocked = true
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Activated", Content = "Camera unlocked for First/Third Person!", Duration = 3, Image = 4483362458 })
-            end
+            Rayfield:Notify({ Title = "Activated", Content = "Camera unlocked for First/Third Person!", Duration = 3, Image = 4483362458 })
         else
             player.CameraMaxZoomDistance = 400 -- Default max zoom distance
             player.CameraMode = Enum.CameraMode.LockFirstPerson -- Reset to default or game-specific mode
             isUnlocked = false
-            if not noNotifications then
-                Rayfield:Notify({ Title = "Deactivated", Content = "Camera reverted to default!", Duration = 3, Image = 4483362458 })
-            end
+            Rayfield:Notify({ Title = "Deactivated", Content = "Camera reverted to default!", Duration = 3, Image = 4483362458 })
         end
     end
 })
  
 -- // MISC SECTION 
 local MiscTab = Window:CreateTab("Misc", 4483362458) 
-
-MiscTab:CreateToggle({
-    Name = "Disable All Notifications",
-    CurrentValue = false,
-    Callback = function(Value)
-        noNotifications = Value
-    end
-})
  
 -- // RenderStepped connections 
 RunService.RenderStepped:Connect(function() 
@@ -2870,11 +2896,5 @@ UserInputService.JumpRequest:Connect(function()
         char:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping) 
     end 
 end) 
-
--- Random FOV Color on script load
-FOVColor = Color3.new(math.random(), math.random(), math.random())
-
--- To mitigate frame drops, reduce auto refresh frequency (e.g., every 10 seconds instead of 5)
--- Also, ensure connections are minimal and use Heartbeat where possible
-
+ 
 print("✅ Script loaded successfully!")
