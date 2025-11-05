@@ -1785,8 +1785,11 @@ local function GetPredictedPosition(targetPart)
     local predictedPos = basePos + offset
     if NoMissBullets then
         -- ميزة No Miss Bullets: جذب الرصاص نحو الهدف لتقليل الـ misses
-        local magnetOffset = (targetPart.Position - predictedPos).Unit * BulletMagnetStrength
-        predictedPos = predictedPos + magnetOffset
+        local diff = (targetPart.Position - predictedPos)
+        if diff.Magnitude > 0 then
+            local magnetOffset = diff.Unit * BulletMagnetStrength
+            predictedPos = predictedPos + magnetOffset
+        end
     end
     return ApplyHumanization(predictedPos) -- إضافة Humanization
 end 
