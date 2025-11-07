@@ -1692,6 +1692,12 @@ local DesyncEnabled = false
 local killAllEnabled = false 
 local FOVRadius = 150 
 local Smoothness = 0.15 
+local HorizontalSmoothness = 0.15  -- New: Separate horizontal smoothness
+local VerticalSmoothness = 0.15    -- New: Separate vertical smoothness
+local RotationSmoothness = 0.15    -- New: Smoothness for rotation
+local ApplySmoothnessToAll = false -- New: Toggle to apply smoothness to all aimbot features
+local AimStrength = 1.0            -- New: Aim strength (0-1, 1 = full aim, lower = weaker pull)
+local Stickiness = 0.5             -- New: Stickiness degree (how much it locks on player/network)
 local StickToTarget = false 
 local IgnoreWalls = false 
 local ShowFOVCircle = true 
@@ -1712,7 +1718,7 @@ local originalFOV = nil
 local killAllAimbotEnabled = false 
 local killAllCameraConnection = nil 
 local playerAddedConnection = nil 
-local FOVColor = Color3.fromRGB(255, 0, 0) 
+local FOVColor = Color3.fromRGB(255, 255, 255)  -- Changed to white by default
 local hasNotifiedNoTarget = false 
 local SelectedTeams = { 
     ["Minimum Security"] = false, 
@@ -1822,7 +1828,7 @@ local function CreateFOVCircle()
     FOVCircle = Drawing.new("Circle") 
     FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
     FOVCircle.Radius = FOVRadius 
-    FOVCircle.Color = Color3.new(math.random(), math.random(), math.random())  -- Random color on creation
+    FOVCircle.Color = Color3.fromRGB(255, 255, 255)  -- White by default
     FOVCircle.Thickness = 2 
     FOVCircle.Filled = false 
     FOVCircle.Visible = (AimbotEnabled or killAllAimbotEnabled) and ShowFOVCircle 
@@ -2142,7 +2148,18 @@ CombatTab:CreateToggle({
                     if not SilentAim and CurrentTarget and CurrentTarget.Character then 
                         local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
                         if targetPart then
-                            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)), Smoothness) 
+                            local targetPos = GetPredictedPosition(targetPart)
+                            local aimDirection = (targetPos - Camera.CFrame.Position).Unit * AimStrength  -- Apply aim strength
+                            local stickOffset = (targetPart.Position - Camera.CFrame.Position).Unit * Stickiness  -- Apply stickiness
+                            local finalPos = targetPos + stickOffset
+                            local currentSmoothness = ApplySmoothnessToAll and Smoothness or HorizontalSmoothness  -- Apply global smoothness if toggled
+                            local currentVerticalSmooth = ApplySmoothnessToAll and Smoothness or VerticalSmoothness
+                            local currentRotationSmooth = ApplySmoothnessToAll and Smoothness or RotationSmoothness
+                            local newCFrame = CFrame.new(Camera.CFrame.Position, finalPos)
+                            local newLookAt = newCFrame.LookVector:Lerp(Camera.CFrame.LookVector, currentSmoothness)  -- Horizontal
+                            local newUp = newCFrame.UpVector:Lerp(Camera.CFrame.UpVector, currentVerticalSmooth)  -- Vertical
+                            local newRight = newCFrame.RightVector:Lerp(Camera.CFrame.RightVector, currentRotationSmooth)  -- Rotation
+                            Camera.CFrame = CFrame.fromMatrix(Camera.CFrame.Position, newRight, newUp, -newLookAt) 
                         end
                     end 
                 end 
@@ -2265,6 +2282,37 @@ CombatTab:CreateSlider({
     Callback = function(Value) Smoothness = Value end 
 }) 
 
+-- New Smoothness controls
+CombatTab:CreateSlider({ 
+    Name = "Horizontal Smoothness", 
+    Range = {0.05, 0.5}, 
+    Increment = 0.01, 
+    CurrentValue = 0.15, 
+    Callback = function(Value) HorizontalSmoothness = Value end 
+}) 
+
+CombatTab:CreateSlider({ 
+    Name = "Vertical Smoothness", 
+    Range = {0.05, 0.5}, 
+    Increment = 0.01, 
+    CurrentValue = 0.15, 
+    Callback = function(Value) VerticalSmoothness = Value end 
+}) 
+
+CombatTab:CreateSlider({ 
+    Name = "Rotation Smoothness", 
+    Range = {0.05, 0.5}, 
+    Increment = 0.01, 
+    CurrentValue = 0.15, 
+    Callback = function(Value) RotationSmoothness = Value end 
+}) 
+
+CombatTab:CreateToggle({ 
+    Name = "Apply Smoothness to All", 
+    CurrentValue = false, 
+    Callback = function(Value) ApplySmoothnessToAll = Value end 
+}) 
+
 CombatTab:CreateToggle({ 
     Name = "Stick to Target", 
     CurrentValue = false, 
@@ -2304,7 +2352,7 @@ CombatTab:CreateSlider({
 
 CombatTab:CreateColorPicker({ 
     Name = "FOV Circle Color", 
-    Color = Color3.fromRGB(255, 0, 0), 
+    Color = Color3.fromRGB(255, 255, 255), 
     Callback = function(Value) 
         FOVColor = Value 
         UpdateFOVCircle() 
@@ -2320,6 +2368,23 @@ CombatTab:CreateSlider({
     Flag = "AIM_ACCURACY", 
     Callback = function(Value) AimAccuracy = Value end 
 })
+
+-- New Aim Strength and Stickiness
+CombatTab:CreateSlider({ 
+    Name = "Aim Strength", 
+    Range = {0, 1}, 
+    Increment = 0.1, 
+    CurrentValue = 1.0, 
+    Callback = function(Value) AimStrength = Value end 
+}) 
+
+CombatTab:CreateSlider({ 
+    Name = "Stickiness Degree", 
+    Range = {0, 1}, 
+    Increment = 0.1, 
+    CurrentValue = 0.5, 
+    Callback = function(Value) Stickiness = Value end 
+}) 
 
 -- إضافات جديدة للـ UI
 
