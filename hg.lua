@@ -2,7 +2,7 @@
 local success, Rayfield 
 local maxAttempts, attempt = 3, 1 
 while attempt <= maxAttempts and not success do 
-    success, Rayfield = pcall(function() return loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Rayfield/main/source'))() end) 
+    success, Rayfield = pcall(function() return loadstring(game:HttpGet('https://sirius.menu/rayfield'))() end) 
     if not success then 
         warn("Failed to load Rayfield (Attempt " .. attempt .. "): " .. tostring(Rayfield)) 
         task.wait(1) 
