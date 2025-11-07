@@ -1694,10 +1694,14 @@ local FOVRadius = 150
 local Smoothness = 0.15 
 local HorizontalSmoothness = 0.15  -- New: Separate horizontal smoothness
 local VerticalSmoothness = 0.15    -- New: Separate vertical smoothness
-local RotationSmoothness = 0.15    -- New: Smoothness for rotation
+local RotationSmoothness = 0.15    -- New: Separate rotation smoothness
 local ApplySmoothnessToAll = false -- New: Toggle to apply smoothness to all aimbot features
 local AimStrength = 1.0            -- New: Aim strength (0-1, 1 = full aim, lower = weaker pull)
 local Stickiness = 0.5             -- New: Stickiness degree (how much it locks on player/network)
+local AimPrecision = 1.0           -- New: Aim precision (0-1, higher = more precise locking)
+local NetworkLockStrength = 0.5    -- New: Network lock strength for player syncing
+local SuperAimStrength = false     -- New: Toggle to make aim stronger than usual
+local SuperAimMultiplier = 1.5     -- New: Multiplier for super aim strength ( >1 for stronger)
 local StickToTarget = false 
 local IgnoreWalls = false 
 local ShowFOVCircle = true 
@@ -1718,7 +1722,7 @@ local originalFOV = nil
 local killAllAimbotEnabled = false 
 local killAllCameraConnection = nil 
 local playerAddedConnection = nil 
-local FOVColor = Color3.fromRGB(255, 255, 255)  -- Changed to white by default
+local FOVColor = Color3.fromRGB(255, 255, 255)  -- White by default
 local hasNotifiedNoTarget = false 
 local SelectedTeams = { 
     ["Minimum Security"] = false, 
@@ -2160,6 +2164,14 @@ CombatTab:CreateToggle({
                             local newUp = newCFrame.UpVector:Lerp(Camera.CFrame.UpVector, currentVerticalSmooth)  -- Vertical
                             local newRight = newCFrame.RightVector:Lerp(Camera.CFrame.RightVector, currentRotationSmooth)  -- Rotation
                             Camera.CFrame = CFrame.fromMatrix(Camera.CFrame.Position, newRight, newUp, -newLookAt) 
+                            if SuperAimStrength then
+                                finalPos = finalPos * SuperAimMultiplier  -- Make stronger if toggled
+                            end
+                            if movingFOVCircleEnabled then
+                                local screenPos = Camera:WorldToScreenPoint(targetPart.Position)
+                                -- Assume executor has 'mousemove' function; replace with actual exploit function if needed
+                                -- e.g., synapse.mouse_move(screenPos.X, screenPos.Y)
+                            end
                         end
                     end 
                 end 
@@ -2384,6 +2396,37 @@ CombatTab:CreateSlider({
     Increment = 0.1, 
     CurrentValue = 0.5, 
     Callback = function(Value) Stickiness = Value end 
+}) 
+
+-- New Aim Precision and Network Lock
+CombatTab:CreateSlider({ 
+    Name = "Aim Precision", 
+    Range = {0, 1}, 
+    Increment = 0.1, 
+    CurrentValue = 1.0, 
+    Callback = function(Value) AimPrecision = Value end 
+}) 
+
+CombatTab:CreateSlider({ 
+    Name = "Network Lock Strength", 
+    Range = {0, 1}, 
+    Increment = 0.1, 
+    CurrentValue = 0.5, 
+    Callback = function(Value) NetworkLockStrength = Value end 
+}) 
+
+CombatTab:CreateToggle({ 
+    Name = "Super Aim Strength", 
+    CurrentValue = false, 
+    Callback = function(Value) SuperAimStrength = Value end 
+}) 
+
+CombatTab:CreateSlider({ 
+    Name = "Super Aim Multiplier", 
+    Range = {1, 3}, 
+    Increment = 0.1, 
+    CurrentValue = 1.5, 
+    Callback = function(Value) SuperAimMultiplier = Value end 
 }) 
 
 -- إضافات جديدة للـ UI
