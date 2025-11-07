@@ -1692,12 +1692,22 @@ local DesyncEnabled = false
 local killAllEnabled = false 
 local FOVRadius = 150 
 local Smoothness = 0.15 
+local HorizontalSmoothness = 0.15  
+local VerticalSmoothness = 0.15    
+local RotationSmoothness = 0.15    
+local ApplySmoothnessToAll = false 
+local AimStrength = 1.0            
+local Stickiness = 0.5             
+local AimPrecision = 1.0           
+local NetworkLockStrength = 0.5    
+local SuperAimStrength = false     
+local SuperAimMultiplier = 1.5     
 local StickToTarget = false 
 local IgnoreWalls = false 
 local ShowFOVCircle = true 
 local PredictionEnabled = false 
 local BulletSpeed = 1000 
-local HumanizationFactor = 0.2 -- متغير جديد للـ Humanization Factor
+local HumanizationFactor = 0.2 
 local CurrentTarget = nil 
 local TargetPart = "Head" 
 local FOVCircle = nil 
@@ -1712,7 +1722,7 @@ local originalFOV = nil
 local killAllAimbotEnabled = false 
 local killAllCameraConnection = nil 
 local playerAddedConnection = nil 
-local FOVColor = Color3.fromRGB(255, 0, 0) 
+local FOVColor = Color3.fromRGB(255, 255, 255)  
 local hasNotifiedNoTarget = false 
 local SelectedTeams = { 
     ["Minimum Security"] = false, 
@@ -1725,30 +1735,30 @@ local SelectedTeams = {
     ["Civilian"] = false, 
     ["Dead Body"] = false 
 } 
-local AimAccuracy = 100  -- متغير موجود للـ Aim Stability/Accuracy (0-100, 100 = perfect hit, lower = more spread) 
+local AimAccuracy = 100  
 local aimbotConnection = nil 
 local outConnection = nil 
 
 -- إضافات جديدة للتخصيص الأكثر دقة
-local OffsetSpread = 1.0  -- Slider لـ Offset Spread (0-5 studs)
-local PredictionMultiplier = 1.0  -- Slider لـ Prediction Multiplier (0.5-2)
-local AimMovingTargetsOnly = false  -- Toggle لـ Aim at Moving Targets Only
-local VelocityThreshold = 5  -- Slider لـ Velocity Threshold (للـ moving targets)
-local AutoSwitchOnKill = false  -- Toggle لـ Auto-Switch Target on Kill
-local TargetPriority = "Closest"  -- Dropdown لـ Target Priority ("Closest", "Lowest Health", "Highest Threat")
-local TriggerbotEnabled = false  -- Toggle لـ Triggerbot
-local TriggerDelay = 100  -- Slider لـ Trigger Delay (0-500 ms)
-local AntiRecoilEnabled = false  -- Toggle لـ Anti-Recoil
-local RecoilFactor = 0.5  -- Slider لـ Recoil Factor (0-1)
-local ScanMode = "Fixed"  -- Dropdown لـ Scan Mode ("Fixed", "Dynamic")
-local DynamicFOV = false  -- Toggle لـ Dynamic FOV
-local MinFOVRadius = 50  -- Slider لـ Min FOV Radius
-local MaxFOVRadius = 300  -- Slider لـ Max FOV Radius
-local DynamicFOVMultiplier = 0.1  -- Slider لـ Dynamic FOV Multiplier (بناءً على distance)
-local EnableStats = false  -- Toggle لـ Enable Stats
-local Stats = { Kills = 0, Misses = 0 }  -- Table لتخزين الـ stats
-local NoMissBullets = false  -- ميزة جديدة: No Miss Bullets (تضمن إصابة كل الرصاص)
-local BulletMagnetStrength = 0.5  -- Slider لـ Bullet Magnet Strength (0-1, قوة جذب الرصاص نحو الهدف)
+local OffsetSpread = 1.0  
+local PredictionMultiplier = 1.0  
+local AimMovingTargetsOnly = false  
+local VelocityThreshold = 5  
+local AutoSwitchOnKill = false  
+local TargetPriority = "Closest"  
+local TriggerbotEnabled = false  
+local TriggerDelay = 100  
+local AntiRecoilEnabled = false  
+local RecoilFactor = 0.5  
+local ScanMode = "Fixed"  
+local DynamicFOV = false  
+local MinFOVRadius = 50  
+local MaxFOVRadius = 300  
+local DynamicFOVMultiplier = 0.1  
+local EnableStats = false  
+local Stats = { Kills = 0, Misses = 0 }  
+local NoMissBullets = false  
+local BulletMagnetStrength = 0.5  
 
 -- New: Moving FOV circle
 local movingFOVCircleEnabled = false
@@ -1776,7 +1786,7 @@ local function GetPredictedPosition(targetPart)
         local gravity = Vector3.new(0, workspace.Gravity * timeToHit^2 / 2, 0)
         basePos = targetPart.Position + (velocity * timeToHit) + gravity
     end
-    local spread = (100 - AimAccuracy) / 100 * OffsetSpread  -- استخدام OffsetSpread الجديد
+    local spread = (100 - AimAccuracy) / 100 * OffsetSpread  
     local offset = Vector3.new(
         math.random(-spread, spread),
         math.random(-spread, spread),
@@ -1784,14 +1794,13 @@ local function GetPredictedPosition(targetPart)
     )
     local predictedPos = basePos + offset
     if NoMissBullets then
-        -- ميزة No Miss Bullets: جذب الرصاص نحو الهدف لتقليل الـ misses
         local diff = (targetPart.Position - predictedPos)
         if diff.Magnitude > 0 then
             local magnetOffset = diff.Unit * BulletMagnetStrength
             predictedPos = predictedPos + magnetOffset
         end
     end
-    return ApplyHumanization(predictedPos) -- إضافة Humanization
+    return ApplyHumanization(predictedPos) 
 end 
 
 -- دالة جديدة لـ GetBestVisiblePart (للـ Dynamic Scan)
@@ -1822,7 +1831,7 @@ local function CreateFOVCircle()
     FOVCircle = Drawing.new("Circle") 
     FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
     FOVCircle.Radius = FOVRadius 
-    FOVCircle.Color = Color3.new(math.random(), math.random(), math.random())  -- Random color on creation
+    FOVCircle.Color = Color3.fromRGB(255, 255, 255)  
     FOVCircle.Thickness = 2 
     FOVCircle.Filled = false 
     FOVCircle.Visible = (AimbotEnabled or killAllAimbotEnabled) and ShowFOVCircle 
@@ -1831,7 +1840,7 @@ end
 local function UpdateFOVCircle() 
     if FOVCircle then 
         if movingFOVCircleEnabled then
-            FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)  -- Follow mouse
+            FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)  
             FOVCircle.Radius = FOVRadius
             FOVCircle.Color = FOVColor
         else
@@ -1888,12 +1897,12 @@ local function GetBestTarget()
             local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position) 
             if onScreen then 
                 local distance = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude 
-                if distance > FOVRadius then continue end  -- Ensure within FOV circle
+                if distance > FOVRadius then continue end  
                 local score = distance
                 if TargetPriority == "Lowest Health" then
                     score = player.Character.Humanoid.Health
                 elseif TargetPriority == "Highest Threat" then
-                    score = -distance  -- أقرب = أعلى تهديد (negative for max)
+                    score = -distance  
                 end
                 if score < bestScore then 
                     bestPlayer = player 
@@ -1975,7 +1984,7 @@ end
 
 local function EnableKillAll() 
     if killAllConnection then return end 
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
+    local root = LocalPlayer.Character and LocalPlayer.Character .HumanoidRootPart 
     if not root then 
         Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 }) 
         return 
@@ -2107,8 +2116,6 @@ RunService.RenderStepped:Connect(function()
     -- Triggerbot Logic
     if TriggerbotEnabled and CurrentTarget and Mouse.Target and Mouse.Target:IsDescendantOf(CurrentTarget.Character) then
         wait(TriggerDelay / 1000)
-        -- افترض أن لديك دالة fire، أو استخدم mouse1press إذا متاح
-        -- mouse1press()  -- uncomment إذا كان exploit يدعم
         if EnableStats then
             if math.random(100) > CalculateHitChance(CurrentTarget) then
                 Stats.Misses = Stats.Misses + 1
@@ -2116,9 +2123,8 @@ RunService.RenderStepped:Connect(function()
         end
     end
     
-    -- Anti-Recoil Logic (في الـ camera lerp)
+    -- Anti-Recoil Logic
     if AntiRecoilEnabled and AimbotEnabled and CurrentTarget then
-        -- افترض equipped weapon، أضف vertical offset
         local recoilOffset = Vector3.new(0, RecoilFactor, 0)
         Camera.CFrame = Camera.CFrame * CFrame.new(recoilOffset)
     end
@@ -2142,7 +2148,26 @@ CombatTab:CreateToggle({
                     if not SilentAim and CurrentTarget and CurrentTarget.Character then 
                         local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
                         if targetPart then
-                            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)), Smoothness) 
+                            local targetPos = GetPredictedPosition(targetPart)
+                            local aimDirection = (targetPos - Camera.CFrame.Position).Unit * AimStrength  
+                            -- الالتصاق يشتغل فقط إذا Moving FOV مفعل
+                            local stickOffset = movingFOVCircleEnabled and (targetPart.Position - Camera.CFrame.Position).Unit * Stickiness or Vector3.zero
+                            local finalPos = targetPos + stickOffset
+                            local currentSmoothness = ApplySmoothnessToAll and Smoothness or HorizontalSmoothness  
+                            local currentVerticalSmooth = ApplySmoothnessToAll and Smoothness or VerticalSmoothness
+                            local currentRotationSmooth = ApplySmoothnessToAll and Smoothness or RotationSmoothness
+                            local newCFrame = CFrame.new(Camera.CFrame.Position, finalPos)
+                            local newLookAt = newCFrame.LookVector:Lerp(Camera.CFrame.LookVector, currentSmoothness)  
+                            local newUp = newCFrame.UpVector:Lerp(Camera.CFrame.UpVector, currentVerticalSmooth)  
+                            local newRight = newCFrame.RightVector:Lerp(Camera.CFrame.RightVector, currentRotationSmooth)  
+                            Camera.CFrame = CFrame.fromMatrix(Camera.CFrame.Position, newRight, newUp, -newLookAt) 
+                            if SuperAimStrength then
+                                finalPos = finalPos * SuperAimMultiplier  
+                            end
+                            if movingFOVCircleEnabled then
+                                local screenPos = Camera:WorldToScreenPoint(targetPart.Position)
+                                -- mousemove(screenPos.X, screenPos.Y) -- استبدل بـ exploit الخاص بك
+                            end
                         end
                     end 
                 end 
@@ -2265,6 +2290,36 @@ CombatTab:CreateSlider({
     Callback = function(Value) Smoothness = Value end 
 }) 
 
+CombatTab:CreateSlider({ 
+    Name = "Horizontal Smoothness", 
+    Range = {0.05, 0.5}, 
+    Increment = 0.01, 
+    CurrentValue = 0.15, 
+    Callback = function(Value) HorizontalSmoothness = Value end 
+}) 
+
+CombatTab:CreateSlider({ 
+    Name = "Vertical Smoothness", 
+    Range = {0.05, 0.5}, 
+    Increment = 0.01, 
+    CurrentValue = 0.15, 
+    Callback = function(Value) VerticalSmoothness = Value end 
+}) 
+
+CombatTab:CreateSlider({ 
+    Name = "Rotation Smoothness", 
+    Range = {0.05, 0.5}, 
+    Increment = 0.01, 
+    CurrentValue = 0.15, 
+    Callback = function(Value) RotationSmoothness = Value end 
+}) 
+
+CombatTab:CreateToggle({ 
+    Name = "Apply Smoothness to All", 
+    CurrentValue = false, 
+    Callback = function(Value) ApplySmoothnessToAll = Value end 
+}) 
+
 CombatTab:CreateToggle({ 
     Name = "Stick to Target", 
     CurrentValue = false, 
@@ -2304,7 +2359,7 @@ CombatTab:CreateSlider({
 
 CombatTab:CreateColorPicker({ 
     Name = "FOV Circle Color", 
-    Color = Color3.fromRGB(255, 0, 0), 
+    Color = Color3.fromRGB(255, 255, 255), 
     Callback = function(Value) 
         FOVColor = Value 
         UpdateFOVCircle() 
@@ -2321,7 +2376,51 @@ CombatTab:CreateSlider({
     Callback = function(Value) AimAccuracy = Value end 
 })
 
--- إضافات جديدة للـ UI
+CombatTab:CreateSlider({ 
+    Name = "Aim Strength", 
+    Range = {0, 1}, 
+    Increment = 0.1, 
+    CurrentValue = 1.0, 
+    Callback = function(Value) AimStrength = Value end 
+}) 
+
+CombatTab:CreateSlider({ 
+    Name = "Stickiness Degree", 
+    Range = {0, 1}, 
+    Increment = 0.1, 
+    CurrentValue = 0.5, 
+    Callback = function(Value) Stickiness = Value end 
+}) 
+
+CombatTab:CreateSlider({ 
+    Name = "Aim Precision", 
+    Range = {0, 1}, 
+    Increment = 0.1, 
+    CurrentValue = 1.0, 
+    Callback = function(Value) AimPrecision = Value end 
+}) 
+
+CombatTab:CreateSlider({ 
+    Name = "Network Lock Strength", 
+    Range = {0, 1}, 
+    Increment = 0.1, 
+    CurrentValue = 0.5, 
+    Callback = function(Value) NetworkLockStrength = Value end 
+}) 
+
+CombatTab:CreateToggle({ 
+    Name = "Super Aim Strength", 
+    CurrentValue = false, 
+    Callback = function(Value) SuperAimStrength = Value end 
+}) 
+
+CombatTab:CreateSlider({ 
+    Name = "Super Aim Multiplier", 
+    Range = {1, 3}, 
+    Increment = 0.1, 
+    CurrentValue = 1.5, 
+    Callback = function(Value) SuperAimMultiplier = Value end 
+}) 
 
 CombatTab:CreateSlider({ 
     Name = "Offset Spread (studs)", 
@@ -2455,7 +2554,6 @@ CombatTab:CreateToggle({
     Callback = function(Value) EnableStats = Value end 
 })
 
--- ميزة جديدة: No Miss Bullets
 CombatTab:CreateToggle({ 
     Name = "No Miss Bullets", 
     CurrentValue = false, 
@@ -2476,7 +2574,10 @@ CombatTab:CreateToggle({
     Name = "Moving FOV Circle", 
     CurrentValue = false, 
     Flag = "MOVING_FOV_CIRCLE", 
-    Callback = function(Value) movingFOVCircleEnabled = Value; UpdateFOVCircle() end 
+    Callback = function(Value) 
+        movingFOVCircleEnabled = Value 
+        UpdateFOVCircle() 
+    end 
 })
  
 -- // TELEPORT SECTION 
