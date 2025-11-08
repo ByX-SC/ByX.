@@ -1223,12 +1223,12 @@ function enableStickmanESP()
             espObjects[player] = nil
         end
     end)
-    connections.renderUpdate = game:GetService("RunService").Heartbeat:Connect(updateStickmanESP)  -- Changed to Heartbeat
+    connections.renderStepped = RunService.RenderStepped:Connect(updateStickmanESP)
 end
 
 function disableStickmanESP()
-    for _, connection in pairs(connections) do
-        connection:Disconnect()
+    for key, conn in pairs(connections) do
+        if conn then conn:Disconnect() end
     end
     connections = {}
     for player, esp in pairs(espObjects) do
@@ -1242,95 +1242,35 @@ function disableStickmanESP()
     espObjects = {}
 end
 
-for _, player in pairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        player.CharacterAdded:Connect(function()
-            if ESPEnabled or ShowHealth or ShowInventory then task.wait(0.5) CreateESP(player) end
-            if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end
-            if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end
-            if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end
-        end)
-        if player.Character and (ESPEnabled or ShowHealth or ShowInventory) then task.spawn(function() task.wait(0.5) CreateESP(player) end) end
-        if player.Character and Box3DEnabled then task.spawn(function() task.wait(0.5) Create3DBox(player) end) end
-        if player.Character and (showBox or show3DBox or showHealthNew or showName or showDist or showTool) then task.spawn(function() task.wait(0.5) createNewESP(player) end) end
+local function RefreshAllStickman()
+    disableStickmanESP()
+    if espSettings.Enabled then
+        enableStickmanESP()
     end
 end
-
-Players.PlayerAdded:Connect(function(player)
-    if player ~= LocalPlayer then
-        player.CharacterAdded:Connect(function()
-            if ESPEnabled or ShowHealth or ShowInventory then task.wait(0.5) CreateESP(player) end
-            if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end
-            if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end
-            if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end
-        end)
-    end
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    RemoveESP(player)
-    Remove3DBox(player)
-end)
-
-game:GetService("RunService").Heartbeat:Connect(function()
-    if ESPEnabled or ShowHealth or ShowInventory then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
-                task.spawn(function() CreateESP(player) end)
-            end
-        end
-    end
-    if Box3DEnabled then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
-                task.spawn(function() Create3DBox(player) Update3DBox(player) end)
-            end
-        end
-    end
-end)
-
--- Players Visuals Section (بدل الدروب داون، عناوين وتوجلات فردية)
-VisualsTab:CreateLabel("Players Visuals")  -- نص عنوان "Players Visuals"
 
 VisualsTab:CreateToggle({
     Name = "Enable ESP",
     CurrentValue = false,
     Callback = function(Value)
         ESPEnabled = Value
-        if ESPEnabled then
-            for _, player in pairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
-                    task.spawn(function() CreateESP(player) end)
-                end
-            end
-            UpdateESPVisibilities()
-        else
-            for _, espHolder in pairs(ESPObjects) do
-                if espHolder.Highlight then espHolder.Highlight:Destroy() end
-                espHolder.Highlight = nil
-            end
-            UpdateESPVisibilities()
-            CleanupUnusedESP()
+        if Value then
+            RefreshESP()
         end
+        UpdateESPVisibilities()
+        CleanupUnusedESP()
+        Rayfield:Notify({ Title = "Activated", Content = "ESP enabled.", Duration = 5, Image = 4483362458 })
     end
 })
 
 VisualsTab:CreateToggle({
-    Name = "Show Health Bar",
+    Name = "Show Health",
     CurrentValue = false,
     Callback = function(Value)
         ShowHealth = Value
-        if ShowHealth then
-            for _, player in pairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
-                    task.spawn(function() CreateESP(player) end)
-                end
-            end
-            UpdateESPVisibilities()
-        else
-            UpdateESPVisibilities()
-            CleanupUnusedESP()
-        end
+        if ShowHealth then RefreshESP() end
+        UpdateESPVisibilities()
+        CleanupUnusedESP()
     end
 })
 
@@ -1339,60 +1279,125 @@ VisualsTab:CreateToggle({
     CurrentValue = false,
     Callback = function(Value)
         ShowInventory = Value
-        if ShowInventory then
-            for _, player in pairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
-                    task.spawn(function() CreateESP(player) end)
-                end
-            end
-            UpdateESPVisibilities()
-        else
-            UpdateESPVisibilities()
-            CleanupUnusedESP()
-        end
+        if ShowInventory then RefreshESP() end
+        UpdateESPVisibilities()
+        CleanupUnusedESP()
     end
 })
 
 VisualsTab:CreateToggle({
-    Name = "Enable 3D Box ESP",
+    Name = "3D Box ESP",
     CurrentValue = false,
     Callback = function(Value)
         Box3DEnabled = Value
-        if Box3DEnabled then
-            for _, player in pairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    task.spawn(function() Create3DBox(player) Update3DBox(player) end)
-                end
-            end
-            local updateConnection
-            updateConnection = game:GetService("RunService").Heartbeat:Connect(function()  -- Changed to Heartbeat
-                if not Box3DEnabled then
-                    updateConnection:Disconnect()
-                    return
-                end
-                for _, player in pairs(Players:GetPlayers()) do
-                    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                        Update3DBox(player)
-                    end
+        Refresh3DBox()
+        if Value then
+            connections.playerAdded = Players.PlayerAdded:Connect(function(player)
+                player.CharacterAdded:Connect(function()
+                    Create3DBox(player)
                 end
             end)
-            Rayfield:Notify({ Title = "3D Box ESP", Content = "تم تفعيل 3D Box ESP", Duration = 3, Image = 4483362458 })
+            connections.renderStepped = RunService.RenderStepped:Connect(function()
+                for player in pairs(Box3DObjects) do
+                    Update3DBox(player)
+                end
+            end)
         else
+            for key, conn in pairs(connections) do
+                if key:find("3DBox") then conn:Disconnect() end
+            end
             for player in pairs(Box3DObjects) do
                 Remove3DBox(player)
             end
-            Box3DObjects = {}
-            Rayfield:Notify({ Title = "3D Box ESP", Content = "تم إيقاف 3D Box ESP", Duration = 3, Image = 4483362458 })
         end
     end
 })
 
 VisualsTab:CreateToggle({
-    Name = "Skeleton ESP 2",
+    Name = "Material ESP",
+    CurrentValue = false,
+    Callback = function(Value)
+        materialESPEnabled = Value
+        refreshMaterialESP()
+        if Value then
+            connections.workspaceDescendantAdded = workspace.DescendantAdded:Connect(function(obj)
+                if materialESPEnabled and obj:IsA("BasePart") and (obj.Material == Enum.Material.Plastic or obj.Material == Enum.Material.Metal) then
+                    createMaterialESP(obj)
+                end
+            end)
+        else
+            if connections.workspaceDescendantAdded then connections.workspaceDescendantAdded:Disconnect() end
+            refreshMaterialESP()
+        end
+    end
+})
+
+VisualsTab:CreateToggle({
+    Name = "Box ESP",
+    CurrentValue = false,
+    Callback = function(Value)
+        boxEnabled = Value
+        refreshBoxESP()
+        if Value then
+            connections.workspaceDescendantAdded = workspace.DescendantAdded:Connect(function(obj)
+                if boxEnabled and (obj:IsA("Part") or obj:IsA("BasePart")) and (obj.Name:lower():find("metal") or obj.Name:lower():find("plastic")) then
+                    createBoxESP(obj)
+                    updateBoxESP(obj)
+                end
+            end)
+        else
+            if connections.workspaceDescendantAdded then connections.workspaceDescendantAdded:Disconnect() end
+            refreshBoxESP()
+        end
+    end
+})
+
+VisualsTab:CreateToggle({
+    Name = "Vents ESP",
+    CurrentValue = false,
+    Callback = function(Value)
+        ventsEnabled = Value
+        refreshVents()
+        if Value then
+            connections.workspaceDescendantAdded = workspace.DescendantAdded:Connect(function(obj)
+                if ventsEnabled and obj:IsA("Model") and obj.Name:lower():find("vent") then
+                    createVentHighlight(obj)
+                    updateVentHighlight(obj)
+                end
+            end)
+        else
+            if connections.workspaceDescendantAdded then connections.workspaceDescendantAdded:Disconnect() end
+            refreshVents()
+        end
+    end
+})
+
+VisualsTab:CreateToggle({
+    Name = "Garbage ESP",
+    CurrentValue = false,
+    Callback = function(Value)
+        garbageEnabled = Value
+        refreshGarbage()
+        if Value then
+            connections.workspaceDescendantAdded = workspace.DescendantAdded:Connect(function(obj)
+                if garbageEnabled and (obj:IsA("Model") or obj:IsA("Part") or obj:IsA("BasePart")) and obj.Name:lower():find("bin") then
+                    createGarbageHighlight(obj)
+                    updateGarbageHighlight(obj)
+                end
+            end)
+        else
+            if connections.workspaceDescendantAdded then connections.workspaceDescendantAdded:Disconnect() end
+            refreshGarbage()
+        end
+    end
+})
+
+VisualsTab:CreateToggle({
+    Name = "Stickman ESP",
     CurrentValue = false,
     Callback = function(Value)
         espSettings.Enabled = Value
-        if espSettings.Enabled then
+        if Value then
             enableStickmanESP()
         else
             disableStickmanESP()
@@ -1401,182 +1406,65 @@ VisualsTab:CreateToggle({
 })
 
 VisualsTab:CreateToggle({
-   Name = "Show 2D Box (Rectangle)",
-   CurrentValue = false,
-   Callback = function(state)
-      showBox = state
-      refreshNewESP()
-   end,
-})
-
-VisualsTab:CreateToggle({
-   Name = "Show 3D Box 1",
-   CurrentValue = false,
-   Callback = function(state)
-      show3DBox = state
-      refreshNewESP()
-   end,
-})
-
-VisualsTab:CreateToggle({
-   Name = "Show Health Bar 1",
-   CurrentValue = false,
-   Callback = function(state)
-      showHealthNew = state
-      refreshNewESP()
-   end,
-})
-
-VisualsTab:CreateToggle({
-   Name = "Show Name",
-   CurrentValue = false,
-   Callback = function(state)
-      showName = state
-      refreshNewESP()
-   end,
-})
-
-VisualsTab:CreateToggle({
-   Name = "Show Distance",
-   CurrentValue = false,
-   Callback = function(state)
-      showDist = state
-      refreshNewESP()
-   end,
-})
-
-VisualsTab:CreateToggle({
-   Name = "Show Equipped Tool",
-   CurrentValue = false,
-   Callback = function(state)
-      showTool = state
-      refreshNewESP()
-   end,
-})
-
-VisualsTab:CreateToggle({
-   Name = "Enable ESP (Main)",
-   CurrentValue = false,
-   Callback = function(state)
-      enableMainESP = state
-      if state then
-         showBox = true
-         show3DBox = true
-         showHealthNew = true
-         showName = true
-         showDist = true
-         showTool = true
-         refreshNewESP()
-      else
-         showBox = false
-         show3DBox = false
-         showHealthNew = false
-         showName = false
-         showDist = false
-         showTool = false
-         refreshNewESP()
-      end
-   end,
-})
-
--- Map Visuals Section (عنوان وتوجلات فردية)
-VisualsTab:CreateLabel("Map Visuals")  -- نص عنوان "Map Visuals"
-
-VisualsTab:CreateToggle({
-    Name = "Show Metal/Plastic",
-    CurrentValue = false,
-    Callback = function(Value)
-        boxEnabled = Value
-        refreshBoxESP()
-        print(Value and "Show Metal/Plastic enabled!" or "Show Metal/Plastic disabled!")
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "Show Vents",
-    CurrentValue = false,
-    Callback = function(Value)
-        ventsEnabled = Value
-        refreshVents()
-        print(Value and "Vents ESP enabled!" or "Vents ESP disabled!")
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "Show Garbage",
-    CurrentValue = false,
-    Callback = function(Value)
-        garbageEnabled = Value
-        refreshGarbage()
-        print(Value and "Garbage ESP enabled!" or "Garbage ESP disabled!")
-    end
-})
-
-VisualsTab:CreateToggle({
     Name = "Xray",
     CurrentValue = false,
     Callback = function(Value)
         xrayEnabled = Value
-        if xrayEnabled then
-            for _, v in pairs(workspace:GetDescendants()) do
-                if v:IsA("BasePart") then v.LocalTransparencyModifier = 0.5 end
+        if Value then
+            connections.workspaceDescendantAdded = workspace.DescendantAdded:Connect(function(obj)
+                if xrayEnabled and obj:IsA("BasePart") then
+                    obj.Transparency = 0.8
+                end
+            end)
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("BasePart") then
+                    obj.Transparency = 0.8
+                end
             end
         else
-            for _, v in pairs(workspace:GetDescendants()) do
-                if v:IsA("BasePart") then v.LocalTransparencyModifier = 0 end
+            if connections.workspaceDescendantAdded then connections.workspaceDescendantAdded:Disconnect() end
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("BasePart") then
+                    obj.Transparency = 0
+                end
             end
         end
     end
 })
 
--- الفاصل
-VisualsTab:CreateLabel("__________")  -- خط فاصل "____" (طولته شوية عشان يبدو أفضل)
-
--- Auto Refresh Toggle (كما هو، بعد الفاصل)
-VisualsTab:CreateToggle({ 
-    Name = "Auto Refresh", 
-    CurrentValue = false, 
-    Flag = "AUTO_REFRESH", 
-    Callback = function(Value) 
-        autoRefreshEnabled = Value 
-        if autoRefreshEnabled then 
-            for _, player in pairs(Players:GetPlayers()) do 
-                if player ~= LocalPlayer then 
-                    connections[player.Name .. "_CharacterAdded"] = player.CharacterAdded:Connect(function() 
-                        if ESPEnabled then task.wait(0.5) CreateESP(player) end 
-                        if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end 
-                        if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end 
-                        if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end 
-                    end) 
-                end 
-            end 
-            connections.PlayerAdded = Players.PlayerAdded:Connect(function(player) 
-                if player ~= LocalPlayer then 
-                    connections[player.Name .. "_CharacterAdded"] = player.CharacterAdded:Connect(function() 
-                        if ESPEnabled then task.wait(0.5) CreateESP(player) end 
-                        if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end 
-                        if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end 
-                        if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end 
-                    end) 
-                end 
-            end) 
-            RefreshAllESP() 
-            autoRefreshConnection = RunService.Heartbeat:Connect(function() 
-                if autoRefreshEnabled then 
+VisualsTab:CreateToggle({
+    Name = "Auto Refresh",
+    CurrentValue = false,
+    Callback = function(Value)
+        autoRefreshEnabled = Value
+        if Value then
+            connections.playerAdded = Players.PlayerAdded:Connect(function(player)
+                player.CharacterAdded:Connect(function()
+                    RefreshAllESP()
+                end
+            end)
+            connections.playerRemoving = Players.PlayerRemoving:Connect(function()
+                RefreshAllESP()
+            end)
+            connections.characterAdded = LocalPlayer.CharacterAdded:Connect(function()
+                RefreshAllESP()
+            end)
+            autoRefreshConnection = RunService.Heartbeat:Connect(function()
+                if autoRefreshEnabled then
                     autoRefreshEnabled = false 
                     task.wait(5) 
                     autoRefreshEnabled = true 
-                    RefreshAllESP() 
-                end 
-            end) 
-            Rayfield:Notify({ Title = "Activated", Content = "Auto Refresh enabled for all Visuals.", Duration = 5, Image = 4483362458 }) 
+                    RefreshAllESP()
+                end
+            end)
+            Rayfield:Notify({ Title = "Activated", Content = "Auto Refresh enabled for all Visuals.", Duration = 5, Image = 4483362458 })
         else 
             for key, connection in pairs(connections) do 
                 if key:find("_CharacterAdded") or key == "PlayerAdded" then 
                     connection:Disconnect() 
                 end 
             end 
-            if autoRefreshConnection then autoRefreshConnection:Disconnect() end 
+            if autoRefreshConnection then autoRefreshConnection:Disconnect() end
             Rayfield:Notify({ Title = "Deactivated", Content = "Auto Refresh disabled.", Duration = 5, Image = 4483362458 }) 
         end 
     end 
