@@ -14,12 +14,12 @@ if not success then
     return 
 end 
 print("Rayfield loaded successfully!") 
-
+ 
 -- Random theme selection (initial theme) 
 local themes = {"Ocean", "Amethyst", "DarkBlue"} 
 local randomIndex = math.random(1, #themes) 
 local randomTheme = themes[randomIndex] 
-
+ 
 -- Create the Window with KeySystem disabled for testing 
 local Window = Rayfield:CreateWindow({ 
     Name = "Valley Prison ByX", 
@@ -39,7 +39,7 @@ local Window = Rayfield:CreateWindow({
     }, 
     Theme = randomTheme 
 }) 
-
+ 
 -- Verify Window creation 
 if not Window then 
     warn("Failed to create Rayfield window.") 
@@ -47,7 +47,7 @@ if not Window then
 else 
     print("Rayfield window created successfully!") 
 end 
-
+ 
 -- Services 
 local RunService = game:GetService("RunService") 
 local Players = game:GetService("Players") 
@@ -56,7 +56,7 @@ local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer 
 local Mouse = LocalPlayer:GetMouse() 
 local prisonerTeams = {"Minimum Security", "Medium Security", "Maximum Security"} 
-
+ 
 -- Variables 
 local infiniteStaminaEnabled = false 
 local speed = 16 
@@ -76,10 +76,10 @@ local antiTazeHumanoidConnection2 = nil
 local antiTazeGuiConnection = nil 
 local antiTazeEffectConnection = nil 
 local antiTazeToolConnection = nil 
-
+ 
 -- // INFO TAB 
 local InfoTab = Window:CreateTab("Info", 4483362458) 
-
+ 
 InfoTab:CreateButton({ 
     Name = "Copy YouTube Link", 
     Callback = function() 
@@ -92,8 +92,8 @@ InfoTab:CreateButton({
         end 
     end 
 }) 
-
--- // VISUALS SECTION (ESP, Xray, 3D Box, Material ESP)
+ 
+-- // VISUALS SECTION (Optimized ESP, Xray, 3D Box, Material ESP)
 local VisualsTab = Window:CreateTab("Visuals", 4483362458)
 
 local ESPEnabled = false
@@ -138,10 +138,11 @@ local showHealthNew = false
 local showName = false
 local showDist = false
 local showTool = false
+local showTracers = false  -- New: Tracers toggle
 
 -- Health Bar settings
-local healthTransparency = 1 -- Default max transparency (100%)
-local healthThickness = 1 -- Default thickness for foreground (bg will be +2)
+local healthTransparency = 1 
+local healthThickness = 1 
 
 -- Box Transparency settings
 local box2DTransparency = 1
@@ -166,65 +167,98 @@ end
 local function createNewESP(player)
     if player == localPlayer then return end
 
-    -- 2D Box
-    local box = Drawing.new("Square")
-    box.Thickness = box2DThickness
-    box.Filled = false
-    box.Color = Color3.new(1, 1, 1)
-    box.Visible = false
+    -- 2D Box (Highlight for better perf)
+    local highlight = Instance.new("Highlight")
+    highlight.Adornee = player.Character
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.FillTransparency = box2DTransparency
+    highlight.FillColor = player.Team and player.Team.TeamColor.Color or Color3.new(1, 1, 1)
+    highlight.OutlineTransparency = 0
+    highlight.OutlineColor = Color3.new(1, 1, 1)
+    highlight.Enabled = false
+    highlight.Parent = player.Character
 
-    -- 3D Box Lines (12 lines for a full box)
-    local lines = {}
-    for i = 1, 12 do
-        local line = Drawing.new("Line")
-        line.Thickness = box3DThickness
-        line.Color = Color3.new(1, 1, 1)
-        line.Visible = false
-        lines[i] = line
-    end
+    -- 3D Box (BoxHandleAdornment for less lag)
+    local boxAdornment = Instance.new("BoxHandleAdornment")
+    boxAdornment.Adornee = player.Character.HumanoidRootPart
+    boxAdornment.Size = Vector3.new(4, 6, 2)  -- Approx character size
+    boxAdornment.Transparency = box3DTransparency
+    boxAdornment.Color3 = player.Team and player.Team.TeamColor.Color or Color3.new(1, 1, 1)
+    boxAdornment.AlwaysOnTop = true
+    boxAdornment.Visible = false
+    boxAdornment.Parent = player.Character.HumanoidRootPart
 
-    -- Health Bar
+    -- Health Bar (Drawing, but optimized with culling)
     local healthBg = Drawing.new("Line")
-    healthBg.Color = Color3.new(0, 0, 0) -- Black background/border
+    healthBg.Color = Color3.new(0, 0, 0)
     healthBg.Visible = false
 
     local healthFg = Drawing.new("Line")
     healthFg.Color = Color3.new(0, 1, 0)
     healthFg.Visible = false
 
-    -- Texts
-    local nameText = Drawing.new("Text")
-    nameText.Size = 12
-    nameText.Center = true
-    nameText.Outline = true
-    nameText.Color = Color3.new(1, 1, 1)
-    nameText.Font = Drawing.Fonts.UI
-    nameText.Visible = false
+    -- Texts (BillboardGui for less lag)
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ESP_Texts"
+    billboard.Adornee = player.Character.Head
+    billboard.Size = UDim2.new(0, 200, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Enabled = false
+    billboard.Parent = player.Character.Head
 
-    local distText = Drawing.new("Text")
-    distText.Size = 13
-    distText.Center = true
-    distText.Outline = true
-    distText.Color = Color3.new(1, 1, 1)
-    distText.Font = Drawing.Fonts.UI
-    distText.Visible = false
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextColor3 = Color3.new(1, 1, 1)
+    nameLabel.TextSize = 12
+    nameLabel.Font = Enum.Font.SourceSansBold
+    nameLabel.TextStrokeTransparency = 0
+    nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    nameLabel.Visible = false
+    nameLabel.Parent = billboard
 
-    local toolText = Drawing.new("Text")
-    toolText.Size = 13
-    toolText.Center = true
-    toolText.Outline = true
-    toolText.Color = Color3.new(1, 1, 1)
-    toolText.Font = Drawing.Fonts.UI
-    toolText.Visible = false
+    local distLabel = Instance.new("TextLabel")
+    distLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    distLabel.Position = UDim2.new(0, 0, 0.5, 0)
+    distLabel.BackgroundTransparency = 1
+    distLabel.TextColor3 = Color3.new(1, 1, 1)
+    distLabel.TextSize = 12
+    distLabel.Font = Enum.Font.SourceSansBold
+    distLabel.TextStrokeTransparency = 0
+    distLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    distLabel.Visible = false
+    distLabel.Parent = billboard
+
+    local toolLabel = Instance.new("TextLabel")
+    toolLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    toolLabel.Position = UDim2.new(0, 0, 1, 0)
+    toolLabel.BackgroundTransparency = 1
+    toolLabel.TextColor3 = Color3.new(1, 1, 1)
+    toolLabel.TextSize = 12
+    toolLabel.Font = Enum.Font.SourceSansBold
+    toolLabel.TextStrokeTransparency = 0
+    toolLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    toolLabel.Visible = false
+    toolLabel.Parent = billboard
+
+    -- Tracer Line (New)
+    local tracer = Drawing.new("Line")
+    tracer.Color = player.Team and player.Team.TeamColor.Color or Color3.new(1, 1, 1)
+    tracer.Thickness = 1
+    tracer.Transparency = 0.8
+    tracer.Visible = false
 
     drawings[player] = {
-        box = box,
-        lines = lines,
+        highlight = highlight,  -- 2D Box
+        boxAdornment = boxAdornment,  -- 3D Box
         healthBg = healthBg,
         healthFg = healthFg,
-        name = nameText,
-        dist = distText,
-        tool = toolText
+        billboard = billboard,  -- Texts container
+        name = nameLabel,
+        dist = distLabel,
+        tool = toolLabel,
+        tracer = tracer  -- New Tracer
     }
 end
 
@@ -240,11 +274,8 @@ local function updateNewESP()
             local dist = (myRoot.Position - root.Position).Magnitude
             if dist > maxDistance then
                 for _, d in pairs(draws) do 
-                    if typeof(d) == "table" then
-                        for _, line in ipairs(d) do line.Visible = false end
-                    else
-                        d.Visible = false 
-                    end
+                    if d.Enabled ~= nil then d.Enabled = false end
+                    if d.Visible ~= nil then d.Visible = false end
                 end
                 continue
             end
@@ -255,11 +286,8 @@ local function updateNewESP()
                 local pos, onScreen = camera:WorldToViewportPoint(root.Position)
                 if not onScreen then
                     for _, d in pairs(draws) do 
-                        if typeof(d) == "table" then
-                            for _, line in ipairs(d) do line.Visible = false end
-                        else
-                            d.Visible = false 
-                        end
+                        if d.Enabled ~= nil then d.Enabled = false end
+                        if d.Visible ~= nil then d.Visible = false end
                     end
                     continue
                 end
@@ -269,67 +297,24 @@ local function updateNewESP()
                 local sizeY = math.abs(headPos.Y - legPos.Y)
                 local sizeX = sizeY / 2
 
-                -- 2D Box (if enabled)
+                -- 2D Box (Highlight)
                 if showBox then
-                    draws.box.Size = Vector2.new(sizeX, sizeY)
-                    draws.box.Position = Vector2.new(pos.X - sizeX / 2, pos.Y - sizeY / 2)
-                    draws.box.Color = player.Team and player.Team.TeamColor.Color or Color3.new(1, 1, 1)
-                    draws.box.Transparency = box2DTransparency
-                    draws.box.Thickness = box2DThickness
-                    draws.box.Visible = true
+                    draws.highlight.FillTransparency = box2DTransparency
+                    draws.highlight.OutlineColor = Color3.new(1, 1, 1)
+                    draws.highlight.Enabled = true
                 else
-                    draws.box.Visible = false
+                    draws.highlight.Enabled = false
                 end
 
-                -- 3D Box (if enabled)
+                -- 3D Box (Adornment)
                 if show3DBox then
-                    local teamColor = player.Team and player.Team.TeamColor.Color or Color3.new(1, 1, 1)
-                    local halfSize = Vector3.new(2, 5, 1) / 2  -- Approx character size: width 2, height 5, depth 1
-                    local corners = {
-                        root.CFrame * CFrame.new(-halfSize.X, -halfSize.Y, -halfSize.Z).Position,
-                        root.CFrame * CFrame.new(halfSize.X, -halfSize.Y, -halfSize.Z).Position,
-                        root.CFrame * CFrame.new(halfSize.X, halfSize.Y, -halfSize.Z).Position,
-                        root.CFrame * CFrame.new(-halfSize.X, halfSize.Y, -halfSize.Z).Position,
-                        root.CFrame * CFrame.new(-halfSize.X, -halfSize.Y, halfSize.Z).Position,
-                        root.CFrame * CFrame.new(halfSize.X, -halfSize.Y, halfSize.Z).Position,
-                        root.CFrame * CFrame.new(halfSize.X, halfSize.Y, halfSize.Z).Position,
-                        root.CFrame * CFrame.new(-halfSize.X, halfSize.Y, halfSize.Z).Position
-                    }
-
-                    local screenCorners = {}
-                    local allOnScreen = true
-                    for i, corner in ipairs(corners) do
-                        local screenPos, visible = camera:WorldToViewportPoint(corner)
-                        screenCorners[i] = Vector2.new(screenPos.X, screenPos.Y)
-                        if not visible then
-                            allOnScreen = false
-                            break
-                        end
-                    end
-
-                    if allOnScreen then
-                        local lineConnections = {
-                            {1,2}, {2,3}, {3,4}, {4,1},  -- Front face
-                            {5,6}, {6,7}, {7,8}, {8,5},  -- Back face
-                            {1,5}, {2,6}, {3,7}, {4,8}   -- Connecting lines
-                        }
-
-                        for i, conn in ipairs(lineConnections) do
-                            draws.lines[i].From = screenCorners[conn[1]]
-                            draws.lines[i].To = screenCorners[conn[2]]
-                            draws.lines[i].Color = teamColor
-                            draws.lines[i].Transparency = box3DTransparency
-                            draws.lines[i].Thickness = box3DThickness
-                            draws.lines[i].Visible = true
-                        end
-                    else
-                        for _, line in ipairs(draws.lines) do line.Visible = false end
-                    end
+                    draws.boxAdornment.Transparency = box3DTransparency
+                    draws.boxAdornment.Visible = true
                 else
-                    for _, line in ipairs(draws.lines) do line.Visible = false end
+                    draws.boxAdornment.Visible = false
                 end
 
-                -- Health Bar (if enabled) with black borders
+                -- Health Bar (Drawing)
                 if showHealthNew then
                     local healthPct = humanoid.Health / humanoid.MaxHealth
                     local barHeight = sizeY
@@ -337,20 +322,17 @@ local function updateNewESP()
                     local barBottomY = pos.Y + sizeY / 2
                     local barTopY = barBottomY - barHeight
 
-                    -- Update thickness dynamically
                     draws.healthBg.Thickness = healthThickness + 2
                     draws.healthFg.Thickness = healthThickness
 
-                    -- Background (thicker black for border effect)
                     draws.healthBg.From = Vector2.new(barPosX, barBottomY)
                     draws.healthBg.To = Vector2.new(barPosX, barTopY)
                     draws.healthBg.Transparency = healthTransparency
                     draws.healthBg.Visible = true
 
-                    -- Foreground (original HSV colors)
                     draws.healthFg.From = Vector2.new(barPosX, barBottomY)
                     draws.healthFg.To = Vector2.new(barPosX, barBottomY - (barHeight * healthPct))
-                    draws.healthFg.Color = Color3.fromHSV(healthPct * 0.333, 1, 1) -- Original green to red
+                    draws.healthFg.Color = Color3.fromHSV(healthPct * 0.333, 1, 1)
                     draws.healthFg.Transparency = healthTransparency
                     draws.healthFg.Visible = true
                 else
@@ -358,45 +340,48 @@ local function updateNewESP()
                     draws.healthFg.Visible = false
                 end
 
-                -- Name (if enabled)
-                if showName then
-                    draws.name.Text = player.DisplayName .. " (" .. player.Name .. ")"
-                    draws.name.Position = Vector2.new(pos.X, (pos.Y - sizeY / 2) - 22)
-                    draws.name.Visible = true
-                else
-                    draws.name.Visible = false
+                -- Texts (BillboardGui)
+                if draws.billboard then
+                    draws.billboard.Enabled = showName or showDist or showTool
+                    if showName then
+                        draws.name.Text = player.DisplayName .. " (" .. player.Name .. ")"
+                        draws.name.Visible = true
+                    else
+                        draws.name.Visible = false
+                    end
+
+                    if showDist then
+                        draws.dist.Text = math.floor(dist) .. " Studs"
+                        draws.dist.Visible = true
+                    else
+                        draws.dist.Visible = false
+                    end
+
+                    if showTool then
+                        local tool = char:FindFirstChildOfClass("Tool")
+                        draws.tool.Text = tool and tool.Name or "No Tool"
+                        draws.tool.Visible = true
+                    else
+                        draws.tool.Visible = false
+                    end
                 end
 
-                -- Distance (if enabled)
-                if showDist then
-                    local distTextStr = math.floor(dist) .. " Studs"
-                    draws.dist.Text = distTextStr
-                    draws.dist.Position = Vector2.new(pos.X, (pos.Y + sizeY / 2) + 5)
-                    draws.dist.Visible = true
+                -- Tracer Line (New)
+                if showTracers then
+                    local myPos = camera:WorldToViewportPoint(myRoot.Position)
+                    draws.tracer.From = Vector2.new(myPos.X, myPos.Y)
+                    draws.tracer.To = Vector2.new(pos.X, pos.Y)
+                    draws.tracer.Visible = true
                 else
-                    draws.dist.Visible = false
-                end
-
-                -- Tool (if enabled)
-                if showTool then
-                    local tool = char:FindFirstChildOfClass("Tool")
-                    draws.tool.Text = tool and tool.Name or "Equipped Tool Name Here"
-                    draws.tool.Position = Vector2.new(pos.X, (pos.Y + sizeY / 2) + 20)
-                    draws.tool.Visible = true
-                else
-                    draws.tool.Visible = false
+                    draws.tracer.Visible = false
                 end
             end
         else
             for _, d in pairs(draws) do 
-                if typeof(d) == "table" then
-                    for _, line in ipairs(d) do line.Visible = false end
-                else
-                    d.Visible = false 
-                end
+                if d.Enabled ~= nil then d.Enabled = false end
+                if d.Visible ~= nil then d.Visible = false end
             end
-            -- Remove drawings if player no longer exists
-            drawings[player] = nil
+            drawings[player] = nil  -- Clean up
         end
     end
 end
@@ -406,16 +391,16 @@ local function enableNewESP()
         createNewESP(player)
     end
     players.PlayerAdded:Connect(createNewESP)
-    connection = game:GetService("RunService").Heartbeat:Connect(updateNewESP)  -- Changed to Heartbeat for less lag
+    connection = game:GetService("RunService").Heartbeat:Connect(updateNewESP)  -- Heartbeat for less lag
 end
 
 local function disableNewESP()
     if connection then connection:Disconnect() end
     for _, draws in pairs(drawings) do
         for k, d in pairs(draws) do
-            if k == "lines" then
-                for _, line in ipairs(d) do line:Remove() end
-            else
+            if k == "highlight" or k == "boxAdornment" or k == "billboard" then
+                d:Destroy()
+            elseif k == "tracer" or k == "healthBg" or k == "healthFg" or k == "name" or k == "dist" or k == "tool" then
                 d:Remove()
             end
         end
@@ -425,7 +410,7 @@ end
 
 local function refreshNewESP()
     disableNewESP()
-    if showBox or show3DBox or showHealthNew or showName or showDist or showTool then
+    if showBox or show3DBox or showHealthNew or showName or showDist or showTool or showTracers then
         enableNewESP()
     end
 end
@@ -441,9 +426,9 @@ local function cleanStuckESPs()
         if not currentPlayers[player] then
             local draws = drawings[player]
             for k, d in pairs(draws) do
-                if k == "lines" then
-                    for _, line in ipairs(d) do line:Remove() end
-                else
+                if k == "highlight" or k == "boxAdornment" or k == "billboard" then
+                    d:Destroy()
+                elseif k == "tracer" or k == "healthBg" or k == "healthFg" or k == "name" or k == "dist" or k == "tool" then
                     d:Remove()
                 end
             end
@@ -1527,7 +1512,7 @@ VisualsTab:CreateSlider({
 })
 
 VisualsTab:CreateSlider({
-   Name = "3D Box Transparency",
+   Name = "3D Box 1 Transparency",
    Range = {0, 1},
    Increment = 0.05,
    Suffix = "%",
@@ -1550,7 +1535,7 @@ VisualsTab:CreateSlider({
 })
 
 VisualsTab:CreateSlider({
-   Name = "3D Box Thickness",
+   Name = "3D Box 1 Thickness",
    Range = {1, 3},
    Increment = 0.1,
    CurrentValue = 1,
@@ -1570,34 +1555,7 @@ VisualsTab:CreateSlider({
       maxDistance = Value
    end,
 })
-
-VisualsTab:CreateToggle({
-    Name = "2D Box",
-    CurrentValue = false,
-    Callback = function(Value)
-        showBox = Value
-        refreshNewESP()
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "Health Bar",
-    CurrentValue = false,
-    Callback = function(Value)
-        showHealthNew = Value
-        refreshNewESP()
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "3D Box",
-    CurrentValue = false,
-    Callback = function(Value)
-        show3DBox = Value
-        refreshNewESP()
-    end
-})
-
+ 
 -- // COMBAT SECTION (Aimbot, FOV, Desync, Silent Aim, Kill All Showcase) 
 local CombatTab = Window:CreateTab("Combat", 4483362458) 
 
@@ -1677,15 +1635,6 @@ local BulletMagnetStrength = 0.5
 
 -- New: Moving FOV circle
 local movingFOVCircleEnabled = false
-local movingFOVMouseLock = false  -- Only lock when Moving FOV is on
-
--- Controller support variables
-local controllerEnabled = false
-local controllerSensitivity = 1.0
-local controllerDeadzone = 0.2
-local controllerAimAssist = true
-local controllerAimAssistStrength = 0.7
-local controllerRightStickSmooth = 0.15
 
 -- دالة Humanization Factor لإضافة عشوائية للتصويب
 local function ApplyHumanization(position)
@@ -1908,7 +1857,7 @@ end
 
 local function EnableKillAll() 
     if killAllConnection then return end 
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
+    local root = LocalPlayer.Character and LocalPlayer.Character .HumanoidRootPart 
     if not root then 
         Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 }) 
         return 
@@ -2024,19 +1973,6 @@ local function DisableKillMonitor()
     if killMonitorConnection then killMonitorConnection:Disconnect(); killMonitorConnection = nil end
 end
 
--- Controller Input Handling
-local function GetControllerInput()
-    local rightStick = Vector2.new(
-        UserInputService:GetGamepadState(Gamepad)[Enum.KeyCode.Thumbstick2].Position.X,
-        UserInputService:GetGamepadState(Gamepad)[Enum.KeyCode.Thumbstick2].Position.Y
-    )
-    if rightStick.Magnitude < controllerDeadzone then
-        rightStick = Vector2.new(0, 0)
-    end
-    return rightStick * controllerSensitivity
-end
-
--- Main Aimbot Loop (Mouse + Controller)
 RunService.RenderStepped:Connect(function() 
     if AimbotEnabled or SilentAim then 
         CurrentTarget = StickToTarget and CurrentTarget and IsValidTarget(CurrentTarget) and CurrentTarget or GetBestTarget() 
@@ -2049,20 +1985,7 @@ RunService.RenderStepped:Connect(function()
     end 
     UpdateFOV() 
     UpdateFOVCircle()
-
-    -- Controller Aim Assist
-    if controllerEnabled and controllerAimAssist and CurrentTarget then
-        local input = GetControllerInput()
-        if input.Magnitude > 0 then
-            local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
-            if targetPart then
-                local direction = (targetPart.Position - Camera.CFrame.Position).Unit
-                local assist = direction * controllerAimAssistStrength
-                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + assist), controllerRightStickSmooth)
-            end
-        end
-    end
-
+    
     -- Triggerbot Logic
     if TriggerbotEnabled and CurrentTarget and Mouse.Target and Mouse.Target:IsDescendantOf(CurrentTarget.Character) then
         wait(TriggerDelay / 1000)
@@ -2100,7 +2023,8 @@ CombatTab:CreateToggle({
                         if targetPart then
                             local targetPos = GetPredictedPosition(targetPart)
                             local aimDirection = (targetPos - Camera.CFrame.Position).Unit * AimStrength  
-                            local stickOffset = (targetPart.Position - Camera.CFrame.Position).Unit * Stickiness  
+                            -- الالتصاق يشتغل فقط إذا Moving FOV مفعل
+                            local stickOffset = movingFOVCircleEnabled and (targetPart.Position - Camera.CFrame.Position).Unit * Stickiness or Vector3.zero
                             local finalPos = targetPos + stickOffset
                             local currentSmoothness = ApplySmoothnessToAll and Smoothness or HorizontalSmoothness  
                             local currentVerticalSmooth = ApplySmoothnessToAll and Smoothness or VerticalSmoothness
@@ -2113,9 +2037,9 @@ CombatTab:CreateToggle({
                             if SuperAimStrength then
                                 finalPos = finalPos * SuperAimMultiplier  
                             end
-                            if movingFOVCircleEnabled and movingFOVMouseLock then
+                            if movingFOVCircleEnabled then
                                 local screenPos = Camera:WorldToScreenPoint(targetPart.Position)
-                                -- mousemove(screenPos.X, screenPos.Y) -- Replace with your exploit's mouse move function
+                                -- mousemove(screenPos.X, screenPos.Y) -- استبدل بـ exploit الخاص بك
                             end
                         end
                     end 
@@ -2239,7 +2163,6 @@ CombatTab:CreateSlider({
     Callback = function(Value) Smoothness = Value end 
 }) 
 
--- New Smoothness controls
 CombatTab:CreateSlider({ 
     Name = "Horizontal Smoothness", 
     Range = {0.05, 0.5}, 
@@ -2326,7 +2249,6 @@ CombatTab:CreateSlider({
     Callback = function(Value) AimAccuracy = Value end 
 })
 
--- New Aim Strength and Stickiness
 CombatTab:CreateSlider({ 
     Name = "Aim Strength", 
     Range = {0, 1}, 
@@ -2343,7 +2265,6 @@ CombatTab:CreateSlider({
     Callback = function(Value) Stickiness = Value end 
 }) 
 
--- New Aim Precision and Network Lock
 CombatTab:CreateSlider({ 
     Name = "Aim Precision", 
     Range = {0, 1}, 
@@ -2373,8 +2294,6 @@ CombatTab:CreateSlider({
     CurrentValue = 1.5, 
     Callback = function(Value) SuperAimMultiplier = Value end 
 }) 
-
--- إضافات جديدة للـ UI
 
 CombatTab:CreateSlider({ 
     Name = "Offset Spread (studs)", 
@@ -2508,7 +2427,6 @@ CombatTab:CreateToggle({
     Callback = function(Value) EnableStats = Value end 
 })
 
--- ميزة جديدة: No Miss Bullets
 CombatTab:CreateToggle({ 
     Name = "No Miss Bullets", 
     CurrentValue = false, 
@@ -2530,61 +2448,11 @@ CombatTab:CreateToggle({
     CurrentValue = false, 
     Flag = "MOVING_FOV_CIRCLE", 
     Callback = function(Value) 
-        movingFOVCircleEnabled = Value
-        movingFOVMouseLock = Value  -- الالتصاق يشتغل فقط مع الزر
+        movingFOVCircleEnabled = Value 
         UpdateFOVCircle() 
     end 
 })
-
--- Controller Settings Section
-CombatTab:CreateLabel("Controller Settings")
-
-CombatTab:CreateToggle({ 
-    Name = "Enable Controller Mode", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        controllerEnabled = Value 
-    end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Controller Sensitivity", 
-    Range = {0.1, 3}, 
-    Increment = 0.1, 
-    CurrentValue = 1.0, 
-    Callback = function(Value) controllerSensitivity = Value end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Controller Deadzone", 
-    Range = {0, 0.5}, 
-    Increment = 0.05, 
-    CurrentValue = 0.2, 
-    Callback = function(Value) controllerDeadzone = Value end 
-})
-
-CombatTab:CreateToggle({ 
-    Name = "Controller Aim Assist", 
-    CurrentValue = true, 
-    Callback = function(Value) controllerAimAssist = Value end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Aim Assist Strength", 
-    Range = {0, 1}, 
-    Increment = 0.1, 
-    CurrentValue = 0.7, 
-    Callback = function(Value) controllerAimAssistStrength = Value end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Right Stick Smoothing", 
-    Range = {0.05, 0.5}, 
-    Increment = 0.01, 
-    CurrentValue = 0.15, 
-    Callback = function(Value) controllerRightStickSmooth = Value end 
-})
-
+ 
 -- // TELEPORT SECTION 
 local TeleportTab = Window:CreateTab("Teleports", 4483362458) 
 local locations = { 
@@ -2758,7 +2626,7 @@ PlayerTab:CreateToggle({
         end 
     end 
 }) 
-
+ 
 PlayerTab:CreateToggle({ 
     Name = "Lock Jump Button", 
     CurrentValue = true, 
@@ -2808,7 +2676,7 @@ PlayerTab:CreateToggle({
         end 
     end 
 }) 
-
+ 
 PlayerTab:CreateToggle({ 
     Name = "Anti Taze/Stun", 
     CurrentValue = false, 
@@ -2836,7 +2704,7 @@ PlayerTab:CreateToggle({
         end 
     end 
 }) 
-
+ 
 PlayerTab:CreateToggle({ 
     Name = "Anti Arrest/Cuffs", 
     CurrentValue = false, 
@@ -2890,10 +2758,10 @@ PlayerTab:CreateToggle({
         end 
     end 
 }) 
-
+ 
 -- Fake Run Variable 
 local fakerun = false 
-
+ 
 -- Fake Run Toggle 
 PlayerTab:CreateToggle({ 
     Name = "Anti-Cuff Freeze", 
@@ -2903,12 +2771,12 @@ PlayerTab:CreateToggle({
         fakerun = Value 
     end 
 }) 
-
+ 
 -- Anti-Cuff Freeze Function 
 local function RunRenderFakeRun() 
     local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
     if not root then return end 
-
+ 
     if fakerun then 
         root.AssemblyLinearVelocity = Vector3.new(0, 0, 0) 
         root.Anchored = true 
