@@ -14,12 +14,12 @@ if not success then
     return 
 end 
 print("Rayfield loaded successfully!") 
- 
+
 -- Random theme selection (initial theme) 
 local themes = {"Ocean", "Amethyst", "DarkBlue"} 
 local randomIndex = math.random(1, #themes) 
 local randomTheme = themes[randomIndex] 
- 
+
 -- Create the Window with KeySystem disabled for testing 
 local Window = Rayfield:CreateWindow({ 
     Name = "Valley Prison ByX", 
@@ -39,7 +39,7 @@ local Window = Rayfield:CreateWindow({
     }, 
     Theme = randomTheme 
 }) 
- 
+
 -- Verify Window creation 
 if not Window then 
     warn("Failed to create Rayfield window.") 
@@ -47,7 +47,7 @@ if not Window then
 else 
     print("Rayfield window created successfully!") 
 end 
- 
+
 -- Services 
 local RunService = game:GetService("RunService") 
 local Players = game:GetService("Players") 
@@ -56,7 +56,7 @@ local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer 
 local Mouse = LocalPlayer:GetMouse() 
 local prisonerTeams = {"Minimum Security", "Medium Security", "Maximum Security"} 
- 
+
 -- Variables 
 local infiniteStaminaEnabled = false 
 local speed = 16 
@@ -76,10 +76,10 @@ local antiTazeHumanoidConnection2 = nil
 local antiTazeGuiConnection = nil 
 local antiTazeEffectConnection = nil 
 local antiTazeToolConnection = nil 
- 
+
 -- // INFO TAB 
 local InfoTab = Window:CreateTab("Info", 4483362458) 
- 
+
 InfoTab:CreateButton({ 
     Name = "Copy YouTube Link", 
     Callback = function() 
@@ -92,7 +92,7 @@ InfoTab:CreateButton({
         end 
     end 
 }) 
- 
+
 -- // VISUALS SECTION (ESP, Xray, 3D Box, Material ESP)
 local VisualsTab = Window:CreateTab("Visuals", 4483362458)
 
@@ -1527,7 +1527,7 @@ VisualsTab:CreateSlider({
 })
 
 VisualsTab:CreateSlider({
-   Name = "3D Box 1 Transparency",
+   Name = "3D Box Transparency",
    Range = {0, 1},
    Increment = 0.05,
    Suffix = "%",
@@ -1550,7 +1550,7 @@ VisualsTab:CreateSlider({
 })
 
 VisualsTab:CreateSlider({
-   Name = "3D Box 1 Thickness",
+   Name = "3D Box Thickness",
    Range = {1, 3},
    Increment = 0.1,
    CurrentValue = 1,
@@ -1570,7 +1570,34 @@ VisualsTab:CreateSlider({
       maxDistance = Value
    end,
 })
- 
+
+VisualsTab:CreateToggle({
+    Name = "2D Box",
+    CurrentValue = false,
+    Callback = function(Value)
+        showBox = Value
+        refreshNewESP()
+    end
+})
+
+VisualsTab:CreateToggle({
+    Name = "Health Bar",
+    CurrentValue = false,
+    Callback = function(Value)
+        showHealthNew = Value
+        refreshNewESP()
+    end
+})
+
+VisualsTab:CreateToggle({
+    Name = "3D Box",
+    CurrentValue = false,
+    Callback = function(Value)
+        show3DBox = Value
+        refreshNewESP()
+    end
+})
+
 -- // COMBAT SECTION (Aimbot, FOV, Desync, Silent Aim, Kill All Showcase) 
 local CombatTab = Window:CreateTab("Combat", 4483362458) 
 
@@ -1650,6 +1677,15 @@ local BulletMagnetStrength = 0.5
 
 -- New: Moving FOV circle
 local movingFOVCircleEnabled = false
+local movingFOVMouseLock = false  -- Only lock when Moving FOV is on
+
+-- Controller support variables
+local controllerEnabled = false
+local controllerSensitivity = 1.0
+local controllerDeadzone = 0.2
+local controllerAimAssist = true
+local controllerAimAssistStrength = 0.7
+local controllerRightStickSmooth = 0.15
 
 -- دالة Humanization Factor لإضافة عشوائية للتصويب
 local function ApplyHumanization(position)
@@ -1872,7 +1908,7 @@ end
 
 local function EnableKillAll() 
     if killAllConnection then return end 
-    local root = LocalPlayer.Character and LocalPlayer.Character .HumanoidRootPart 
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
     if not root then 
         Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 }) 
         return 
@@ -1988,6 +2024,19 @@ local function DisableKillMonitor()
     if killMonitorConnection then killMonitorConnection:Disconnect(); killMonitorConnection = nil end
 end
 
+-- Controller Input Handling
+local function GetControllerInput()
+    local rightStick = Vector2.new(
+        UserInputService:GetGamepadState(Gamepad)[Enum.KeyCode.Thumbstick2].Position.X,
+        UserInputService:GetGamepadState(Gamepad)[Enum.KeyCode.Thumbstick2].Position.Y
+    )
+    if rightStick.Magnitude < controllerDeadzone then
+        rightStick = Vector2.new(0, 0)
+    end
+    return rightStick * controllerSensitivity
+end
+
+-- Main Aimbot Loop (Mouse + Controller)
 RunService.RenderStepped:Connect(function() 
     if AimbotEnabled or SilentAim then 
         CurrentTarget = StickToTarget and CurrentTarget and IsValidTarget(CurrentTarget) and CurrentTarget or GetBestTarget() 
@@ -2000,7 +2049,20 @@ RunService.RenderStepped:Connect(function()
     end 
     UpdateFOV() 
     UpdateFOVCircle()
-    
+
+    -- Controller Aim Assist
+    if controllerEnabled and controllerAimAssist and CurrentTarget then
+        local input = GetControllerInput()
+        if input.Magnitude > 0 then
+            local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
+            if targetPart then
+                local direction = (targetPart.Position - Camera.CFrame.Position).Unit
+                local assist = direction * controllerAimAssistStrength
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + assist), controllerRightStickSmooth)
+            end
+        end
+    end
+
     -- Triggerbot Logic
     if TriggerbotEnabled and CurrentTarget and Mouse.Target and Mouse.Target:IsDescendantOf(CurrentTarget.Character) then
         wait(TriggerDelay / 1000)
@@ -2038,8 +2100,7 @@ CombatTab:CreateToggle({
                         if targetPart then
                             local targetPos = GetPredictedPosition(targetPart)
                             local aimDirection = (targetPos - Camera.CFrame.Position).Unit * AimStrength  
-                            -- الالتصاق يشتغل فقط إذا Moving FOV مفعل
-                            local stickOffset = movingFOVCircleEnabled and (targetPart.Position - Camera.CFrame.Position).Unit * Stickiness or Vector3.zero
+                            local stickOffset = (targetPart.Position - Camera.CFrame.Position).Unit * Stickiness  
                             local finalPos = targetPos + stickOffset
                             local currentSmoothness = ApplySmoothnessToAll and Smoothness or HorizontalSmoothness  
                             local currentVerticalSmooth = ApplySmoothnessToAll and Smoothness or VerticalSmoothness
@@ -2052,9 +2113,9 @@ CombatTab:CreateToggle({
                             if SuperAimStrength then
                                 finalPos = finalPos * SuperAimMultiplier  
                             end
-                            if movingFOVCircleEnabled then
+                            if movingFOVCircleEnabled and movingFOVMouseLock then
                                 local screenPos = Camera:WorldToScreenPoint(targetPart.Position)
-                                -- mousemove(screenPos.X, screenPos.Y) -- استبدل بـ exploit الخاص بك
+                                -- mousemove(screenPos.X, screenPos.Y) -- Replace with your exploit's mouse move function
                             end
                         end
                     end 
@@ -2178,6 +2239,7 @@ CombatTab:CreateSlider({
     Callback = function(Value) Smoothness = Value end 
 }) 
 
+-- New Smoothness controls
 CombatTab:CreateSlider({ 
     Name = "Horizontal Smoothness", 
     Range = {0.05, 0.5}, 
@@ -2264,6 +2326,7 @@ CombatTab:CreateSlider({
     Callback = function(Value) AimAccuracy = Value end 
 })
 
+-- New Aim Strength and Stickiness
 CombatTab:CreateSlider({ 
     Name = "Aim Strength", 
     Range = {0, 1}, 
@@ -2280,6 +2343,7 @@ CombatTab:CreateSlider({
     Callback = function(Value) Stickiness = Value end 
 }) 
 
+-- New Aim Precision and Network Lock
 CombatTab:CreateSlider({ 
     Name = "Aim Precision", 
     Range = {0, 1}, 
@@ -2309,6 +2373,8 @@ CombatTab:CreateSlider({
     CurrentValue = 1.5, 
     Callback = function(Value) SuperAimMultiplier = Value end 
 }) 
+
+-- إضافات جديدة للـ UI
 
 CombatTab:CreateSlider({ 
     Name = "Offset Spread (studs)", 
@@ -2442,6 +2508,7 @@ CombatTab:CreateToggle({
     Callback = function(Value) EnableStats = Value end 
 })
 
+-- ميزة جديدة: No Miss Bullets
 CombatTab:CreateToggle({ 
     Name = "No Miss Bullets", 
     CurrentValue = false, 
@@ -2463,11 +2530,61 @@ CombatTab:CreateToggle({
     CurrentValue = false, 
     Flag = "MOVING_FOV_CIRCLE", 
     Callback = function(Value) 
-        movingFOVCircleEnabled = Value 
+        movingFOVCircleEnabled = Value
+        movingFOVMouseLock = Value  -- الالتصاق يشتغل فقط مع الزر
         UpdateFOVCircle() 
     end 
 })
- 
+
+-- Controller Settings Section
+CombatTab:CreateLabel("Controller Settings")
+
+CombatTab:CreateToggle({ 
+    Name = "Enable Controller Mode", 
+    CurrentValue = false, 
+    Callback = function(Value) 
+        controllerEnabled = Value 
+    end 
+})
+
+CombatTab:CreateSlider({ 
+    Name = "Controller Sensitivity", 
+    Range = {0.1, 3}, 
+    Increment = 0.1, 
+    CurrentValue = 1.0, 
+    Callback = function(Value) controllerSensitivity = Value end 
+})
+
+CombatTab:CreateSlider({ 
+    Name = "Controller Deadzone", 
+    Range = {0, 0.5}, 
+    Increment = 0.05, 
+    CurrentValue = 0.2, 
+    Callback = function(Value) controllerDeadzone = Value end 
+})
+
+CombatTab:CreateToggle({ 
+    Name = "Controller Aim Assist", 
+    CurrentValue = true, 
+    Callback = function(Value) controllerAimAssist = Value end 
+})
+
+CombatTab:CreateSlider({ 
+    Name = "Aim Assist Strength", 
+    Range = {0, 1}, 
+    Increment = 0.1, 
+    CurrentValue = 0.7, 
+    Callback = function(Value) controllerAimAssistStrength = Value end 
+})
+
+CombatTab:CreateSlider({ 
+    Name = "Right Stick Smoothing", 
+    Range = {0.05, 0.5}, 
+    Increment = 0.01, 
+    CurrentValue = 0.15, 
+    Callback = function(Value) controllerRightStickSmooth = Value end 
+})
+
 -- // TELEPORT SECTION 
 local TeleportTab = Window:CreateTab("Teleports", 4483362458) 
 local locations = { 
@@ -2641,7 +2758,7 @@ PlayerTab:CreateToggle({
         end 
     end 
 }) 
- 
+
 PlayerTab:CreateToggle({ 
     Name = "Lock Jump Button", 
     CurrentValue = true, 
@@ -2691,7 +2808,7 @@ PlayerTab:CreateToggle({
         end 
     end 
 }) 
- 
+
 PlayerTab:CreateToggle({ 
     Name = "Anti Taze/Stun", 
     CurrentValue = false, 
@@ -2719,7 +2836,7 @@ PlayerTab:CreateToggle({
         end 
     end 
 }) 
- 
+
 PlayerTab:CreateToggle({ 
     Name = "Anti Arrest/Cuffs", 
     CurrentValue = false, 
@@ -2773,10 +2890,10 @@ PlayerTab:CreateToggle({
         end 
     end 
 }) 
- 
+
 -- Fake Run Variable 
 local fakerun = false 
- 
+
 -- Fake Run Toggle 
 PlayerTab:CreateToggle({ 
     Name = "Anti-Cuff Freeze", 
@@ -2786,12 +2903,12 @@ PlayerTab:CreateToggle({
         fakerun = Value 
     end 
 }) 
- 
+
 -- Anti-Cuff Freeze Function 
 local function RunRenderFakeRun() 
     local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
     if not root then return end 
- 
+
     if fakerun then 
         root.AssemblyLinearVelocity = Vector3.new(0, 0, 0) 
         root.Anchored = true 
