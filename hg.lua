@@ -177,153 +177,8 @@ local customColorEnabled = false
 local customESPColor = Color3.fromRGB(0, 255, 0)  -- Default green
 local selectedESPTypes = {}  -- Table for selected ESP types (multi-select)
 
--- // NEW AVATAR ESP VARIABLES
-local avatarESPEnabled = false
-local avatarESPObjects = {}
-local avatarSize = 50 -- الحجم الافتراضي
-local avatarBorderThickness = 2 -- سمك الإطار الافتراضي
-
 local function getCharacter(player)
     return player.Character
-end
-
--- // NEW AVATAR ESP FUNCTIONS
-local function createAvatarESP(player)
-    if player == localPlayer then return end
-    
-    local character = getCharacter(player)
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-
-    -- إنشاء BillboardGui
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "AvatarESP"
-    billboard.Adornee = character.HumanoidRootPart
-    billboard.Size = UDim2.new(0, avatarSize + (avatarBorderThickness * 2), 0, avatarSize + (avatarBorderThickness * 2))
-    billboard.StudsOffset = Vector3.new(0, 3.5, 0) -- فوق اللاعب
-    billboard.AlwaysOnTop = true
-    billboard.Enabled = avatarESPEnabled
-    billboard.Parent = character.HumanoidRootPart
-
-    -- الإطار (مربع بلون الفريق)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 1, 0)
-    frame.BackgroundColor3 = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255)
-    frame.BorderSizePixel = 0
-    frame.Parent = billboard
-
-    -- الصورة الداخلية
-    local imageLabel = Instance.new("ImageLabel")
-    imageLabel.Size = UDim2.new(1, -avatarBorderThickness * 2, 1, -avatarBorderThickness * 2)
-    imageLabel.Position = UDim2.new(0, avatarBorderThickness, 0, avatarBorderThickness)
-    imageLabel.BackgroundTransparency = 1
-    imageLabel.BorderSizePixel = 0
-    imageLabel.Parent = frame
-
-    -- جلب صورة البروفايل
-    local function loadPlayerAvatar()
-        local userId = player.UserId
-        local thumbType = Enum.ThumbnailType.HeadShot
-        local thumbSize = Enum.ThumbnailSize.Size100x100
-        
-        local success, result = pcall(function()
-            return game:GetService("Players"):GetUserThumbnailAsync(userId, thumbType, thumbSize)
-        end)
-        
-        if success and result then
-            imageLabel.Image = result
-        else
-            -- صورة افتراضية إذا فشل التحميل
-            imageLabel.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-        end
-    end
-
-    -- تحميل الصورة
-    loadPlayerAvatar()
-
-    avatarESPObjects[player] = {
-        Billboard = billboard,
-        Frame = frame,
-        ImageLabel = imageLabel
-    }
-end
-
-local function updateAvatarSize()
-    for player, espData in pairs(avatarESPObjects) do
-        if espData and espData.Billboard then
-            espData.Billboard.Size = UDim2.new(0, avatarSize + (avatarBorderThickness * 2), 0, avatarSize + (avatarBorderThickness * 2))
-            if espData.ImageLabel then
-                espData.ImageLabel.Size = UDim2.new(1, -avatarBorderThickness * 2, 1, -avatarBorderThickness * 2)
-                espData.ImageLabel.Position = UDim2.new(0, avatarBorderThickness, 0, avatarBorderThickness)
-            end
-        end
-    end
-end
-
-local function updateAvatarBorderColors()
-    for player, espData in pairs(avatarESPObjects) do
-        if espData and espData.Frame then
-            local finalColor = customColorEnabled and table.find(selectedESPTypes, "Avatar ESP") and customESPColor or 
-                             (player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255))
-            espData.Frame.BackgroundColor3 = finalColor
-        end
-    end
-end
-
-local function enableAvatarESP()
-    for _, player in pairs(players:GetPlayers()) do
-        if player ~= localPlayer then
-            createAvatarESP(player)
-        end
-    end
-    
-    -- إضافة لاعبين جدد
-    players.PlayerAdded:Connect(function(player)
-        if player ~= localPlayer and avatarESPEnabled then
-            createAvatarESP(player)
-        end
-    end)
-    
-    -- إزالة لاعبين عند مغادرتهم
-    players.PlayerRemoving:Connect(function(player)
-        if avatarESPObjects[player] then
-            if avatarESPObjects[player].Billboard then
-                avatarESPObjects[player].Billboard:Destroy()
-            end
-            avatarESPObjects[player] = nil
-        end
-    end)
-end
-
-local function disableAvatarESP()
-    for player, espData in pairs(avatarESPObjects) do
-        if espData and espData.Billboard then
-            espData.Billboard:Destroy()
-        end
-    end
-    avatarESPObjects = {}
-end
-
-local function refreshAvatarESP()
-    disableAvatarESP()
-    if avatarESPEnabled then
-        enableAvatarESP()
-    end
-end
-
-local function cleanAvatarESP()
-    local currentPlayers = {}
-    for _, player in pairs(players:GetPlayers()) do
-        currentPlayers[player] = true
-    end
-
-    for player, _ in pairs(avatarESPObjects) do
-        if not currentPlayers[player] then
-            if avatarESPObjects[player] and avatarESPObjects[player].Billboard then
-                avatarESPObjects[player].Billboard:Destroy()
-            end
-            avatarESPObjects[player] = nil
-        end
-    end
 end
 
 local function createNewESP(player)
@@ -409,7 +264,7 @@ local function updateNewESP()
 
     for player, draws in pairs(drawings) do
         local char = getCharacter(player)
-        if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
+        if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") and char.Humanoid.Health > 0 then
             local root = char.HumanoidRootPart
             local dist = (myRoot.Position - root.Position).Magnitude
             if dist > maxDistance then
@@ -434,7 +289,7 @@ local function updateNewESP()
                         else
                             d.Visible = false 
                         end
-                end
+                    end
                     continue
                 end
 
@@ -699,9 +554,6 @@ local function cleanStuckESPs()
             lineESPObjects[player] = nil
         end
     end
-
-    -- Clean Avatar ESP
-    cleanAvatarESP()
 end
 
 local function updateInventory(player, espHolder)
@@ -1184,10 +1036,9 @@ local function RefreshAllESP()
     refreshMaterialESP()
     refreshVents()
     refreshGarbage()
-    refreshNewESP()  -- Added to include Skeleton ESP 1 in auto refresh
-    refreshStickmanESP()
+    refreshNewESP()
+    refreshStickmanESP()  -- Added to include Skeleton ESP 1 in auto refresh
     refreshLineESP()
-    refreshAvatarESP() -- Added Avatar ESP to auto refresh
 end
 
 function createStickmanESP(player)
@@ -1440,7 +1291,7 @@ end
 
 function enableStickmanESP()
     for _, player in pairs(Players:GetPlayers()) do
-        if player ~= localPlayer then
+        if player ~= localPlayer then  -- Skip self
             createStickmanESP(player)
         end
     end
@@ -1612,61 +1463,6 @@ VisualsTab:CreateToggle({
     end
 })
 
--- // NEW AVATAR ESP UI ELEMENTS
-VisualsTab:CreateSection("Avatar ESP Features")
-
-VisualsTab:CreateToggle({
-    Name = "Avatar ESP (New)",
-    CurrentValue = false,
-    Callback = function(Value)
-        avatarESPEnabled = Value
-        if Value then
-            enableAvatarESP()
-        else
-            disableAvatarESP()
-        end
-    end
-})
-
-VisualsTab:CreateSlider({
-    Name = "Avatar Image Size",
-    Range = {20, 150},
-    Increment = 5,
-    Suffix = "px",
-    CurrentValue = 50,
-    Callback = function(Value)
-        avatarSize = Value
-        updateAvatarSize()
-    end
-})
-
-VisualsTab:CreateSlider({
-    Name = "Avatar Border Thickness",
-    Range = {1, 10},
-    Increment = 1,
-    Suffix = "px",
-    CurrentValue = 2,
-    Callback = function(Value)
-        avatarBorderThickness = Value
-        updateAvatarSize()
-    end
-})
-
-VisualsTab:CreateButton({
-    Name = "Refresh Avatar Images",
-    Callback = function()
-        for player, espData in pairs(avatarESPObjects) do
-            if espData and espData.Billboard then
-                espData.Billboard:Destroy()
-            end
-        end
-        avatarESPObjects = {}
-        if avatarESPEnabled then
-            enableAvatarESP()
-        end
-    end
-})
-
 VisualsTab:CreateToggle({
     Name = "2D Box 1",
     CurrentValue = false,
@@ -1782,15 +1578,10 @@ VisualsTab:CreateToggle({
                     if espSettings.Enabled then disableStickmanESP() end
                     if enableMainESP then disableNewESP() end
                     if lineESPEnabled then disableLineESP() end
-                    if avatarESPEnabled then disableAvatarESP() end -- Added Avatar ESP
                     if highlightESPEnabled then 
                         for _, espHolder in pairs(ESPObjects) do 
                             if espHolder.Highlight then espHolder.Highlight.Enabled = false end 
                         end 
-                    end
-                    if ESPEnabled then  -- قفل Enable ESP
-                        ESPEnabled = false
-                        CleanupUnusedESP()
                     end
 
                     -- حدث الـ ESP
@@ -1800,15 +1591,10 @@ VisualsTab:CreateToggle({
                     if espSettings.Enabled then enableStickmanESP() end
                     if enableMainESP then enableNewESP() end
                     if lineESPEnabled then enableLineESP() end
-                    if avatarESPEnabled then enableAvatarESP() end -- Added Avatar ESP
                     if highlightESPEnabled then 
                         for _, espHolder in pairs(ESPObjects) do 
                             if espHolder.Highlight then espHolder.Highlight.Enabled = true end 
                         end 
-                    end
-                    if ESPEnabled then  -- شغل Enable ESP مرة ثانية
-                        ESPEnabled = true
-                        RefreshESP()
                     end
 
                     Rayfield:Notify({ Title = "Auto Refresh", Content = "تم التحديث!", Duration = 3, Image = 4483362458 })
@@ -1833,121 +1619,51 @@ VisualsTab:CreateSlider({
 })
 
 VisualsTab:CreateToggle({
-    Name = "Auto Clean Stuck ESPs",
+    Name = "Auto Refresh (Optimized)",
     CurrentValue = false,
     Callback = function(Value)
-        autoCleanEnabled = Value
-        if Value then
-            autoCleanConnection = RunService.Heartbeat:Connect(function(delta)
-                cleanTimer = (cleanTimer or 0) + delta
-                if cleanTimer >= 2 then
-                    cleanStuckESPs()
-                    cleanTimer = 0
-                end
-            end)
-        else
-            if autoCleanConnection then autoCleanConnection:Disconnect() end
-        end
-    end
-})
-
--- أضف هالزر في نهاية VisualsTab (بعد آخر Slider/ColorPicker)
-local autoToggleEnabled = false
-
-VisualsTab:CreateToggle({
-    Name = "Auto Refresh All ESPs (5s)",
-    CurrentValue = false,
-    Callback = function(Value)
-        autoToggleEnabled = Value
+        autoRefreshEnabled = Value
         if Value then
             task.spawn(function()
-                while autoToggleEnabled do
-                    task.wait(5)
-                    
-                    -- حفظ الحالات الحالية لكل ESPs
-                    local states = {
-                        ESPEnabled = ESPEnabled,
-                        highlightESPEnabled = highlightESPEnabled,
-                        espSettingsEnabled = espSettings.Enabled,
-                        enableMainESP = enableMainESP,
-                        lineESPEnabled = lineESPEnabled,
-                        avatarESPEnabled = avatarESPEnabled, -- Added Avatar ESP
-                        ventsEnabled = ventsEnabled,
-                        garbageEnabled = garbageEnabled,
-                        xrayEnabled = xrayEnabled,
-                        showBox = showBox,
-                        show3DBox = show3DBox,
-                        showHealthNew = showHealthNew,
-                        showHealthNew2 = showHealthNew2,
-                        showName = showName,
-                        showDist = showDist,
-                        showTool = showTool
-                    }
+                while autoRefreshEnabled do
+                    task.wait(autoRefreshInterval)  -- انتظر 10 ثواني أول مرة وبعد كل عملية
+                    -- قفل كل الـ ESP المشغلة
+                    if espSettings.Enabled then disableStickmanESP() end
+                    if enableMainESP then disableNewESP() end
+                    if lineESPEnabled then disableLineESP() end
+                    if highlightESPEnabled then 
+                        for _, espHolder in pairs(ESPObjects) do 
+                            if espHolder.Highlight then espHolder.Highlight.Enabled = false end 
+                        end 
+                    end
+                    if ESPEnabled then  -- قفل Enable ESP
+                        ESPEnabled = false
+                        CleanupUnusedESP()
+                    end
 
-                    -- قفل كل الـ ESPs
-                    ESPEnabled = false
-                    CleanupUnusedESP()
-                    highlightESPEnabled = false
-                    espSettings.Enabled = false
-                    disableStickmanESP()
-                    enableMainESP = false
-                    disableNewESP()
-                    lineESPEnabled = false
-                    disableLineESP()
-                    avatarESPEnabled = false -- Added Avatar ESP
-                    disableAvatarESP()
-                    ventsEnabled = false
-                    refreshVents()
-                    garbageEnabled = false
-                    refreshGarbage()
-                    xrayEnabled = false
-                    toggleXray(false)
-                    showBox = false
-                    show3DBox = false
-                    showHealthNew = false
-                    showHealthNew2 = false
-                    showName = false
-                    showDist = false
-                    showTool = false
-                    refreshNewESP()
-
-                    -- حدث الـ ESPs (Refresh without recreate)
+                    -- حدث الـ ESP
                     RefreshAllESP()
 
-                    -- إعادة تشغيل الـ ESPs المشغلة سابقاً
-                    ESPEnabled = states.ESPEnabled
-                    if ESPEnabled then RefreshESP() end
-                    highlightESPEnabled = states.highlightESPEnabled
-                    UpdateESPVisibilities()
-                    espSettings.Enabled = states.espSettingsEnabled
+                    -- شغل الـ ESP المشغلة مرة ثانية
                     if espSettings.Enabled then enableStickmanESP() end
-                    enableMainESP = states.enableMainESP
                     if enableMainESP then enableNewESP() end
-                    lineESPEnabled = states.lineESPEnabled
                     if lineESPEnabled then enableLineESP() end
-                    avatarESPEnabled = states.avatarESPEnabled -- Added Avatar ESP
-                    if avatarESPEnabled then enableAvatarESP() end
-                    ventsEnabled = states.ventsEnabled
-                    if ventsEnabled then refreshVents() end
-                    garbageEnabled = states.garbageEnabled
-                    if garbageEnabled then refreshGarbage() end
-                    xrayEnabled = states.xrayEnabled
-                    if xrayEnabled then toggleXray(true) end
-                    showBox = states.showBox
-                    show3DBox = states.show3DBox
-                    showHealthNew = states.showHealthNew
-                    showHealthNew2 = states.showHealthNew2
-                    showName = states.showName
-                    showDist = states.showDist
-                    showTool = states.showTool
-                    refreshNewESP()
+                    if highlightESPEnabled then 
+                        for _, espHolder in pairs(ESPObjects) do 
+                            if espHolder.Highlight then espHolder.Highlight.Enabled = true end 
+                        end 
+                    end
+                    if ESPEnabled then  -- شغل Enable ESP مرة ثانية
+                        ESPEnabled = true
+                        RefreshESP()
+                    end
 
-                    Rayfield:Notify({ Title = "Auto Refresh", Content = "تم إعادة تحميل كل الـ ESPs!", Duration = 3 })
+                    Rayfield:Notify({ Title = "Auto Refresh", Content = "تم التحديث!", Duration = 3, Image = 4483362458 })
                 end
             end)
-            Rayfield:Notify({ Title = "Activated", Content = "Auto Refresh كل 5 ثواني.", Duration = 3 })
+            Rayfield:Notify({ Title = "Activated", Content = "Auto Refresh enabled.", Duration = 5, Image = 4483362458 })
         else
-            Rayfield:Notify({ Title = "Deactivated", Content = "تم إيقاف الـ Auto Refresh.", Duration = 3 })
+            Rayfield:Notify({ Title = "Deactivated", Content = "Auto Refresh disabled.", Duration = 5, Image = 4483362458 })
         end
     end
 })
@@ -2037,6 +1753,8 @@ VisualsTab:CreateSlider({
 -- New: Line ESP Settings
 VisualsTab:CreateLabel("Line ESP Settings")
 
+-- Removed separate color picker for Line ESP, now uses custom color
+
 VisualsTab:CreateSlider({
     Name = "Line ESP Thickness",
     Range = {1, 5},
@@ -2064,15 +1782,11 @@ VisualsTab:CreateToggle({
 
 VisualsTab:CreateDropdown({
     Name = "Select ESP Types for Custom Color",
-    Options = {"Skeleton 1", "Skeleton 2", "2D Box", "3D Box", "Health Bar 1", "Health Bar 2", "Name", "Distance", "Tool", "Line ESP", "Highlight ESP", "Avatar ESP", "Vents", "Garbage"},
+    Options = {"Skeleton 1", "Skeleton 2", "2D Box", "3D Box", "Health Bar 1", "Health Bar 2", "Name", "Distance", "Tool", "Line ESP", "Highlight ESP", "Vents", "Garbage"},
     CurrentOption = {},
     MultipleOptions = true,
     Callback = function(Options)
         selectedESPTypes = Options
-        -- Update colors immediately when selection changes
-        if customColorEnabled then
-            RefreshAllESP()
-        end
     end
 })
 
@@ -2083,7 +1797,6 @@ VisualsTab:CreateColorPicker({
         customESPColor = Color
         if customColorEnabled then
             RefreshAllESP()  -- Apply immediately if enabled
-            updateAvatarBorderColors() -- Update Avatar ESP borders specifically
         end
     end
 })
