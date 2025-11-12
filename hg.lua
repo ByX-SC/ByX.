@@ -96,35 +96,39 @@ InfoTab:CreateButton({
 -- // VISUALS SECTION (ESP, Xray, 3D Box, Material ESP)
 local VisualsTab = Window:CreateTab("Visuals", 4483362458)
 
+-- Master ESP Toggle
+local ESPMasterEnabled = false
+
+-- ESP Types
 local ESPEnabled = false
 local ShowHealth = false
 local ShowInventory = false
 local ESPObjects = {}
-local xrayEnabled = false  -- Restored Xray
+local xrayEnabled = false  
 local Box3DEnabled = false
 local Box3DObjects = {}
 local materialESPEnabled = false
 local materialHighlights = {}
 local boxEnabled = false
 local boxAdornments = {}
-local ventsEnabled = false  -- Restored Vents ESP
+local ventsEnabled = false  
 local ventHighlights = {}
-local garbageEnabled = false  -- Restored Garbage ESP
+local garbageEnabled = false  
 local garbageHighlights = {}
 local espSettings = {
     Enabled = false,
     ShowDistance = true,
     MaxDistance = 1000,
     LineColor = Color3.fromRGB(255, 255, 255),
-    Thickness = 1,  -- Reduced initial thickness
+    Thickness = 1,
     Transparency = 0.8
 }
 local espObjects = {}
 local connections = {}
 local autoRefreshEnabled = false
-local autoRefreshInterval = 10  -- Changed to 10 seconds
+local autoRefreshInterval = 10  
 local autoRefreshConnection = nil
-local lastRefresh = 0  -- Track last refresh time
+local lastRefresh = 0  
 
 local drawings = {}
 local connection
@@ -137,14 +141,14 @@ local enableMainESP = false
 local showBox = false
 local show3DBox = false
 local showHealthNew = false
-local showHealthNew2 = false  -- Added Health Bar 2
+local showHealthNew2 = false  
 local showName = false
 local showDist = false
 local showTool = false
 
 -- Health Bar settings
-local healthTransparency = 1 -- Default max transparency (100%)
-local healthThickness = 1 -- Default thickness for foreground (bg will be +2)
+local healthTransparency = 1 
+local healthThickness = 1 
 
 -- Box Transparency settings
 local box2DTransparency = 1
@@ -154,7 +158,7 @@ local box3DTransparency = 1
 local box2DThickness = 1
 local box3DThickness = 1
 
--- Max Distance for New ESP (to reduce lag)
+-- Max Distance for New ESP
 local maxDistance = 1000
 
 -- Auto Clean settings
@@ -162,20 +166,20 @@ local autoCleanEnabled = false
 local autoCleanConnection = nil
 local cleanTimer = 0
 
--- New: Highlight ESP (restored)
+-- Highlight ESP
 local highlightESPEnabled = false
 
--- New: Line ESP
+-- Line ESP
 local lineESPEnabled = false
-local lineStartFrom = "Bottom Screen"  -- Fixed to bottom screen only
+local lineStartFrom = "Bottom Screen"  
 local lineColor = Color3.fromRGB(255, 0, 0)
-local lineThickness = 1  -- Reduced initial thickness
-local lineESPObjects = {}  -- {player = line}
+local lineThickness = 1  
+local lineESPObjects = {}  
 
--- New: Custom Color for Selected ESPs
+-- Custom Color
 local customColorEnabled = false
-local customESPColor = Color3.fromRGB(0, 255, 0)  -- Default green
-local selectedESPTypes = {}  -- Table for selected ESP types (multi-select)
+local customESPColor = Color3.fromRGB(0, 255, 0)  
+local selectedESPTypes = {}  
 
 local function getCharacter(player)
     return player.Character
@@ -1036,401 +1040,76 @@ local function RefreshAllESP()
     refreshMaterialESP()
     refreshVents()
     refreshGarbage()
-    refreshNewESP()
-    refreshStickmanESP()  -- Added to include Skeleton ESP 1 in auto refresh
+    refreshNewESP() 
+    refreshStickmanESP()  
     refreshLineESP()
 end
 
-function createStickmanESP(player)
-    if player == localPlayer then return end  -- Skip self
-    local character = player.Character
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
-    local parts = {}
-    local function getPart(name)
-        local part = character:FindFirstChild(name)
-        if part then return part end
-        local r6Map = {
-            ["Head"] = "Head",
-            ["Torso"] = "Torso",
-            ["Left Arm"] = "LeftUpperArm",
-            ["Right Arm"] = "RightUpperArm",
-            ["Left Leg"] = "LeftUpperLeg",
-            ["Right Leg"] = "RightUpperLeg"
-        }
-        local r15Map = {
-            ["Head"] = "Head",
-            ["UpperTorso"] = "UpperTorso",
-            ["LowerTorso"] = "LowerTorso",
-            ["LeftUpperArm"] = "LeftUpperArm",
-            ["LeftLowerArm"] = "LeftLowerArm",
-            ["LeftHand"] = "LeftHand",
-            ["RightUpperArm"] = "RightUpperArm",
-            ["RightLowerArm"] = "RightLowerArm",
-            ["RightHand"] = "RightHand",
-            ["LeftUpperLeg"] = "LeftUpperLeg",
-            ["LeftLowerLeg"] = "LeftLowerLeg",
-            ["LeftFoot"] = "LeftFoot",
-            ["RightUpperLeg"] = "RightUpperLeg",
-            ["RightLowerLeg"] = "RightLowerLeg",
-            ["RightFoot"] = "RightFoot"
-        }
-        for r6Name, r15Name in pairs(r6Map) do
-            if name == r15Name then
-                local r6Part = character:FindFirstChild(r6Name)
-                if r6Part then return r6Part end
-            end
-        end
-        for r15Name, _ in pairs(r15Map) do
-            if name == r15Name then
-                local r15Part = character:FindFirstChild(r15Name)
-                if r15Part then return r15Part end
-            end
-        end
-        return nil
-    end
-    parts.Head = getPart("Head")
-    parts.UpperTorso = getPart("UpperTorso") or getPart("Torso")
-    parts.LowerTorso = getPart("LowerTorso")
-    parts.LeftUpperArm = getPart("LeftUpperArm") or getPart("Left Arm")
-    parts.LeftLowerArm = getPart("LeftLowerArm")
-    parts.LeftHand = getPart("LeftHand")
-    parts.RightUpperArm = getPart("RightUpperArm") or getPart("Right Arm")
-    parts.RightLowerArm = getPart("RightLowerArm")
-    parts.RightHand = getPart("RightHand")
-    parts.LeftUpperLeg = getPart("LeftUpperLeg") or getPart("Left Leg")
-    parts.LeftLowerLeg = getPart("LeftLowerLeg")
-    parts.LeftFoot = getPart("LeftFoot")
-    parts.RightUpperLeg = getPart("RightUpperLeg") or getPart("Right Leg")
-    parts.RightLowerLeg = getPart("RightLowerLeg")
-    parts.RightFoot = getPart("RightFoot")
-    parts.HumanoidRootPart = getPart("HumanoidRootPart")
-    if not parts.Head or not parts.UpperTorso or not parts.HumanoidRootPart then return end
-    local esp = {
-        Player = player,
-        Lines = {},
-        Labels = {}
-    }
-    local connections = {
-        {From = parts.Head, To = parts.UpperTorso},
-        {From = parts.UpperTorso, To = parts.LowerTorso or parts.UpperTorso},
-        {From = parts.UpperTorso, To = parts.LeftUpperArm},
-        {From = parts.LeftUpperArm, To = parts.LeftLowerArm or parts.LeftUpperArm},
-        {From = parts.LeftLowerArm or parts.LeftUpperArm, To = parts.LeftHand or parts.LeftUpperArm},
-        {From = parts.UpperTorso, To = parts.RightUpperArm},
-        {From = parts.RightUpperArm, To = parts.RightLowerArm or parts.RightUpperArm},
-        {From = parts.RightLowerArm or parts.RightUpperArm, To = parts.RightHand or parts.RightUpperArm},
-        {From = parts.LowerTorso or parts.UpperTorso, To = parts.LeftUpperLeg},
-        {From = parts.LeftUpperLeg, To = parts.LeftLowerLeg or parts.LeftUpperLeg},
-        {From = parts.LeftLowerLeg or parts.LeftUpperLeg, To = parts.LeftFoot or parts.LeftUpperLeg},
-        {From = parts.LowerTorso or parts.UpperTorso, To = parts.RightUpperLeg},
-        {From = parts.RightUpperLeg, To = parts.RightLowerLeg or parts.RightUpperLeg},
-        {From = parts.RightLowerLeg or parts.RightUpperLeg, To = parts.RightFoot or parts.RightUpperLeg}
-    }
-    for _, connection in pairs(connections) do
-        local fromPart, toPart = connection.From, connection.To
-        if fromPart and toPart then
-            local line = Drawing.new("Line")
-            line.Visible = false
-            line.Color = customColorEnabled and customESPColor or (player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255))
-            line.Thickness = espSettings.Thickness
-            line.Transparency = espSettings.Transparency
-            table.insert(esp.Lines, line)
-        end
-    end
-    local distanceLabel = Drawing.new("Text")
-    distanceLabel.Visible = false
-    distanceLabel.Color = customColorEnabled and customESPColor or (player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255))
-    distanceLabel.Size = 11
-    distanceLabel.Center = true
-    distanceLabel.Outline = true
-    distanceLabel.Font = 2
-    esp.Labels.Distance = distanceLabel
-    espObjects[player] = esp
-end
+-- Master ESP Toggle Function
+local function UpdateAllESP()
+    ESPEnabled = ESPMasterEnabled
+    ShowHealth = ESPMasterEnabled
+    ShowInventory = ESPMasterEnabled
+    highlightESPEnabled = ESPMasterEnabled
+    showBox = ESPMasterEnabled
+    show3DBox = ESPMasterEnabled
+    showHealthNew = ESPMasterEnabled
+    showHealthNew2 = ESPMasterEnabled
+    showName = ESPMasterEnabled
+    showDist = ESPMasterEnabled
+    showTool = ESPMasterEnabled
+    materialESPEnabled = ESPMasterEnabled
+    ventsEnabled = ESPMasterEnabled
+    garbageEnabled = ESPMasterEnabled
+    boxEnabled = ESPMasterEnabled
+    espSettings.Enabled = ESPMasterEnabled
+    lineESPEnabled = ESPMasterEnabled
 
-function updateStickmanESP()
-    for player, esp in pairs(espObjects) do
-        if not player or not player.Character or not espSettings.Enabled then
-            for _, line in pairs(esp.Lines) do
-                line.Visible = false
-            end
-            for _, label in pairs(esp.Labels) do
-                label.Visible = false
-            end
-            continue
-        end
-        local character = player.Character
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if not humanoid or humanoid.Health <= 0 then
-            for _, line in pairs(esp.Lines) do
-                line.Visible = false
-            end
-            for _, label in pairs(esp.Labels) do
-                label.Visible = false
-            end
-            continue
-        end
-        local rootPart = character:FindFirstChild("HumanoidRootPart")
-        if not rootPart then
-            for _, line in pairs(esp.Lines) do
-                line.Visible = false
-            end
-            for _, label in pairs(esp.Labels) do
-                label.Visible = false
-            end
-            continue
-        end
-        local distance = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")) 
-            and (rootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude 
-            or 0
-        if distance > espSettings.MaxDistance then
-            for _, line in pairs(esp.Lines) do
-                line.Visible = false
-            end
-            for _, label in pairs(esp.Labels) do
-                label.Visible = false
-            end
-            continue
-        end
-        local parts = {}
-        local function getPart(name)
-            local part = character:FindFirstChild(name)
-            if part then return part end
-            local r6Map = {["Head"] = "Head", ["Torso"] = "Torso", ["Left Arm"] = "LeftUpperArm", ["Right Arm"] = "RightUpperArm", ["Left Leg"] = "LeftUpperLeg", ["Right Leg"] = "RightUpperLeg"}
-            local r15Map = {["Head"] = "Head", ["UpperTorso"] = "UpperTorso", ["LowerTorso"] = "LowerTorso", ["LeftUpperArm"] = "LeftUpperArm", ["LeftLowerArm"] = "LeftLowerArm", ["LeftHand"] = "LeftHand", ["RightUpperArm"] = "RightUpperArm", ["RightLowerArm"] = "RightLowerArm", ["RightHand"] = "RightHand", ["LeftUpperLeg"] = "LeftUpperLeg", ["LeftLowerLeg"] = "LeftLowerLeg", ["LeftFoot"] = "LeftFoot", ["RightUpperLeg"] = "RightUpperLeg", ["RightLowerLeg"] = "RightLowerLeg", ["RightFoot"] = "RightFoot"}
-            for r6Name, r15Name in pairs(r6Map) do
-                if name == r15Name then
-                    local r6Part = character:FindFirstChild(r6Name)
-                    if r6Part then return r6Part end
-                end
-            end
-            for r15Name, _ in pairs(r15Map) do
-                if name == r15Name then
-                    local r15Part = character:FindFirstChild(r15Name)
-                    if r15Part then return r15Part end
-                end
-            end
-            return nil
-        end
-        parts.Head = getPart("Head")
-        parts.UpperTorso = getPart("UpperTorso") or getPart("Torso")
-        parts.LowerTorso = getPart("LowerTorso")
-        parts.LeftUpperArm = getPart("LeftUpperArm") or getPart("Left Arm")
-        parts.LeftLowerArm = getPart("LeftLowerArm")
-        parts.LeftHand = getPart("LeftHand")
-        parts.RightUpperArm = getPart("RightUpperArm") or getPart("Right Arm")
-        parts.RightLowerArm = getPart("RightLowerArm")
-        parts.RightHand = getPart("RightHand")
-        parts.LeftUpperLeg = getPart("LeftUpperLeg") or getPart("Left Leg")
-        parts.LeftLowerLeg = getPart("LeftLowerLeg")
-        parts.LeftFoot = getPart("LeftFoot")
-        parts.RightUpperLeg = getPart("RightUpperLeg") or getPart("Right Leg")
-        parts.RightLowerLeg = getPart("RightLowerLeg")
-        parts.RightFoot = getPart("RightFoot")
-        local connList = {
-            {parts.Head, parts.UpperTorso},
-            {parts.UpperTorso, parts.LowerTorso or parts.UpperTorso},
-            {parts.UpperTorso, parts.LeftUpperArm},
-            {parts.LeftUpperArm, parts.LeftLowerArm or parts.LeftUpperArm},
-            {parts.LeftLowerArm or parts.LeftUpperArm, parts.LeftHand or parts.LeftUpperArm},
-            {parts.UpperTorso, parts.RightUpperArm},
-            {parts.RightUpperArm, parts.RightLowerArm or parts.RightUpperArm},
-            {parts.RightLowerArm or parts.RightUpperArm, parts.RightHand or parts.RightUpperArm},
-            {parts.LowerTorso or parts.UpperTorso, parts.LeftUpperLeg},
-            {parts.LeftUpperLeg, parts.LeftLowerLeg or parts.LeftUpperLeg},
-            {parts.LeftLowerLeg or parts.LeftUpperLeg, parts.LeftFoot or parts.LeftUpperLeg},
-            {parts.LowerTorso or parts.UpperTorso, parts.RightUpperLeg},
-            {parts.RightUpperLeg, parts.RightLowerLeg or parts.RightUpperLeg},
-            {parts.RightLowerLeg or parts.RightUpperLeg, parts.RightFoot or parts.RightUpperLeg}
-        }
-        local lineIndex = 1
-        local finalColor = customColorEnabled and customESPColor or teamColor
-        local anyVisible = false
-        for _, connection in pairs(connList) do
-            local fromPart, toPart = connection[1], connection[2]
-            if fromPart and toPart then
-                local fromPos, fromVisible = camera:WorldToViewportPoint(fromPart.Position)
-                local toPos, toVisible = camera:WorldToViewportPoint(toPart.Position)
-                local line = esp.Lines[lineIndex]
-                if fromVisible and toVisible then
-                    line.From = Vector2.new(fromPos.X, fromPos.Y)
-                    line.To = Vector2.new(toPos.X, toPos.Y)
-                    line.Color = finalColor
-                    line.Thickness = espSettings.Thickness
-                    line.Transparency = espSettings.Transparency
-                    line.Visible = true
-                    anyVisible = true
-                else
-                    line.Visible = false
-                end
-            else
-                esp.Lines[lineIndex].Visible = false
-            end
-            lineIndex += 1
-        end
-        if not anyVisible then
-            for _, line in pairs(esp.Lines) do
-                line.Visible = false
-            end
-        end
-        local head = parts.Head
-        if head then
-            local headPos, headVisible = camera:WorldToViewportPoint(head.Position)
-            if headVisible then
-                esp.Labels.Distance.Text = string.format("%.1f", distance) .. "m"
-                esp.Labels.Distance.Position = Vector2.new(headPos.X, headPos.Y - 25)
-                esp.Labels.Distance.Color = finalColor
-                esp.Labels.Distance.Visible = true
-            else
-                esp.Labels.Distance.Visible = false
-            end
-        end
-    end
-end
-
-function enableStickmanESP()
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= localPlayer then  -- Skip self
-            createStickmanESP(player)
-        end
-    end
-    connections.playerAdded = Players.PlayerAdded:Connect(function(player)
-        if player ~= localPlayer then
-            createStickmanESP(player)
-        end
-    end)
-    connections.playerRemoving = Players.PlayerRemoving:Connect(function(player)
-        if espObjects[player] then
-            for _, line in pairs(espObjects[player].Lines) do
-                line:Remove()
-            end
-            for _, label in pairs(espObjects[player].Labels) do
-                label:Remove()
-            end
-            espObjects[player] = nil
-        end
-    end)
-    connections.renderStepped = RunService.Heartbeat:Connect(updateStickmanESP)  -- Changed to Heartbeat for less lag
-end
-
-function disableStickmanESP()
-    for _, conn in pairs(connections) do conn:Disconnect() end
-    connections = {}
-    for _, esp in pairs(espObjects) do
-        for _, line in pairs(esp.Lines) do
-            line:Remove()
-        end
-        for _, label in pairs(esp.Labels) do
-            label:Remove()
-        end
-    end
-    espObjects = {}
-end
-
-local function refreshStickmanESP()
-    disableStickmanESP()
-    if espSettings.Enabled then
-        enableStickmanESP()
-    end
-end
-
--- New: Create Line ESP
-local function createLineESP(player)
-    if player == localPlayer or lineESPObjects[player] then return end  -- Skip self
-    local line = Drawing.new("Line")
-    line.Visible = false
-    line.Color = customColorEnabled and customESPColor or lineColor  -- Use custom color if enabled
-    line.Thickness = lineThickness
-    line.Transparency = 1
-    lineESPObjects[player] = line
-end
-
-local function updateLineESP()
-    for player, line in pairs(lineESPObjects) do
-        local char = getCharacter(player)
-        if not lineESPEnabled or not char or not char:FindFirstChild("HumanoidRootPart") then
-            line.Visible = false
-            continue
-        end
-        local root = char.HumanoidRootPart
-        local screenPos, onScreen = camera:WorldToViewportPoint(root.Position)
-        if not onScreen then
-            line.Visible = false
-            continue
-        end
-        local startPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y)  -- From bottom center
-        line.From = startPos
-        line.To = Vector2.new(screenPos.X, screenPos.Y)
-        line.Color = customColorEnabled and table.find(selectedESPTypes, "Line ESP") and customESPColor or lineColor
-        line.Visible = true
-    end
-end
-
-local function enableLineESP()
-    for _, player in pairs(players:GetPlayers()) do
-        createLineESP(player)
-    end
-    players.PlayerAdded:Connect(createLineESP)
-    if not connections.lineESP then
-        connections.lineESP = RunService.Heartbeat:Connect(updateLineESP)
-    end
-end
-
-local function disableLineESP()
-    if connections.lineESP then
-        connections.lineESP:Disconnect()
-        connections.lineESP = nil
-    end
-    for _, line in pairs(lineESPObjects) do
-        line:Remove()
-    end
-    lineESPObjects = {}
-end
-
-local function refreshLineESP()
-    disableLineESP()
-    if lineESPEnabled then
-        enableLineESP()
-    end
-end
-
--- Xray (restored)
-local function toggleXray(Value)
-    xrayEnabled = Value
-    if Value then
-        for _, part in pairs(workspace:GetDescendants()) do
-            if part:IsA("BasePart") and part.Transparency < 1 then
-                part.Transparency = 0.5  -- Semi-transparent for Xray
-            end
-        end
+    if ESPMasterEnabled then
+        RefreshAllESP()
+        UpdateESPVisibilities()
     else
-        for _, part in pairs(workspace:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.Transparency = 0  -- Reset (assume original is 0, adjust if needed)
-            end
-        end
+        CleanupUnusedESP()
+        disableNewESP()
     end
 end
-
--- UI Elements for VisualsTab (Reworked Toggles and Sliders)
 
 VisualsTab:CreateToggle({
-    Name = "Enable ESP",
+    Name = "Enable ESP (Master)",
     CurrentValue = false,
     Callback = function(Value)
-        ESPEnabled = Value
-        if Value then
-            RefreshESP()  -- Activates Highlight + Billboard
-        else
-            CleanupUnusedESP()
-        end
+        ESPMasterEnabled = Value
+        UpdateAllESP()
+    end
+})
+
+-- Other Visual Toggles (as in the original)
+VisualsTab:CreateToggle({
+    Name = "Show Health",
+    CurrentValue = false,
+    Flag = "SHOW_HEALTH",
+    Callback = function(Value)
+        ShowHealth = Value
+        RefreshESP()
+        UpdateESPVisibilities()
+    end
+})
+
+VisualsTab:CreateToggle({
+    Name = "Show Inventory (Prisoners Only)",
+    CurrentValue = false,
+    Flag = "SHOW_INVENTORY",
+    Callback = function(Value)
+        ShowInventory = Value
+        RefreshESP()
+        UpdateESPVisibilities()
     end
 })
 
 VisualsTab:CreateToggle({
     Name = "Highlight ESP",
     CurrentValue = false,
+    Flag = "HIGHLIGHT_ESP",
     Callback = function(Value)
         highlightESPEnabled = Value
         UpdateESPVisibilities()
@@ -1438,34 +1117,9 @@ VisualsTab:CreateToggle({
 })
 
 VisualsTab:CreateToggle({
-    Name = "Skeleton ESP 1",
+    Name = "2D Box ESP",
     CurrentValue = false,
-    Callback = function(Value)
-        espSettings.Enabled = Value
-        if Value then
-            enableStickmanESP()
-        else
-            disableStickmanESP()
-        end
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "Skeleton ESP 2 (New)",
-    CurrentValue = false,
-    Callback = function(Value)
-        enableMainESP = Value
-        if Value then
-            enableNewESP()
-        else
-            disableNewESP()
-        end
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "2D Box 1",
-    CurrentValue = false,
+    Flag = "BOX_ESP",
     Callback = function(Value)
         showBox = Value
         refreshNewESP()
@@ -1473,17 +1127,19 @@ VisualsTab:CreateToggle({
 })
 
 VisualsTab:CreateToggle({
-    Name = "3D Box 1",
+    Name = "3D Box ESP",
     CurrentValue = false,
+    Flag = "3D_BOX_ESP",
     Callback = function(Value)
-        show3DBox = Value
-        refreshNewESP()
+        Box3DEnabled = Value
+        Refresh3DBox()
     end
 })
 
 VisualsTab:CreateToggle({
     Name = "Health Bar 1",
     CurrentValue = false,
+    Flag = "HEALTH_BAR_1",
     Callback = function(Value)
         showHealthNew = Value
         refreshNewESP()
@@ -1493,6 +1149,7 @@ VisualsTab:CreateToggle({
 VisualsTab:CreateToggle({
     Name = "Health Bar 2",
     CurrentValue = false,
+    Flag = "HEALTH_BAR_2",
     Callback = function(Value)
         showHealthNew2 = Value
         refreshNewESP()
@@ -1500,8 +1157,9 @@ VisualsTab:CreateToggle({
 })
 
 VisualsTab:CreateToggle({
-    Name = "Show Name",
+    Name = "Name ESP",
     CurrentValue = false,
+    Flag = "NAME_ESP",
     Callback = function(Value)
         showName = Value
         refreshNewESP()
@@ -1509,8 +1167,9 @@ VisualsTab:CreateToggle({
 })
 
 VisualsTab:CreateToggle({
-    Name = "Show Distance",
+    Name = "Distance ESP",
     CurrentValue = false,
+    Flag = "DIST_ESP",
     Callback = function(Value)
         showDist = Value
         refreshNewESP()
@@ -1518,8 +1177,9 @@ VisualsTab:CreateToggle({
 })
 
 VisualsTab:CreateToggle({
-    Name = "Show Tool",
+    Name = "Tool ESP",
     CurrentValue = false,
+    Flag = "TOOL_ESP",
     Callback = function(Value)
         showTool = Value
         refreshNewESP()
@@ -1527,21 +1187,39 @@ VisualsTab:CreateToggle({
 })
 
 VisualsTab:CreateToggle({
+    Name = "Skeleton ESP",
+    CurrentValue = false,
+    Flag = "SKELETON_ESP",
+    Callback = function(Value)
+        espSettings.Enabled = Value
+        refreshStickmanESP()
+    end
+})
+
+VisualsTab:CreateToggle({
     Name = "Line ESP",
     CurrentValue = false,
+    Flag = "LINE_ESP",
     Callback = function(Value)
         lineESPEnabled = Value
-        if Value then
-            enableLineESP()
-        else
-            disableLineESP()
-        end
+        refreshLineESP()
+    end
+})
+
+VisualsTab:CreateToggle({
+    Name = "Material ESP (Plastic/Metal)",
+    CurrentValue = false,
+    Flag = "MATERIAL_ESP",
+    Callback = function(Value)
+        materialESPEnabled = Value
+        refreshMaterialESP()
     end
 })
 
 VisualsTab:CreateToggle({
     Name = "Vents ESP",
     CurrentValue = false,
+    Flag = "VENTS_ESP",
     Callback = function(Value)
         ventsEnabled = Value
         refreshVents()
@@ -1551,6 +1229,7 @@ VisualsTab:CreateToggle({
 VisualsTab:CreateToggle({
     Name = "Garbage ESP",
     CurrentValue = false,
+    Flag = "GARBAGE_ESP",
     Callback = function(Value)
         garbageEnabled = Value
         refreshGarbage()
@@ -1558,1130 +1237,902 @@ VisualsTab:CreateToggle({
 })
 
 VisualsTab:CreateToggle({
-    Name = "Xray",
+    Name = "Box ESP (Materials)",
     CurrentValue = false,
+    Flag = "BOX_ESP_MATERIALS",
     Callback = function(Value)
-        toggleXray(Value)
+        boxEnabled = Value
+        refreshBoxESP()
     end
 })
 
 VisualsTab:CreateToggle({
-    Name = "Auto Refresh (Optimized)",
+    Name = "Custom Color",
     CurrentValue = false,
-    Callback = function(Value)
-        autoRefreshEnabled = Value
-        if Value then
-            task.spawn(function()
-                while autoRefreshEnabled do
-                    task.wait(autoRefreshInterval)  -- انتظر 10 ثواني أول مرة وبعد كل عملية
-                    -- قفل كل الـ ESP المشغلة
-                    if espSettings.Enabled then disableStickmanESP() end
-                    if enableMainESP then disableNewESP() end
-                    if lineESPEnabled then disableLineESP() end
-                    if highlightESPEnabled then 
-                        for _, espHolder in pairs(ESPObjects) do 
-                            if espHolder.Highlight then espHolder.Highlight.Enabled = false end 
-                        end 
-                    end
-
-                    -- حدث الـ ESP
-                    RefreshAllESP()
-
-                    -- شغل الـ ESP المشغلة مرة ثانية
-                    if espSettings.Enabled then enableStickmanESP() end
-                    if enableMainESP then enableNewESP() end
-                    if lineESPEnabled then enableLineESP() end
-                    if highlightESPEnabled then 
-                        for _, espHolder in pairs(ESPObjects) do 
-                            if espHolder.Highlight then espHolder.Highlight.Enabled = true end 
-                        end 
-                    end
-
-                    Rayfield:Notify({ Title = "Auto Refresh", Content = "تم التحديث!", Duration = 3, Image = 4483362458 })
-                end
-            end)
-            Rayfield:Notify({ Title = "Activated", Content = "Auto Refresh enabled.", Duration = 5, Image = 4483362458 })
-        else
-            Rayfield:Notify({ Title = "Deactivated", Content = "Auto Refresh disabled.", Duration = 5, Image = 4483362458 })
-        end
-    end
-})
-
-VisualsTab:CreateSlider({
-    Name = "Auto Refresh Interval (s)",
-    Range = {1, 30},
-    Increment = 1,
-    Suffix = " seconds",
-    CurrentValue = 10,  -- Default 10 seconds
-    Callback = function(Value)
-        autoRefreshInterval = Value
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "Auto Refresh (Optimized)",
-    CurrentValue = false,
-    Callback = function(Value)
-        autoRefreshEnabled = Value
-        if Value then
-            task.spawn(function()
-                while autoRefreshEnabled do
-                    task.wait(autoRefreshInterval)  -- انتظر 10 ثواني أول مرة وبعد كل عملية
-                    -- قفل كل الـ ESP المشغلة
-                    if espSettings.Enabled then disableStickmanESP() end
-                    if enableMainESP then disableNewESP() end
-                    if lineESPEnabled then disableLineESP() end
-                    if highlightESPEnabled then 
-                        for _, espHolder in pairs(ESPObjects) do 
-                            if espHolder.Highlight then espHolder.Highlight.Enabled = false end 
-                        end 
-                    end
-                    if ESPEnabled then  -- قفل Enable ESP
-                        ESPEnabled = false
-                        CleanupUnusedESP()
-                    end
-
-                    -- حدث الـ ESP
-                    RefreshAllESP()
-
-                    -- شغل الـ ESP المشغلة مرة ثانية
-                    if espSettings.Enabled then enableStickmanESP() end
-                    if enableMainESP then enableNewESP() end
-                    if lineESPEnabled then enableLineESP() end
-                    if highlightESPEnabled then 
-                        for _, espHolder in pairs(ESPObjects) do 
-                            if espHolder.Highlight then espHolder.Highlight.Enabled = true end 
-                        end 
-                    end
-                    if ESPEnabled then  -- شغل Enable ESP مرة ثانية
-                        ESPEnabled = true
-                        RefreshESP()
-                    end
-
-                    Rayfield:Notify({ Title = "Auto Refresh", Content = "تم التحديث!", Duration = 3, Image = 4483362458 })
-                end
-            end)
-            Rayfield:Notify({ Title = "Activated", Content = "Auto Refresh enabled.", Duration = 5, Image = 4483362458 })
-        else
-            Rayfield:Notify({ Title = "Deactivated", Content = "Auto Refresh disabled.", Duration = 5, Image = 4483362458 })
-        end
-    end
-})
-
--- Advanced Settings Section (بعد Auto Refresh)
-VisualsTab:CreateLabel("Advanced Settings")  -- نص عنوان "Advanced Settings"
-
-VisualsTab:CreateSlider({
-   Name = "Health Bar Thickness",
-   Range = {1, 10},
-   Increment = 1,
-   CurrentValue = 1,
-   Flag = "Health_Thick",
-   Callback = function(Value)
-      healthThickness = Value
-   end,
-})
-
-VisualsTab:CreateSlider({
-   Name = "Health Bar Transparency",
-   Range = {0, 1},
-   Increment = 0.05,
-   Suffix = "%",
-   CurrentValue = 1,
-   Flag = "Health_Trans",
-   Callback = function(Value)
-      healthTransparency = Value
-   end,
-})
-
-VisualsTab:CreateSlider({
-   Name = "2D Box Transparency",
-   Range = {0, 1},
-   Increment = 0.05,
-   Suffix = "%",
-   CurrentValue = 1,
-   Callback = function(Value)
-      box2DTransparency = Value
-   end,
-})
-
-VisualsTab:CreateSlider({
-   Name = "3D Box 1 Transparency",
-   Range = {0, 1},
-   Increment = 0.05,
-   Suffix = "%",
-   CurrentValue = 1,
-   Flag = "3D_Box_Trans",
-   Callback = function(Value)
-      box3DTransparency = Value
-   end,
-})
-
-VisualsTab:CreateSlider({
-   Name = "2D Box Thickness",
-   Range = {1, 3},
-   Increment = 0.1,
-   CurrentValue = 1,
-   Callback = function(Value)
-      box2DThickness = Value
-      refreshNewESP()
-   end,
-})
-
-VisualsTab:CreateSlider({
-   Name = "3D Box 1 Thickness",
-   Range = {1, 3},
-   Increment = 0.1,
-   CurrentValue = 1,
-   Callback = function(Value)
-      box3DThickness = Value
-      refreshNewESP()
-   end,
-})
-
-VisualsTab:CreateSlider({
-   Name = "Max ESP Distance (Studs)",
-   Range = {100, 2000},
-   Increment = 100,
-   Suffix = " Studs",
-   CurrentValue = 1000,
-   Callback = function(Value)
-      maxDistance = Value
-   end,
-})
-
--- New: Line ESP Settings
-VisualsTab:CreateLabel("Line ESP Settings")
-
--- Removed separate color picker for Line ESP, now uses custom color
-
-VisualsTab:CreateSlider({
-    Name = "Line ESP Thickness",
-    Range = {1, 5},
-    Increment = 1,
-    CurrentValue = 1,  -- Reduced initial
-    Callback = function(Value)
-        lineThickness = Value
-    end
-})
-
--- New: Custom ESP Color
-VisualsTab:CreateLabel("Custom ESP Color (Overrides Team Color)")
-
-VisualsTab:CreateToggle({
-    Name = "Enable Custom Color",
-    CurrentValue = false,
+    Flag = "CUSTOM_COLOR",
     Callback = function(Value)
         customColorEnabled = Value
-        if not Value then
-            -- Reset to team color when disabled
-            RefreshAllESP()
-        end
-    end
-})
-
-VisualsTab:CreateDropdown({
-    Name = "Select ESP Types for Custom Color",
-    Options = {"Skeleton 1", "Skeleton 2", "2D Box", "3D Box", "Health Bar 1", "Health Bar 2", "Name", "Distance", "Tool", "Line ESP", "Highlight ESP", "Vents", "Garbage"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Callback = function(Options)
-        selectedESPTypes = Options
+        RefreshAllESP()
     end
 })
 
 VisualsTab:CreateColorPicker({
-    Name = "Select Custom Color",
+    Name = "Custom ESP Color",
     Color = Color3.fromRGB(0, 255, 0),
-    Callback = function(Color)
-        customESPColor = Color
-        if customColorEnabled then
-            RefreshAllESP()  -- Apply immediately if enabled
-        end
+    Callback = function(Value)
+        customESPColor = Value
+        RefreshAllESP()
     end
 })
- 
--- // COMBAT SECTION (Aimbot, FOV, Desync, Silent Aim, Desync, Kill All Showcase) 
-local CombatTab = Window:CreateTab("Combat", 4483362458) 
 
-local AimbotEnabled = false 
-local SilentAim = false 
-local DesyncEnabled = false 
-local killAllEnabled = false 
-local FOVRadius = 150 
-local Smoothness = 0.15 
-local StickToTarget = false 
-local IgnoreWalls = false 
-local ShowFOVCircle = true 
-local PredictionEnabled = false 
-local BulletSpeed = 1000 
-local HumanizationFactor = 0.2 -- متغير جديد للـ Humanization Factor
-local CurrentTarget = nil 
-local TargetPart = "Head" 
-local FOVCircle = nil 
-local FOVEnabled = false 
+VisualsTab:CreateDropdown({
+    Name = "Selected ESP Types for Custom Color",
+    Options = {"All ESP", "2D Box", "3D Box", "Name", "Distance", "Tool", "Highlight ESP", "Line ESP"},
+    MultipleOptions = true,
+    Callback = function(Options)
+        selectedESPTypes = Options
+        RefreshAllESP()
+    end
+})
+
+-- // COMBAT TAB  
+local CombatTab = Window:CreateTab("Combat", 4483362458)  
+
+local AimbotEnabled = false  
+local CurrentTarget = nil  
+local StickToTarget = false  
+local SilentAim = false  
+local DesyncEnabled = false  
+local PredictionEnabled = false  
+local BulletSpeed = 1000  
+local HumanizationFactor = 0.2  
+local TargetPart = "Head"  
+local IgnoreWalls = false  
+local FOVRadius = 150  
+local Smoothness = 0.15  
+local ShowFOVCircle = true  
+local FOVCircle = nil  
+local FOVColor = Color3.fromRGB(255, 0, 0)  
+local FOVEnabled = false  
+local CustomFOV = 90  
 local DefaultFOV = Camera.FieldOfView 
-local CustomFOV = 90 
-local killAllConnection = nil 
-local desyncConnection = nil 
-local silentAimConnection = nil 
-local originalPosition = nil 
-local originalFOV = nil 
-local killAllAimbotEnabled = false 
-local killAllCameraConnection = nil 
-local playerAddedConnection = nil 
-local FOVColor = Color3.fromRGB(255, 0, 0) 
-local hasNotifiedNoTarget = false 
-local SelectedTeams = { 
-    ["Minimum Security"] = false, 
-    ["VCSO-SWAT"] = false,
-    ["Medium Security"] = false,
-    ["Maximum Security"] = false, 
-    ["Department of Corrections"] = false, 
-    ["State Police"] = false, 
-    ["Escapee"] = false, 
-    ["Civilian"] = false, 
-    ["Dead Body"] = false 
-} 
-local AimAccuracy = 100  -- متغير موجود للـ Aim Stability/Accuracy (0-100, 100 = perfect hit, lower = more spread) 
-local aimbotConnection = nil 
-local outConnection = nil 
+local OffsetSpread = 1.0  
+local PredictionMultiplier = 1.0  
+local AimMovingTargetsOnly = false  
+local VelocityThreshold = 5  
+local AutoSwitchOnKill = false  
+local TargetPriority = "Closest"  
+local TriggerbotEnabled = false  
+local TriggerDelay = 100  
+local AntiRecoilEnabled = false  
+local RecoilFactor = 0.5  
+local ScanMode = "Fixed"  
+local DynamicFOV = false  
+local MinFOVRadius = 50  
+local MaxFOVRadius = 300  
+local DynamicFOVMultiplier = 0.1  
+local EnableStats = false  
+local Stats = { Kills = 0, Misses = 0 }  
+local NoMissBullets = false  
+local BulletMagnetStrength = 0.5  
+local movingFOVCircleEnabled = false  
+local weaponCheckEnabled = false  
+local smartAimBotEnabled = false  
+local closestAimEnabled = false  
+local killAllEnabled = false  
 
--- إضافات جديدة للتخصيص الأكثر دقة
-local OffsetSpread = 1.0  -- Slider لـ Offset Spread (0-5 studs)
-local PredictionMultiplier = 1.0  -- Slider لـ Prediction Multiplier (0.5-2)
-local AimMovingTargetsOnly = false  -- Toggle لـ Aim at Moving Targets Only
-local VelocityThreshold = 5  -- Slider لـ Velocity Threshold (للـ moving targets)
-local AutoSwitchOnKill = false  -- Toggle لـ Auto-Switch Target on Kill
-local TargetPriority = "Closest"  -- Dropdown لـ Target Priority ("Closest", "Lowest Health", "Highest Threat")
-local TriggerbotEnabled = false  -- Toggle لـ Triggerbot
-local TriggerDelay = 100  -- Slider لـ Trigger Delay (0-500 ms)
-local AntiRecoilEnabled = false  -- Toggle لـ Anti-Recoil
-local RecoilFactor = 0.5  -- Slider لـ Recoil Factor (0-1)
-local ScanMode = "Fixed"  -- Dropdown لـ Scan Mode ("Fixed", "Dynamic")
-local DynamicFOV = false  -- Toggle لـ Dynamic FOV
-local MinFOVRadius = 50  -- Slider لـ Min FOV Radius
-local MaxFOVRadius = 300  -- Slider لـ Max FOV Radius
-local DynamicFOVMultiplier = 0.1  -- Slider لـ Dynamic FOV Multiplier (بناءً على distance)
-local EnableStats = false  -- Toggle لـ Enable Stats
-local Stats = { Kills = 0, Misses = 0 }  -- Table لتخزين الـ stats
-local NoMissBullets = false  -- ميزة جديدة: No Miss Bullets (تضمن إصابة كل الرصاص)
-local BulletMagnetStrength = 0.5  -- Slider لـ Bullet Magnet Strength (0-1, قوة جذب الرصاص نحو الهدف)
+local SelectedTeams = {  
+    ["Minimum Security"] = false,  
+    ["VCSO-SWAT"] = false,  
+    ["Medium Security"] = false,  
+    ["Maximum Security"] = false,  
+    ["Department of Corrections"] = false,  
+    ["State Police"] = false,  
+    ["Escapee"] = false,  
+    ["Civilian"] = false,  
+    ["Dead Body"] = false  
+}  
 
--- New: Moving FOV circle
-local movingFOVCircleEnabled = false
+local function ApplyHumanization(position)  
+    local randomOffset = Vector3.new(  
+        math.random(-HumanizationFactor, HumanizationFactor),  
+        math.random(-HumanizationFactor, HumanizationFactor),  
+        math.random(-HumanizationFactor, HumanizationFactor)  
+    )  
+    return position + randomOffset  
+end  
 
--- New: Weapon Check for Aim Bot
-local weaponCheckEnabled = false
+local function GetPredictedPosition(targetPart)  
+    if not targetPart then return Vector3.zero end   
+    local basePos = targetPart.Position  
+    if PredictionEnabled then  
+        local velocity = targetPart.AssemblyLinearVelocity  
+        local distance = (Camera.CFrame.Position - targetPart.Position).Magnitude  
+        local timeToHit = (distance / BulletSpeed) * PredictionMultiplier  
+        local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 1000  
+        timeToHit = timeToHit + ping  
+        local gravity = Vector3.new(0, workspace.Gravity * timeToHit^2 / 2, 0)  
+        basePos = targetPart.Position + (velocity * timeToHit) + gravity  
+    end  
+    local spread = (100 - AimAccuracy) / 100 * OffsetSpread    
+    local offset = Vector3.new(  
+        math.random(-spread, spread),  
+        math.random(-spread, spread),  
+        math.random(-spread, spread)  
+    )  
+    local predictedPos = basePos + offset  
+    if NoMissBullets then  
+        local diff = (targetPart.Position - predictedPos)  
+        if diff.Magnitude > 0 then  
+            local magnetOffset = diff.Unit * BulletMagnetStrength  
+            predictedPos = predictedPos + magnetOffset  
+        end  
+    end  
+    return ApplyHumanization(predictedPos)   
+end   
 
--- New: Smart Aim Bot
-local smartAimBotEnabled = false
+local function GetBestVisiblePart(player)  
+    local parts = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart"}  
+    for _, partName in ipairs(parts) do  
+        local part = player.Character:FindFirstChild(partName)  
+        if part and IsVisible(player, partName) then  
+            return part  
+        end  
+    end  
+    return nil  
+end  
 
--- New: Closest Aim
-local closestAimEnabled = false
+local function IsVisible(player, partName)  
+    if not player or not player.Character or not player.Character:FindFirstChild(partName) then return false end   
+    if IgnoreWalls then return true end   
+    local params = RaycastParams.new()   
+    params.FilterType = Enum.RaycastFilterType.Exclude   
+    params.FilterDescendantsInstances = {LocalPlayer.Character}   
+    local ray = workspace:Raycast(Camera.CFrame.Position, (player.Character[partName].Position - Camera.CFrame.Position).Unit * 1000, params)   
+    return ray and ray.Instance and ray.Instance:IsDescendantOf(player.Character)   
+end   
 
--- دالة Humanization Factor لإضافة عشوائية للتصويب
-local function ApplyHumanization(position)
-    local randomOffset = Vector3.new(
-        math.random(-HumanizationFactor, HumanizationFactor),
-        math.random(-HumanizationFactor, HumanizationFactor),
-        math.random(-HumanizationFactor, HumanizationFactor)
-    )
-    return position + randomOffset
-end
+local function CreateFOVCircle()   
+    if FOVCircle then FOVCircle:Remove() end   
+    FOVCircle = Drawing.new("Circle")   
+    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)   
+    FOVCircle.Radius = FOVRadius   
+    FOVCircle.Color = Color3.new(math.random(), math.random(), math.random())   
+    FOVCircle.Thickness = 2   
+    FOVCircle.Filled = false   
+    FOVCircle.Visible = (AimbotEnabled or killAllAimbotEnabled) and ShowFOVCircle   
+end   
 
--- دالة Prediction مُحدثة مع Ping وGravity وMultiplier
-local function GetPredictedPosition(targetPart)
-    if not targetPart then return Vector3.zero end 
-    local basePos = targetPart.Position
-    if PredictionEnabled then
-        local velocity = targetPart.AssemblyLinearVelocity
-        local distance = (Camera.CFrame.Position - targetPart.Position).Magnitude
-        local timeToHit = (distance / BulletSpeed) * PredictionMultiplier
-        local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 1000
-        timeToHit = timeToHit + ping
-        local gravity = Vector3.new(0, workspace.Gravity * timeToHit^2 / 2, 0)
-        basePos = targetPart.Position + (velocity * timeToHit) + gravity
-    end
-    local spread = (100 - AimAccuracy) / 100 * OffsetSpread  -- استخدام OffsetSpread الجديد
-    local offset = Vector3.new(
-        math.random(-spread, spread),
-        math.random(-spread, spread),
-        math.random(-spread, spread)
-    )
-    local predictedPos = basePos + offset
-    if NoMissBullets then
-        -- ميزة No Miss Bullets: جذب الرصاص نحو الهدف لتقليل الـ misses
-        local diff = (targetPart.Position - predictedPos)
-        if diff.Magnitude > 0 then
-            local magnetOffset = diff.Unit * BulletMagnetStrength
-            predictedPos = predictedPos + magnetOffset
-        end
-    end
-    return ApplyHumanization(predictedPos) -- إضافة Humanization
-end 
+local function UpdateFOVCircle()   
+    if FOVCircle then   
+        if movingFOVCircleEnabled then  
+            FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)    
+            FOVCircle.Radius = FOVRadius  
+            FOVCircle.Color = FOVColor  
+        else  
+            FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)   
+            local currentRadius = FOVRadius  
+            if DynamicFOV and CurrentTarget then  
+                local distance = (Camera.CFrame.Position - CurrentTarget.Character[TargetPart].Position).Magnitude  
+                currentRadius = math.clamp(MinFOVRadius + (distance * DynamicFOVMultiplier), MinFOVRadius, MaxFOVRadius)  
+            end  
+            FOVCircle.Radius = currentRadius   
+            FOVCircle.Color = FOVColor   
+        end  
+        FOVCircle.Visible = (AimbotEnabled or killAllAimbotEnabled) and ShowFOVCircle   
+    end   
+end   
 
--- دالة جديدة لـ GetBestVisiblePart (للـ Dynamic Scan)
-local function GetBestVisiblePart(player)
-    local parts = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart"}
-    for _, partName in ipairs(parts) do
-        local part = player.Character:FindFirstChild(partName)
-        if part and IsVisible(player, partName) then
-            return part
-        end
-    end
-    return nil
-end
+local function IsValidTarget(player)   
+    if player == LocalPlayer then return false end   
+    local playerTeam = player.Team and player.Team.Name or nil   
+    local anyTeamSelected = false   
+    for _, enabled in pairs(SelectedTeams) do   
+        if enabled then   
+            anyTeamSelected = true  
+            break   
+        end   
+    end   
+    if anyTeamSelected and playerTeam then   
+        local isTargetable = false   
+        for team, enabled in pairs(SelectedTeams) do   
+            if enabled and playerTeam == team then   
+                isTargetable = true   
+                break   
+            end   
+        end   
+        if not isTargetable then return false end  
+    end   
+    local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")   
+    if SelectedTeams["Dead Body"] == false and humanoid and humanoid.Health <= 0 then return false end   
+    local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(player) or player.Character:FindFirstChild(TargetPart)  
+    if AimMovingTargetsOnly and targetPart then  
+        local velocity = targetPart.AssemblyLinearVelocity.Magnitude  
+        if velocity < VelocityThreshold then return false end  
+    end  
+    return player.Character and targetPart and humanoid and IsVisible(player, targetPart.Name)   
+end   
 
--- تعديل IsVisible لدعم partName
-local function IsVisible(player, partName)
-    if not player or not player.Character or not player.Character:FindFirstChild(partName) then return false end 
-    if IgnoreWalls then return true end 
-    local params = RaycastParams.new() 
-    params.FilterType = Enum.RaycastFilterType.Exclude 
-    params.FilterDescendantsInstances = {LocalPlayer.Character} 
-    local ray = workspace:Raycast(Camera.CFrame.Position, (player.Character[partName].Position - Camera.CFrame.Position).Unit * 1000, params) 
-    return ray and ray.Instance and ray.Instance:IsDescendantOf(player.Character) 
-end 
+local function GetBestTarget()   
+    local bestPlayer, bestScore = nil, math.huge  
+    local center = movingFOVCircleEnabled and Vector2.new(Mouse.X, Mouse.Y) or Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)   
+    for _, player in pairs(Players:GetPlayers()) do   
+        if IsValidTarget(player) then   
+            local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(player) or player.Character[TargetPart]  
+            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)   
+            if onScreen then   
+                local distance = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude   
+                if distance > FOVRadius then continue end    
+                local score = distance  
+                if TargetPriority == "Lowest Health" then  
+                    score = player.Character.Humanoid.Health  
+                elseif TargetPriority == "Highest Threat" then  
+                    score = -distance    
+                end  
+                if score < bestScore then   
+                    bestPlayer = player   
+                    bestScore = score   
+                end   
+            end   
+        end   
+    end   
+    return bestPlayer   
+end   
 
-local function CreateFOVCircle() 
-    if FOVCircle then FOVCircle:Remove() end 
-    FOVCircle = Drawing.new("Circle") 
-    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
-    FOVCircle.Radius = FOVRadius 
-    FOVCircle.Color = Color3.new(math.random(), math.random(), math.random())  -- Random color on creation
-    FOVCircle.Thickness = 2 
-    FOVCircle.Filled = false 
-    FOVCircle.Visible = (AimbotEnabled or killAllAimbotEnabled) and ShowFOVCircle 
-end 
+local function UpdateFOV()   
+    if FOVEnabled then   
+        Camera.FieldOfView = CustomFOV   
+    else   
+        Camera.FieldOfView = DefaultFOV   
+    end   
+end   
 
-local function UpdateFOVCircle() 
-    if FOVCircle then 
-        if movingFOVCircleEnabled then
-            FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)  -- Follow mouse
-            FOVCircle.Radius = FOVRadius
-            FOVCircle.Color = FOVColor
-        else
-            FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
-            local currentRadius = FOVRadius
-            if DynamicFOV and CurrentTarget then
-                local distance = (Camera.CFrame.Position - CurrentTarget.Character[TargetPart].Position).Magnitude
-                currentRadius = math.clamp(MinFOVRadius + (distance * DynamicFOVMultiplier), MinFOVRadius, MaxFOVRadius)
-            end
-            FOVCircle.Radius = currentRadius 
-            FOVCircle.Color = FOVColor 
-        end
-        FOVCircle.Visible = (AimbotEnabled or killAllAimbotEnabled) and ShowFOVCircle 
-    end 
-end 
+local oldIndex = nil   
+local function EnableSilentAim()   
+    if silentAimConnection then return end   
+    oldIndex = getmetatable(game).__index   
+    getmetatable(game).__index = function(self, index)   
+        if SilentAim and (AimbotEnabled or killAllAimbotEnabled) and CurrentTarget and CurrentTarget.Character then   
+            local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)  
+            if targetPart then  
+                local predictedPos = GetPredictedPosition(targetPart)   
+                if index == "Hit" then   
+                    return CFrame.new(predictedPos)   
+                elseif index == "Target" then   
+                    return targetPart   
+                end   
+            end  
+        end   
+        return oldIndex(self, index)   
+    end   
+    silentAimConnection = true   
+end   
 
-local function IsValidTarget(player) 
-    if player == LocalPlayer then return false end 
-    local playerTeam = player.Team and player.Team.Name or nil 
-    local anyTeamSelected = false 
-    for _, enabled in pairs(SelectedTeams) do 
-        if enabled then 
-            anyTeamSelected = true
-            break 
-        end 
-    end 
-    if anyTeamSelected and playerTeam then 
-        local isTargetable = false 
-        for team, enabled in pairs(SelectedTeams) do 
-            if enabled and playerTeam == team then 
-                isTargetable = true 
-                break 
-            end 
-        end 
-        if not isTargetable then return false end
-    end 
-    local humanoid = player.Character and player.Character:FindFirstChild("Humanoid") 
-    if SelectedTeams["Dead Body"] == false and humanoid and humanoid.Health <= 0 then return false end 
-    local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(player) or player.Character:FindFirstChild(TargetPart)
-    if AimMovingTargetsOnly and targetPart then
-        local velocity = targetPart.AssemblyLinearVelocity.Magnitude
-        if velocity < VelocityThreshold then return false end
-    end
-    return player.Character and targetPart and humanoid and IsVisible(player, targetPart.Name) 
-end 
+local function DisableSilentAim()   
+    if oldIndex then   
+        getmetatable(game).__index = oldIndex   
+        oldIndex = nil   
+    end   
+    silentAimConnection = nil   
+end   
 
--- تعديل GetClosestPlayerInFOV لدعم TargetPriority
-local function GetBestTarget() 
-    local bestPlayer, bestScore = nil, math.huge
-    local center = movingFOVCircleEnabled and Vector2.new(Mouse.X, Mouse.Y) or Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
-    for _, player in pairs(Players:GetPlayers()) do 
-        if IsValidTarget(player) then 
-            local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(player) or player.Character[TargetPart]
-            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position) 
-            if onScreen then 
-                local distance = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude 
-                if distance > FOVRadius then continue end  -- Ensure within FOV circle
-                local score = distance
-                if TargetPriority == "Lowest Health" then
-                    score = player.Character.Humanoid.Health
-                elseif TargetPriority == "Highest Threat" then
-                    score = -distance  -- أقرب = أعلى تهديد (negative for max)
-                end
-                if score < bestScore then 
-                    bestPlayer = player 
-                    bestScore = score 
-                end 
-            end 
-        end 
-    end 
-    return bestPlayer 
-end 
+local function EnableDesync()   
+    if desyncConnection then return end   
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")   
+    if not root then return end   
+    desyncConnection = RunService.RenderStepped:Connect(function()   
+        if DesyncEnabled and root then   
+            root.CFrame = root.CFrame * CFrame.new(0, math.random(-0.2, 0.2), 0)   
+        end   
+    end)   
+end   
 
-local function UpdateFOV() 
-    if FOVEnabled then 
-        Camera.FieldOfView = CustomFOV 
-    else 
-        Camera.FieldOfView = DefaultFOV 
-    end 
-end 
+local function DisableDesync()   
+    if desyncConnection then desyncConnection:Disconnect(); desyncConnection = nil end   
+end   
 
-local oldIndex = nil 
-local function EnableSilentAim() 
-    if silentAimConnection then return end 
-    oldIndex = getmetatable(game).__index 
-    getmetatable(game).__index = function(self, index) 
-        if SilentAim and (AimbotEnabled or killAllAimbotEnabled) and CurrentTarget and CurrentTarget.Character then 
-            local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
-            if targetPart then
-                local predictedPos = GetPredictedPosition(targetPart) 
-                if index == "Hit" then 
-                    return CFrame.new(predictedPos) 
-                elseif index == "Target" then 
-                    return targetPart 
-                end 
-            end
-        end 
-        return oldIndex(self, index) 
-    end 
-    silentAimConnection = true 
-end 
+local function EnableKillAllAimbot()   
+    if killAllCameraConnection then return end   
+    killAllCameraConnection = RunService.RenderStepped:Connect(function()   
+        if killAllAimbotEnabled and CurrentTarget and CurrentTarget.Character then   
+            local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)  
+            if targetPart then  
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart))   
+            end  
+        end   
+    end)   
+end   
 
-local function DisableSilentAim() 
-    if oldIndex then 
-        getmetatable(game).__index = oldIndex 
-        oldIndex = nil 
-    end 
-    silentAimConnection = nil 
-end 
+local function DisableKillAllAimbot()   
+    if killAllCameraConnection then killAllCameraConnection:Disconnect(); killAllCameraConnection = nil end   
+end   
 
-local function EnableDesync() 
-    if desyncConnection then return end 
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
-    if not root then return end 
-    desyncConnection = RunService.RenderStepped:Connect(function() 
-        if DesyncEnabled and root then 
-            root.CFrame = root.CFrame * CFrame.new(0, math.random(-0.2, 0.2), 0) 
-        end 
-    end) 
-end 
+local function EnableKillAll()   
+    if killAllConnection then return end   
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")   
+    if not root then   
+        Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 })   
+        return   
+    end   
+    originalPosition = root.CFrame   
+    originalFOV = Camera.FieldOfView   
+    local targetPlayers = {}   
+    local function addPlayer(player)   
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart")   
+           and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then   
+            table.insert(targetPlayers, player)   
+        end   
+    end   
+    for _, player in pairs(Players:GetPlayers()) do   
+        addPlayer(player)   
+    end   
+    playerAddedConnection = Players.PlayerAdded:Connect(function(player)   
+        if killAllEnabled then   
+            player.CharacterAdded:Wait()   
+            addPlayer(player)   
+        end   
+    end)   
+    if #targetPlayers == 0 then   
+        Rayfield:Notify({   
+            Title = "Info",   
+            Content = "No valid targets found!",   
+            Duration = 3,   
+            Image = 4483362458   
+        })   
+        return   
+    end   
+    local currentIndex = 1   
+    local rotationAngle = 0   
+    killAllAimbotEnabled = true   
+    EnableKillAllAimbot()   
+    killAllConnection = RunService.Heartbeat:Connect(function()   
+        if not killAllEnabled or not root then   
+            DisableKillAll()   
+            return   
+        end   
+        if #targetPlayers == 0 then   
+            for _, player in pairs(Players:GetPlayers()) do   
+                addPlayer(player)   
+            end   
+            if #targetPlayers == 0 then return end   
+        end   
+        local target = targetPlayers[currentIndex]   
+        if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart")   
+           or target.Character.Humanoid.Health <= 0 then   
+            table.remove(targetPlayers, currentIndex)   
+            if currentIndex > #targetPlayers then   
+                currentIndex = 1   
+            end   
+            return   
+        end   
+        CurrentTarget = target   
+        rotationAngle = (rotationAngle + 0.25) % (2 * math.pi)   
+        local offset = Vector3.new(math.cos(rotationAngle) * 5, 0, math.sin(rotationAngle) * 5)   
+        root.CFrame = CFrame.new(target.Character.HumanoidRootPart.Position + offset, target.Character.HumanoidRootPart.Position)   
+        local lookAt = (target.Character.HumanoidRootPart.Position - root.Position).Unit   
+        root.CFrame = CFrame.new(root.Position, root.Position + lookAt)   
+    end)   
+end   
 
-local function DisableDesync() 
-    if desyncConnection then desyncConnection:Disconnect(); desyncConnection = nil end 
-end 
+local function DisableKillAll()   
+    if killAllConnection then   
+        killAllConnection:Disconnect()   
+        killAllConnection = nil   
+    end   
+    if playerAddedConnection then   
+        playerAddedConnection:Disconnect()   
+        playerAddedConnection = nil   
+    end   
+    killAllAimbotEnabled = false   
+    DisableKillAllAimbot()   
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")   
+    if root and originalPosition then   
+        root.CFrame = originalPosition   
+    end   
+    if originalFOV then   
+        Camera.FieldOfView = originalFOV   
+    end   
+end   
 
-local function EnableKillAllAimbot() 
-    if killAllCameraConnection then return end 
-    killAllCameraConnection = RunService.RenderStepped:Connect(function() 
-        if killAllAimbotEnabled and CurrentTarget and CurrentTarget.Character then 
-            local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
-            if targetPart then
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)) 
-            end
-        end 
-    end) 
-end 
+local function CalculateHitChance(target)  
+    if not target then return 0 end  
+    local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(target) or target.Character[TargetPart]  
+    local distance = (Camera.CFrame.Position - targetPart.Position).Magnitude  
+    return math.clamp(100 - (distance / BulletSpeed * (100 - AimAccuracy) / 100), 0, 100)  
+end  
 
-local function DisableKillAllAimbot() 
-    if killAllCameraConnection then killAllCameraConnection:Disconnect(); killAllCameraConnection = nil end 
-end 
+local killMonitorConnection = nil  
+local function EnableKillMonitor()  
+    if killMonitorConnection then return end  
+    killMonitorConnection = RunService.Heartbeat:Connect(function()  
+        if CurrentTarget and CurrentTarget.Character and CurrentTarget.Character.Humanoid then  
+            if CurrentTarget.Character.Humanoid.Health <= 0 then  
+                if EnableStats then  
+                    Stats.Kills = Stats.Kills + 1  
+                    Rayfield:Notify({ Title = "Stats", Content = "Kills: " .. Stats.Kills .. " | Misses: " .. Stats.Misses, Duration = 3 })  
+                end  
+                if AutoSwitchOnKill then  
+                    CurrentTarget = GetBestTarget()  
+                end  
+            end  
+        end  
+    end)  
+end  
 
-local function EnableKillAll() 
-    if killAllConnection then return end 
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
-    if not root then 
-        Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 }) 
-        return 
-    end 
-    originalPosition = root.CFrame 
-    originalFOV = Camera.FieldOfView 
-    local targetPlayers = {} 
-    local function addPlayer(player) 
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") 
-           and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then 
-            table.insert(targetPlayers, player) 
-        end 
-    end 
-    for _, player in pairs(Players:GetPlayers()) do 
-        addPlayer(player) 
-    end 
-    playerAddedConnection = Players.PlayerAdded:Connect(function(player) 
-        if killAllEnabled then 
-            player.CharacterAdded:Wait() 
-            addPlayer(player) 
-        end 
-    end) 
-    if #targetPlayers == 0 then 
-        Rayfield:Notify({ 
-            Title = "Info", 
-            Content = "No valid targets found!", 
-            Duration = 3, 
-            Image = 4483362458 
-        }) 
-        return 
-    end 
-    local currentIndex = 1 
-    local rotationAngle = 0 
-    killAllAimbotEnabled = true 
-    EnableKillAllAimbot() 
-    killAllConnection = RunService.Heartbeat:Connect(function() 
-        if not killAllEnabled or not root then 
-            DisableKillAll() 
-            return 
-        end 
-        if #targetPlayers == 0 then 
-            for _, player in pairs(Players:GetPlayers()) do 
-                addPlayer(player) 
-            end 
-            if #targetPlayers == 0 then return end 
-        end 
-        local target = targetPlayers[currentIndex] 
-        if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") 
-           or target.Character.Humanoid.Health <= 0 then 
-            table.remove(targetPlayers, currentIndex) 
-            if currentIndex > #targetPlayers then 
-                currentIndex = 1 
-            end 
-            return 
-        end 
-        CurrentTarget = target 
-        rotationAngle = (rotationAngle + 0.25) % (2 * math.pi) 
-        local offset = Vector3.new(math.cos(rotationAngle) * 5, 0, math.sin(rotationAngle) * 5) 
-        root.CFrame = CFrame.new(target.Character.HumanoidRootPart.Position + offset, target.Character.HumanoidRootPart.Position) 
-        local lookAt = (target.Character.HumanoidRootPart.Position - root.Position).Unit 
-        root.CFrame = CFrame.new(root.Position, root.Position + lookAt) 
-    end) 
-end 
+local function DisableKillMonitor()  
+    if killMonitorConnection then killMonitorConnection:Disconnect(); killMonitorConnection = nil end  
+end  
 
-local function DisableKillAll() 
-    if killAllConnection then 
-        killAllConnection:Disconnect() 
-        killAllConnection = nil 
-    end 
-    if playerAddedConnection then 
-        playerAddedConnection:Disconnect() 
-        playerAddedConnection = nil 
-    end 
-    killAllAimbotEnabled = false 
-    DisableKillAllAimbot() 
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
-    if root and originalPosition then 
-        root.CFrame = originalPosition 
-    end 
-    if originalFOV then 
-        Camera.FieldOfView = originalFOV 
-    end 
-end 
-
--- دالة جديدة لـ CalculateHitChance (للـ stats)
-local function CalculateHitChance(target)
-    if not target then return 0 end
-    local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(target) or target.Character[TargetPart]
-    local distance = (Camera.CFrame.Position - targetPart.Position).Magnitude
-    return math.clamp(100 - (distance / BulletSpeed * (100 - AimAccuracy) / 100), 0, 100)
-end
-
--- مراقبة الكيلز للـ stats و Auto-Switch
-local killMonitorConnection = nil
-local function EnableKillMonitor()
-    if killMonitorConnection then return end
-    killMonitorConnection = RunService.Heartbeat:Connect(function()
-        if CurrentTarget and CurrentTarget.Character and CurrentTarget.Character.Humanoid then
-            if CurrentTarget.Character.Humanoid.Health <= 0 then
-                if EnableStats then
-                    Stats.Kills = Stats.Kills + 1
-                    Rayfield:Notify({ Title = "Stats", Content = "Kills: " .. Stats.Kills .. " | Misses: " .. Stats.Misses, Duration = 3 })
-                end
-                if AutoSwitchOnKill then
-                    CurrentTarget = GetBestTarget()
-                end
-            end
-        end
-    end)
-end
-
-local function DisableKillMonitor()
-    if killMonitorConnection then killMonitorConnection:Disconnect(); killMonitorConnection = nil end
-end
-
-RunService.RenderStepped:Connect(function() 
-    if AimbotEnabled or SilentAim then 
-        CurrentTarget = StickToTarget and CurrentTarget and IsValidTarget(CurrentTarget) and CurrentTarget or GetBestTarget() 
-        if SilentAim and not CurrentTarget and not hasNotifiedNoTarget then 
-            Rayfield:Notify({ Title = "Silent Aim", Content = "No valid target found in FOV!", Duration = 2, Image = 4483362458 }) 
-            hasNotifiedNoTarget = true 
-        elseif CurrentTarget then 
-            hasNotifiedNoTarget = false 
-        end 
-    end 
-    UpdateFOV() 
-    UpdateFOVCircle()
+RunService.RenderStepped:Connect(function()   
+    if AimbotEnabled or SilentAim then   
+        CurrentTarget = StickToTarget and CurrentTarget and IsValidTarget(CurrentTarget) and CurrentTarget or GetBestTarget()   
+        if SilentAim and not CurrentTarget and not hasNotifiedNoTarget then   
+            Rayfield:Notify({ Title = "Silent Aim", Content = "No valid target found in FOV!", Duration = 2, Image = 4483362458 })   
+            hasNotifiedNoTarget = true   
+        elseif CurrentTarget then   
+            hasNotifiedNoTarget = false   
+        end   
+    end   
+    UpdateFOV()   
+    UpdateFOVCircle()  
     
-    -- Triggerbot Logic
-    if TriggerbotEnabled and CurrentTarget and Mouse.Target and Mouse.Target:IsDescendantOf(CurrentTarget.Character) then
-        wait(TriggerDelay / 1000)
-        -- افترض أن لديك دالة fire، أو استخدم mouse1press إذا متاح
-        -- mouse1press()  -- uncomment إذا كان exploit يدعم
-        if EnableStats then
-            if math.random(100) > CalculateHitChance(CurrentTarget) then
-                Stats.Misses = Stats.Misses + 1
-            end
-        end
-    end
+    -- Triggerbot Logic  
+    if TriggerbotEnabled and CurrentTarget and Mouse.Target and Mouse.Target:IsDescendantOf(CurrentTarget.Character) then  
+        wait(TriggerDelay / 1000)  
+        -- mouse1press()  -- uncomment if supported  
+        if EnableStats then  
+            if math.random(100) > CalculateHitChance(CurrentTarget) then  
+                Stats.Misses = Stats.Misses + 1  
+            end  
+        end  
+    end  
     
-    -- Anti-Recoil Logic (في الـ camera lerp)
-    if AntiRecoilEnabled and AimbotEnabled and CurrentTarget then
-        -- افترض equipped weapon، أضف vertical offset
-        local recoilOffset = Vector3.new(0, RecoilFactor, 0)
-        Camera.CFrame = Camera.CFrame * CFrame.new(recoilOffset)
-    end
-end) 
+    -- Anti-Recoil Logic  
+    if AntiRecoilEnabled and AimbotEnabled and CurrentTarget then  
+        local recoilOffset = Vector3.new(0, RecoilFactor, 0)  
+        Camera.CFrame = Camera.CFrame * CFrame.new(recoilOffset)  
+    end  
+end)   
 
-CombatTab:CreateToggle({ 
-    Name = "Enable Aimbot", 
-    CurrentValue = false, 
-    Flag = "AIMBOT_TOGGLE", 
-    Callback = function(Value) 
-        AimbotEnabled = Value 
-        CurrentTarget = nil 
-        hasNotifiedNoTarget = false 
-        if AimbotEnabled then 
-            CreateFOVCircle() 
-            EnableKillMonitor()
-            aimbotConnection = RunService.RenderStepped:Connect(function() 
-                UpdateFOVCircle() 
-                if AimbotEnabled then 
-                    CurrentTarget = StickToTarget and CurrentTarget and IsValidTarget(CurrentTarget) and CurrentTarget or GetBestTarget() 
-                    if not SilentAim and CurrentTarget and CurrentTarget.Character then 
-                        local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
-                        if targetPart then
-                            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)), Smoothness) 
-                        end
-                    end 
-                end 
-            end) 
-        else 
-            if aimbotConnection then 
-                aimbotConnection:Disconnect() 
-                aimbotConnection = nil 
-            end 
-            DisableKillMonitor()
-            local currentSmooth = Smoothness 
-            outConnection = RunService.RenderStepped:Connect(function() 
-                local targetCFrame = CFrame.new(Camera.CFrame.Position, Mouse.Hit.Position) 
-                Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, currentSmooth) 
-                currentSmooth = math.min(1, currentSmooth + Smoothness) 
-                if currentSmooth >= 1 then 
-                    outConnection:Disconnect() 
-                    outConnection = nil 
-                end 
-            end) 
-            if FOVCircle then FOVCircle:Remove() FOVCircle = nil end 
-            DisableSilentAim() 
-        end 
-    end 
-}) 
+CombatTab:CreateToggle({   
+    Name = "Enable Aimbot",   
+    CurrentValue = false,   
+    Flag = "AIMBOT_TOGGLE",   
+    Callback = function(Value)   
+        AimbotEnabled = Value   
+        CurrentTarget = nil   
+        hasNotifiedNoTarget = false   
+        if AimbotEnabled then   
+            CreateFOVCircle()   
+            EnableKillMonitor()  
+            aimbotConnection = RunService.RenderStepped:Connect(function()   
+                UpdateFOVCircle()   
+                if AimbotEnabled then   
+                    CurrentTarget = StickToTarget and CurrentTarget and IsValidTarget(CurrentTarget) and CurrentTarget or GetBestTarget()   
+                    if not SilentAim and CurrentTarget and CurrentTarget.Character then   
+                        local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)  
+                        if targetPart then  
+                            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)), Smoothness)   
+                        end  
+                    end   
+                end   
+            end)   
+        else   
+            if aimbotConnection then   
+                aimbotConnection:Disconnect()   
+                aimbotConnection = nil   
+            end   
+            DisableKillMonitor()  
+            local currentSmooth = Smoothness   
+            outConnection = RunService.RenderStepped:Connect(function()   
+                local targetCFrame = CFrame.new(Camera.CFrame.Position, Mouse.Hit.Position)   
+                Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, currentSmooth)   
+                currentSmooth = math.min(1, currentSmooth + Smoothness)   
+                if currentSmooth >= 1 then   
+                    outConnection:Disconnect()   
+                    outConnection = nil   
+                end   
+            end)   
+            if FOVCircle then FOVCircle:Remove() FOVCircle = nil end   
+            DisableSilentAim()   
+        end   
+    end   
+})   
 
-CombatTab:CreateToggle({ 
-    Name = "Silent Aim", 
-    CurrentValue = false, 
-    Flag = "SILENT_AIM", 
-    Callback = function(Value) 
-        SilentAim = Value 
-        if SilentAim then 
-            EnableSilentAim() 
-        else 
-            DisableSilentAim() 
-        end 
-    end 
-})
+CombatTab:CreateToggle({   
+    Name = "Silent Aim",   
+    CurrentValue = false,   
+    Flag = "SILENT_AIM",   
+    Callback = function(Value)   
+        SilentAim = Value   
+        if SilentAim then   
+            EnableSilentAim()   
+        else   
+            DisableSilentAim()   
+        end   
+    end   
+})  
 
-CombatTab:CreateToggle({ 
-    Name = "Desync", 
-    CurrentValue = false, 
-    Flag = "DESYNC", 
-    Callback = function(Value) 
-        DesyncEnabled = Value 
-        if DesyncEnabled then EnableDesync() else DisableDesync() end 
-    end 
-}) 
+CombatTab:CreateToggle({   
+    Name = "Desync",   
+    CurrentValue = false,   
+    Flag = "DESYNC",   
+    Callback = function(Value)   
+        DesyncEnabled = Value   
+        if DesyncEnabled then EnableDesync() else DisableDesync() end   
+    end   
+})   
 
-CombatTab:CreateToggle({ 
-    Name = "Prediction", 
-    CurrentValue = false, 
-    Flag = "PREDICTION", 
-    Callback = function(Value) PredictionEnabled = Value end 
-}) 
+CombatTab:CreateToggle({   
+    Name = "Prediction",   
+    CurrentValue = false,   
+    Flag = "PREDICTION",   
+    Callback = function(Value) PredictionEnabled = Value end   
+})   
 
-CombatTab:CreateSlider({ 
-    Name = "Bullet Speed", 
-    Range = {500, 5000}, 
-    Increment = 100, 
-    CurrentValue = 1000, 
-    Flag = "BULLET_SPEED", 
-    Callback = function(Value) BulletSpeed = Value end 
-}) 
+CombatTab:CreateSlider({   
+    Name = "Bullet Speed",   
+    Range = {500, 5000},   
+    Increment = 100,   
+    CurrentValue = 1000,   
+    Flag = "BULLET_SPEED",   
+    Callback = function(Value) BulletSpeed = Value end   
+})   
 
-CombatTab:CreateSlider({ 
-    Name = "Humanization Factor", 
-    Range = {0, 1}, 
-    Increment = 0.1, 
-    CurrentValue = 0.2, 
-    Flag = "HUMANIZATION", 
-    Callback = function(Value) 
-        HumanizationFactor = Value 
-        Rayfield:Notify({ Title = "Humanization", Content = "تم تغيير عامل العشوائية إلى " .. Value, Duration = 3 }) 
-    end 
-})
+CombatTab:CreateSlider({   
+    Name = "Humanization Factor",   
+    Range = {0, 1},   
+    Increment = 0.1,   
+    CurrentValue = 0.2,   
+    Flag = "HUMANIZATION",   
+    Callback = function(Value)   
+        HumanizationFactor = Value   
+        Rayfield:Notify({ Title = "Humanization", Content = "تم تغيير عامل العشوائية إلى " .. Value, Duration = 3 })   
+    end   
+})  
 
-CombatTab:CreateDropdown({ 
-    Name = "Target Part", 
-    Options = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}, 
-    CurrentOption = {"Head"}, 
-    MultipleOptions = false, 
-    Flag = "TARGET_PART", 
-    Callback = function(Option) TargetPart = Option[1] end 
-}) 
+CombatTab:CreateDropdown({   
+    Name = "Target Part",   
+    Options = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"},   
+    CurrentOption = {"Head"},   
+    MultipleOptions = false,   
+    Flag = "TARGET_PART",   
+    Callback = function(Option) TargetPart = Option[1] end   
+})   
 
-CombatTab:CreateDropdown({ 
-    Name = "Check", 
-    Options = {"Minimum Security", "Medium Security", "Maximum Security", "Department of Corrections", "State Police", "Escapee", "Civilian", "VCSO-SWAT"}, 
-    CurrentOption = {}, 
-    MultipleOptions = true, 
-    Flag = "CHECK_TEAMS", 
-    Callback = function(Options) 
-        for team in pairs(SelectedTeams) do 
-            SelectedTeams[team] = false 
-        end 
-        for _, team in pairs(Options) do 
-            SelectedTeams[team] = true 
-        end 
-        CurrentTarget = nil 
-    end 
-}) 
+CombatTab:CreateDropdown({   
+    Name = "Check",   
+    Options = {"Minimum Security", "Medium Security", "Maximum Security", "Department of Corrections", "State Police", "Escapee", "Civilian", "VCSO-SWAT"},   
+    CurrentOption = {},   
+    MultipleOptions = true,   
+    Flag = "CHECK_TEAMS",   
+    Callback = function(Options)   
+        for team in pairs(SelectedTeams) do   
+            SelectedTeams[team] = false   
+        end   
+        for _, team in pairs(Options) do   
+            SelectedTeams[team] = true   
+        end   
+        CurrentTarget = nil   
+    end   
+})   
 
-CombatTab:CreateSlider({ 
-    Name = "FOV Radius", 
-    Range = {50, 500}, 
-    Increment = 10, 
-    CurrentValue = 150, 
-    Flag = "FOV_RADIUS", 
-    Callback = function(Value) FOVRadius = Value; UpdateFOVCircle() end 
-}) 
+CombatTab:CreateSlider({   
+    Name = "FOV Radius",   
+    Range = {50, 1000},   
+    Increment = 10,   
+    CurrentValue = 150,   
+    Flag = "FOV_RADIUS",   
+    Callback = function(Value) FOVRadius = Value; UpdateFOVCircle() end   
+})   
 
-CombatTab:CreateSlider({ 
-    Name = "Smoothness (Visible Aim)", 
-    Range = {0.05, 0.5}, 
-    Increment = 0.01, 
-    CurrentValue = 0.15, 
-    Flag = "AIMBOT_SMOOTHNESS", 
-    Callback = function(Value) Smoothness = Value end 
-}) 
+CombatTab:CreateSlider({   
+    Name = "Smoothness (Visible Aim)",   
+    Range = {0.01, 1.0},   
+    Increment = 0.01,   
+    CurrentValue = 0.15,   
+    Flag = "AIMBOT_SMOOTHNESS",   
+    Callback = function(Value) Smoothness = Value end   
+})   
 
-CombatTab:CreateToggle({ 
-    Name = "Stick to Target", 
-    CurrentValue = false, 
-    Flag = "STICK_TARGET", 
-    Callback = function(Value) StickToTarget = Value; if not StickToTarget then CurrentTarget = nil end end 
-}) 
+CombatTab:CreateToggle({   
+    Name = "Stick to Target",   
+    CurrentValue = false,   
+    Flag = "STICK_TARGET",   
+    Callback = function(Value) StickToTarget = Value; if not StickToTarget then CurrentTarget = nil end end   
+})   
 
-CombatTab:CreateToggle({ 
-    Name = "Ignore Walls", 
-    CurrentValue = false, 
-    Flag = "IGNORE_WALLS", 
-    Callback = function(Value) IgnoreWalls = Value end 
-}) 
+CombatTab:CreateToggle({   
+    Name = "Ignore Walls",   
+    CurrentValue = false,   
+    Flag = "IGNORE_WALLS",   
+    Callback = function(Value) IgnoreWalls = Value end   
+})   
 
-CombatTab:CreateToggle({ 
-    Name = "Show FOV Circle", 
-    CurrentValue = true, 
-    Flag = "SHOW_FOV_CIRCLE", 
-    Callback = function(Value) ShowFOVCircle = Value; UpdateFOVCircle() end 
-}) 
+CombatTab:CreateToggle({   
+    Name = "Show FOV Circle",   
+    CurrentValue = true,   
+    Flag = "SHOW_FOV_CIRCLE",   
+    Callback = function(Value) ShowFOVCircle = Value; UpdateFOVCircle() end   
+})   
 
-CombatTab:CreateToggle({ 
-    Name = "Enable Custom FOV", 
-    CurrentValue = false, 
-    Flag = "FOV_TOGGLE", 
-    Callback = function(Value) FOVEnabled = Value; UpdateFOV() end 
-}) 
+CombatTab:CreateToggle({   
+    Name = "Enable Custom FOV",   
+    CurrentValue = false,   
+    Flag = "FOV_TOGGLE",   
+    Callback = function(Value) FOVEnabled = Value; UpdateFOV() end   
+})   
 
-CombatTab:CreateSlider({ 
-    Name = "FOV Value", 
-    Range = {30, 200}, 
-    Increment = 1, 
-    CurrentValue = 90, 
-    Flag = "FOV_SLIDER", 
-    Callback = function(Value) CustomFOV = Value; if FOVEnabled then Camera.FieldOfView = CustomFOV end end 
-}) 
+CombatTab:CreateSlider({   
+    Name = "FOV Value",   
+    Range = {30, 200},   
+    Increment = 1,   
+    CurrentValue = 90,   
+    Flag = "FOV_SLIDER",   
+    Callback = function(Value) CustomFOV = Value; if FOVEnabled then Camera.FieldOfView = CustomFOV end end   
+})   
 
-CombatTab:CreateColorPicker({ 
-    Name = "FOV Circle Color", 
-    Color = Color3.fromRGB(255, 0, 0), 
-    Callback = function(Value) 
-        FOVColor = Value 
-        UpdateFOVCircle() 
-    end 
-}) 
+CombatTab:CreateColorPicker({   
+    Name = "FOV Circle Color",   
+    Color = Color3.fromRGB(255, 0, 0),   
+    Callback = function(Value)   
+        FOVColor = Value   
+        UpdateFOVCircle()   
+    end   
+})   
 
-CombatTab:CreateSlider({ 
-    Name = "Aim Accuracy", 
-    Range = {0, 100}, 
-    Increment = 1, 
-    Suffix = "%", 
-    CurrentValue = 100, 
-    Flag = "AIM_ACCURACY", 
-    Callback = function(Value) AimAccuracy = Value end 
-})
+CombatTab:CreateSlider({   
+    Name = "Aim Accuracy",   
+    Range = {0, 100},   
+    Increment = 1,   
+    Suffix = "%",   
+    CurrentValue = 100,   
+    Flag = "AIM_ACCURACY",   
+    Callback = function(Value) AimAccuracy = Value end   
+})  
 
--- إضافات جديدة للـ UI
+CombatTab:CreateSlider({   
+    Name = "Offset Spread (studs)",   
+    Range = {0, 5},   
+    Increment = 0.1,   
+    CurrentValue = 1.0,   
+    Flag = "OFFSET_SPREAD",   
+    Callback = function(Value) OffsetSpread = Value end   
+})  
 
-CombatTab:CreateSlider({ 
-    Name = "Offset Spread (studs)", 
-    Range = {0, 5}, 
-    Increment = 0.1, 
-    CurrentValue = 1.0, 
-    Flag = "OFFSET_SPREAD", 
-    Callback = function(Value) OffsetSpread = Value end 
-})
+CombatTab:CreateSlider({   
+    Name = "Prediction Multiplier",   
+    Range = {0.5, 2},   
+    Increment = 0.1,   
+    CurrentValue = 1.0,   
+    Flag = "PRED_MULTIPLIER",   
+    Callback = function(Value) PredictionMultiplier = Value end   
+})  
 
-CombatTab:CreateSlider({ 
-    Name = "Prediction Multiplier", 
-    Range = {0.5, 2}, 
-    Increment = 0.1, 
-    CurrentValue = 1.0, 
-    Flag = "PRED_MULTIPLIER", 
-    Callback = function(Value) PredictionMultiplier = Value end 
-})
+CombatTab:CreateToggle({   
+    Name = "Aim Moving Targets Only",   
+    CurrentValue = false,   
+    Flag = "AIM_MOVING_ONLY",   
+    Callback = function(Value) AimMovingTargetsOnly = Value end   
+})  
 
-CombatTab:CreateToggle({ 
-    Name = "Aim Moving Targets Only", 
-    CurrentValue = false, 
-    Flag = "AIM_MOVING_ONLY", 
-    Callback = function(Value) AimMovingTargetsOnly = Value end 
-})
+CombatTab:CreateSlider({   
+    Name = "Velocity Threshold",   
+    Range = {1, 20},   
+    Increment = 1,   
+    CurrentValue = 5,   
+    Flag = "VEL_THRESHOLD",   
+    Callback = function(Value) VelocityThreshold = Value end   
+})  
 
-CombatTab:CreateSlider({ 
-    Name = "Velocity Threshold", 
-    Range = {1, 20}, 
-    Increment = 1, 
-    CurrentValue = 5, 
-    Flag = "VEL_THRESHOLD", 
-    Callback = function(Value) VelocityThreshold = Value end 
-})
+CombatTab:CreateToggle({   
+    Name = "Auto-Switch on Kill",   
+    CurrentValue = false,   
+    Flag = "AUTO_SWITCH_KILL",   
+    Callback = function(Value) AutoSwitchOnKill = Value end   
+})  
 
-CombatTab:CreateToggle({ 
-    Name = "Auto-Switch on Kill", 
-    CurrentValue = false, 
-    Flag = "AUTO_SWITCH_KILL", 
-    Callback = function(Value) AutoSwitchOnKill = Value end 
-})
+CombatTab:CreateDropdown({   
+    Name = "Target Priority",   
+    Options = {"Closest", "Lowest Health", "Highest Threat"},   
+    CurrentOption = {"Closest"},   
+    MultipleOptions = false,   
+    Flag = "TARGET_PRIORITY",   
+    Callback = function(Option) TargetPriority = Option[1] end   
+})  
 
-CombatTab:CreateDropdown({ 
-    Name = "Target Priority", 
-    Options = {"Closest", "Lowest Health", "Highest Threat"}, 
-    CurrentOption = {"Closest"}, 
-    MultipleOptions = false, 
-    Flag = "TARGET_PRIORITY", 
-    Callback = function(Option) TargetPriority = Option[1] end 
-})
+CombatTab:CreateToggle({   
+    Name = "Enable Triggerbot",   
+    CurrentValue = false,   
+    Flag = "TRIGGERBOT",   
+    Callback = function(Value) TriggerbotEnabled = Value end   
+})  
 
-CombatTab:CreateToggle({ 
-    Name = "Enable Triggerbot", 
-    CurrentValue = false, 
-    Flag = "TRIGGERBOT", 
-    Callback = function(Value) TriggerbotEnabled = Value end 
-})
+CombatTab:CreateSlider({   
+    Name = "Trigger Delay (ms)",   
+    Range = {0, 500},   
+    Increment = 50,   
+    CurrentValue = 100,   
+    Flag = "TRIGGER_DELAY",   
+    Callback = function(Value) TriggerDelay = Value end   
+})  
 
-CombatTab:CreateSlider({ 
-    Name = "Trigger Delay (ms)", 
-    Range = {0, 500}, 
-    Increment = 50, 
-    CurrentValue = 100, 
-    Flag = "TRIGGER_DELAY", 
-    Callback = function(Value) TriggerDelay = Value end 
-})
+CombatTab:CreateToggle({   
+    Name = "Anti-Recoil",   
+    CurrentValue = false,   
+    Flag = "ANTI_RECOIL",   
+    Callback = function(Value) AntiRecoilEnabled = Value end   
+})  
 
-CombatTab:CreateToggle({ 
-    Name = "Anti-Recoil", 
-    CurrentValue = false, 
-    Flag = "ANTI_RECOIL", 
-    Callback = function(Value) AntiRecoilEnabled = Value end 
-})
+CombatTab:CreateSlider({   
+    Name = "Recoil Factor",   
+    Range = {0, 1},   
+    Increment = 0.1,   
+    CurrentValue = 0.5,   
+    Flag = "RECOIL_FACTOR",   
+    Callback = function(Value) RecoilFactor = Value end   
+})  
 
-CombatTab:CreateSlider({ 
-    Name = "Recoil Factor", 
-    Range = {0, 1}, 
-    Increment = 0.1, 
-    CurrentValue = 0.5, 
-    Flag = "RECOIL_FACTOR", 
-    Callback = function(Value) RecoilFactor = Value end 
-})
+CombatTab:CreateDropdown({   
+    Name = "Scan Mode",   
+    Options = {"Fixed", "Dynamic"},   
+    CurrentOption = {"Fixed"},   
+    MultipleOptions = false,   
+    Flag = "SCAN_MODE",   
+    Callback = function(Option) ScanMode = Option[1] end   
+})  
 
-CombatTab:CreateDropdown({ 
-    Name = "Scan Mode", 
-    Options = {"Fixed", "Dynamic"}, 
-    CurrentOption = {"Fixed"}, 
-    MultipleOptions = false, 
-    Flag = "SCAN_MODE", 
-    Callback = function(Option) ScanMode = Option[1] end 
-})
+CombatTab:CreateToggle({   
+    Name = "Dynamic FOV",   
+    CurrentValue = false,   
+    Flag = "DYNAMIC_FOV",   
+    Callback = function(Value) DynamicFOV = Value; UpdateFOVCircle() end   
+})  
 
-CombatTab:CreateToggle({ 
-    Name = "Dynamic FOV", 
-    CurrentValue = false, 
-    Flag = "DYNAMIC_FOV", 
-    Callback = function(Value) DynamicFOV = Value; UpdateFOVCircle() end 
-})
+CombatTab:CreateSlider({   
+    Name = "Min FOV Radius",   
+    Range = {10, 200},   
+    Increment = 10,   
+    CurrentValue = 50,   
+    Flag = "MIN_FOV_RADIUS",   
+    Callback = function(Value) MinFOVRadius = Value; UpdateFOVCircle() end   
+})  
 
-CombatTab:CreateSlider({ 
-    Name = "Min FOV Radius", 
-    Range = {10, 200}, 
-    Increment = 10, 
-    CurrentValue = 50, 
-    Flag = "MIN_FOV_RADIUS", 
-    Callback = function(Value) MinFOVRadius = Value; UpdateFOVCircle() end 
-})
+CombatTab:CreateSlider({   
+    Name = "Max FOV Radius",   
+    Range = {100, 500},   
+    Increment = 10,   
+    CurrentValue = 300,   
+    Flag = "MAX_FOV_RADIUS",   
+    Callback = function(Value) MaxFOVRadius = Value; UpdateFOVCircle() end   
+})  
 
-CombatTab:CreateSlider({ 
-    Name = "Max FOV Radius", 
-    Range = {100, 500}, 
-    Increment = 10, 
-    CurrentValue = 300, 
-    Flag = "MAX_FOV_RADIUS", 
-    Callback = function(Value) MaxFOVRadius = Value; UpdateFOVCircle() end 
-})
+CombatTab:CreateSlider({   
+    Name = "Dynamic FOV Multiplier",   
+    Range = {0.01, 0.5},   
+    Increment = 0.01,   
+    CurrentValue = 0.1,   
+    Flag = "DYN_FOV_MULT",   
+    Callback = function(Value) DynamicFOVMultiplier = Value; UpdateFOVCircle() end   
+})  
 
-CombatTab:CreateSlider({ 
-    Name = "Dynamic FOV Multiplier", 
-    Range = {0.01, 0.5}, 
-    Increment = 0.01, 
-    CurrentValue = 0.1, 
-    Flag = "DYN_FOV_MULT", 
-    Callback = function(Value) DynamicFOVMultiplier = Value; UpdateFOVCircle() end 
-})
+CombatTab:CreateToggle({   
+    Name = "Enable Stats",   
+    CurrentValue = false,   
+    Flag = "ENABLE_STATS",   
+    Callback = function(Value) EnableStats = Value end   
+})   
 
-CombatTab:CreateToggle({ 
-    Name = "Enable Stats", 
-    CurrentValue = false, 
-    Flag = "ENABLE_STATS", 
-    Callback = function(Value) EnableStats = Value end 
-}) 
+CombatTab:CreateToggle({   
+    Name = "No Miss Bullets",   
+    CurrentValue = false,   
+    Flag = "NO_MISS_BULLETS",   
+    Callback = function(Value) NoMissBullets = Value end   
+})  
 
--- ميزة جديدة: No Miss Bullets
-CombatTab:CreateToggle({ 
-    Name = "No Miss Bullets", 
-    CurrentValue = false, 
-    Flag = "NO_MISS_BULLETS", 
-    Callback = function(Value) NoMissBullets = Value end 
-})
+CombatTab:CreateSlider({   
+    Name = "Bullet Magnet Strength",   
+    Range = {0, 1},   
+    Increment = 0.1,   
+    CurrentValue = 0.5,   
+    Flag = "BULLET_MAGNET",   
+    Callback = function(Value) BulletMagnetStrength = Value end   
+})  
 
-CombatTab:CreateSlider({ 
-    Name = "Bullet Magnet Strength", 
-    Range = {0, 1}, 
-    Increment = 0.1, 
-    CurrentValue = 0.5, 
-    Flag = "BULLET_MAGNET", 
-    Callback = function(Value) BulletMagnetStrength = Value end 
-})
+CombatTab:CreateToggle({   
+    Name = "Moving FOV Circle",   
+    CurrentValue = false,   
+    Flag = "MOVING_FOV_CIRCLE",   
+    Callback = function(Value) movingFOVCircleEnabled = Value; UpdateFOVCircle() end   
+})  
 
-CombatTab:CreateToggle({ 
-    Name = "Moving FOV Circle", 
-    CurrentValue = false, 
-    Flag = "MOVING_FOV_CIRCLE", 
-    Callback = function(Value) movingFOVCircleEnabled = Value; UpdateFOVCircle() end 
-})
+CombatTab:CreateToggle({   
+    Name = "Weapon Check",   
+    CurrentValue = false,   
+    Flag = "WEAPON_CHECK",   
+    Callback = function(Value)   
+        weaponCheckEnabled = Value   
+        if Value then   
+            connections.weaponCheck = RunService.Heartbeat:Connect(function()   
+                local char = LocalPlayer.Character   
+                if char then   
+                    local tool = char:FindFirstChildOfClass("Tool")   
+                    AimbotEnabled = tool ~= nil   
+                else   
+                    AimbotEnabled = false   
+                end   
+            end)   
+        else   
+            if connections.weaponCheck then connections.weaponCheck:Disconnect() end   
+            AimbotEnabled = false    
+        end   
+    end   
+})  
 
--- New: Weapon Check
-CombatTab:CreateToggle({ 
-    Name = "Weapon Check", 
-    CurrentValue = false, 
-    Flag = "WEAPON_CHECK", 
-    Callback = function(Value) 
-        weaponCheckEnabled = Value 
-        if Value then 
-            connections.weaponCheck = RunService.Heartbeat:Connect(function() 
-                local char = LocalPlayer.Character 
-                if char then 
-                    local tool = char:FindFirstChildOfClass("Tool") 
-                    AimbotEnabled = tool ~= nil 
-                else 
-                    AimbotEnabled = false 
-                end 
-            end) 
-        else 
-            if connections.weaponCheck then connections.weaponCheck:Disconnect() end 
-            AimbotEnabled = false  -- Reset if disabled
-        end 
-    end 
-})
+CombatTab:CreateToggle({   
+    Name = "Smart Aim Bot",   
+    CurrentValue = false,   
+    Flag = "SMART_AIM",   
+    Callback = function(Value)   
+        smartAimBotEnabled = Value   
+        if Value then   
+            closestAimEnabled = false    
+            aimbotConnection = RunService.Heartbeat:Connect(function()   
+                if smartAimBotEnabled then   
+                    CurrentTarget = GetBestTarget()    
+                    if CurrentTarget and CurrentTarget.Character then   
+                        local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)  
+                        if targetPart then  
+                            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)), Smoothness)   
+                        end  
+                    end   
+                end   
+            end)   
+        else   
+            if aimbotConnection then aimbotConnection:Disconnect() end   
+        end   
+    end   
+})  
 
--- New: Smart Aim Bot
-CombatTab:CreateToggle({ 
-    Name = "Smart Aim Bot", 
-    CurrentValue = false, 
-    Flag = "SMART_AIM", 
-    Callback = function(Value) 
-        smartAimBotEnabled = Value 
-        if Value then 
-            closestAimEnabled = false  -- Disable Closest if Smart is enabled
-            aimbotConnection = RunService.Heartbeat:Connect(function() 
-                if smartAimBotEnabled then 
-                    CurrentTarget = GetBestTarget()  -- Use advanced selection
-                    if CurrentTarget and CurrentTarget.Character then 
-                        local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
-                        if targetPart then
-                            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)), Smoothness) 
-                        end
-                    end 
-                end 
-            end) 
-        else 
-            if aimbotConnection then aimbotConnection:Disconnect() end 
-        end 
-    end 
-})
+CombatTab:CreateToggle({   
+    Name = "Closest Aim",   
+    CurrentValue = false,   
+    Flag = "CLOSEST_AIM",   
+    Callback = function(Value)   
+        closestAimEnabled = Value   
+        if Value then   
+            smartAimBotEnabled = false    
+            aimbotConnection = RunService.Heartbeat:Connect(function()   
+                if closestAimEnabled then   
+                    CurrentTarget = GetBestTarget()    
+                    if CurrentTarget and CurrentTarget.Character then   
+                        local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)  
+                        if targetPart then  
+                            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)), Smoothness)   
+                        end  
+                    end   
+                end   
+            end)   
+        else   
+            if aimbotConnection then aimbotConnection:Disconnect() end   
+        end   
+    end   
+})  
 
--- New: Closest Aim
-CombatTab:CreateToggle({ 
-    Name = "Closest Aim", 
-    CurrentValue = false, 
-    Flag = "CLOSEST_AIM", 
-    Callback = function(Value) 
-        closestAimEnabled = Value 
-        if Value then 
-            smartAimBotEnabled = false  -- Disable Smart if Closest is enabled
-            aimbotConnection = RunService.Heartbeat:Connect(function() 
-                if closestAimEnabled then 
-                    CurrentTarget = GetBestTarget()  -- Use closest only
-                    if CurrentTarget and CurrentTarget.Character then 
-                        local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
-                        if targetPart then
-                            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)), Smoothness) 
-                        end
-                    end 
-                end 
-            end) 
-        else 
-            if aimbotConnection then aimbotConnection:Disconnect() end 
-        end 
-    end 
-})
-  
+CombatTab:CreateToggle({   
+    Name = "Kill All",   
+    CurrentValue = false,   
+    Flag = "KILL_ALL",   
+    Callback = function(Value)   
+        killAllEnabled = Value   
+        if Value then   
+            EnableKillAll()   
+        else   
+            DisableKillAll()   
+        end   
+    end   
+})  
+
 -- // TELEPORT SECTION  
 local TeleportTab = Window:CreateTab("Teleports", 4483362458)  
 local locations = {  
@@ -2855,7 +2306,7 @@ PlayerTab:CreateToggle({
         end  
     end  
 })  
-  
+
 PlayerTab:CreateToggle({  
     Name = "Lock Jump Button",  
     CurrentValue = true,  
@@ -2905,7 +2356,7 @@ PlayerTab:CreateToggle({
         end  
     end  
 })  
-  
+
 PlayerTab:CreateToggle({  
     Name = "Anti Taze/Stun",  
     CurrentValue = false,  
@@ -2933,7 +2384,7 @@ PlayerTab:CreateToggle({
         end  
     end  
 })  
-  
+
 PlayerTab:CreateToggle({  
     Name = "Anti Arrest/Cuffs",  
     CurrentValue = false,  
@@ -2987,7 +2438,7 @@ PlayerTab:CreateToggle({
         end  
     end  
 })  
-  
+
 -- Fake Run Variable  
 local fakerun = false  
   
