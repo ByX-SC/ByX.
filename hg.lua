@@ -2988,83 +2988,32 @@ PlayerTab:CreateToggle({
     end  
 })  
   
--- Fake Run Variable (Auto Anti-Cuff Freeze)
-local fakerun = false
-local isCuffed = false
-local cuffDebounceTime = 0
-local DEBOUNCE_TIME = 3  -- ثواني بدون محاولات كلبشة عشان يتقفل تلقائي
-
--- إنشاء الـ Toggle (كما هو، مع Flag للـ programmatic update)
-PlayerTab:CreateToggle({
-    Name = "Anti-Cuff Freeze",
-    CurrentValue = false,
-    Flag = "AntiCuffFreeze",
-    Callback = function(Value)
-        fakerun = Value  -- يدعم التحكم اليدوي كمان
-    end
-})
-
--- دالة تحديث حالة الكلبشة والـ toggle عبر Rayfield Flags
-local function updateCuffState(cuffed)
-    isCuffed = cuffed
-    fakerun = cuffed
-    Rayfield.Flags["AntiCuffFreeze"] = cuffed  -- يحدث الزر في الـ UI تلقائياً (Rayfield يدعم هذا)
-end
-
-local LocalPlayer = game:GetService("Players").LocalPlayer
-local RunService = game:GetService("RunService")
-
--- مراقبة إضافة الكفوف على الأطراف (مع WaitForChild للـ robustness)
-local function monitorLimbs(character)
-    spawn(function()
-        local limbs = {"Left Arm", "Right Arm"}
-        for _, limbName in ipairs(limbs) do
-            local limb = character:WaitForChild(limbName, 5)
-            if limb then
-                limb.ChildAdded:Connect(function(child)
-                    if child.Name:lower():match("cuff") or child.Name:lower():match("handcuff") then
-                        print("🛑 كلبشني! (Guard handcuffed me)")
-                        cuffDebounceTime = tick() + DEBOUNCE_TIME
-                        updateCuffState(true)
-                    end
-                end)
-            end
-        end
-    end)
-end
-
--- لوب لفحص انتهاء الـ debounce (فك تلقائي)
-spawn(function()
-    while true do
-        wait(0.5)
-        if tick() > cuffDebounceTime and isCuffed then
-            print("✅ فك الكلبشة! (Handcuffs released / Guard left)")
-            updateCuffState(false)
-        end
-    end
-end)
-
--- تطبيق على الشخصية الحالية
-if LocalPlayer.Character then
-    monitorLimbs(LocalPlayer.Character)
-end
-
--- عند الـ respawn
-LocalPlayer.CharacterAdded:Connect(monitorLimbs)
-
--- Anti-Cuff Freeze Function (كما هو)
-local function RunRenderFakeRun()
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
-    if fakerun then
-        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        root.Anchored = true
-    else
-        root.Anchored = false
-    end
-end
-RunService.RenderStepped:Connect(RunRenderFakeRun)
+-- Fake Run Variable  
+local fakerun = false  
+  
+-- Fake Run Toggle  
+PlayerTab:CreateToggle({  
+    Name = "Anti-Cuff Freeze",  
+    CurrentValue = false,  
+    Flag = "AntiCuffFreeze",  
+    Callback = function(Value)  
+        fakerun = Value  
+    end  
+})  
+  
+-- Anti-Cuff Freeze Function  
+local function RunRenderFakeRun()  
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")  
+    if not root then return end  
+  
+    if fakerun then  
+        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)  
+        root.Anchored = true  
+    else  
+        root.Anchored = false  
+    end  
+end  
+RunService.RenderStepped:Connect(RunRenderFakeRun)  
  
 -- Unlock First Person or Third Person Toggle 
 PlayerTab:CreateButton({ 
