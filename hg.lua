@@ -2601,8 +2601,8 @@ local isCuffed = false
 local cuffDebounceTime = 0
 local DEBOUNCE_TIME = 3  -- ثواني بدون محاولات كلبشة عشان يتقفل تلقائي
 
--- إنشاء الـ Toggle و حفظ الـ reference عشان التحكم التلقائي
-local antiCuffToggle = PlayerTab:CreateToggle({
+-- إنشاء الـ Toggle (كما هو، مع Flag للـ programmatic update)
+PlayerTab:CreateToggle({
     Name = "Anti-Cuff Freeze",
     CurrentValue = false,
     Flag = "AntiCuffFreeze",
@@ -2611,28 +2611,33 @@ local antiCuffToggle = PlayerTab:CreateToggle({
     end
 })
 
--- دالة تحديث حالة الكلبشة والـ toggle
+-- دالة تحديث حالة الكلبشة والـ toggle عبر Rayfield Flags
 local function updateCuffState(cuffed)
     isCuffed = cuffed
     fakerun = cuffed
-    antiCuffToggle:Set(cuffed)  -- يحدث الزر في الـ UI ويفعل الـ callback
+    Rayfield.Flags["AntiCuffFreeze"] = cuffed  -- يحدث الزر في الـ UI تلقائياً (Rayfield يدعم هذا)
 end
 
--- مراقبة إضافة الكفوف على الأطراف
+local LocalPlayer = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+
+-- مراقبة إضافة الكفوف على الأطراف (مع WaitForChild للـ robustness)
 local function monitorLimbs(character)
-    local limbs = {"Left Arm", "Right Arm"}
-    for _, limbName in ipairs(limbs) do
-        local limb = character:FindFirstChild(limbName)
-        if limb then
-            limb.ChildAdded:Connect(function(child)
-                if child.Name:lower():match("cuff") or child.Name:lower():match("handcuff") then
-                    print("🛑 كلبشني! (Guard handcuffed me)")
-                    cuffDebounceTime = tick() + DEBOUNCE_TIME
-                    updateCuffState(true)
-                end
-            end)
+    spawn(function()
+        local limbs = {"Left Arm", "Right Arm"}
+        for _, limbName in ipairs(limbs) do
+            local limb = character:WaitForChild(limbName, 5)
+            if limb then
+                limb.ChildAdded:Connect(function(child)
+                    if child.Name:lower():match("cuff") or child.Name:lower():match("handcuff") then
+                        print("🛑 كلبشني! (Guard handcuffed me)")
+                        cuffDebounceTime = tick() + DEBOUNCE_TIME
+                        updateCuffState(true)
+                    end
+                end)
+            end
         end
-    end
+    end)
 end
 
 -- لوب لفحص انتهاء الـ debounce (فك تلقائي)
@@ -2647,7 +2652,6 @@ spawn(function()
 end)
 
 -- تطبيق على الشخصية الحالية
-local LocalPlayer = game:GetService("Players").LocalPlayer
 if LocalPlayer.Character then
     monitorLimbs(LocalPlayer.Character)
 end
@@ -2656,7 +2660,6 @@ end
 LocalPlayer.CharacterAdded:Connect(monitorLimbs)
 
 -- Anti-Cuff Freeze Function (كما هو)
-local RunService = game:GetService("RunService")
 local function RunRenderFakeRun()
     local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
