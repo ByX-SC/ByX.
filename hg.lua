@@ -1745,7 +1745,7 @@ CombatTab:CreateSlider({
 
 CombatTab:CreateSlider({ 
     Name = "Smoothness (Visible Aim)", 
-    Range = {0.05, 0.5}, 
+    Range = {0.05, 2}, 
     Increment = 0.01, 
     CurrentValue = 0.15, 
     Flag = "AIMBOT_SMOOTHNESS", 
