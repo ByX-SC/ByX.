@@ -1161,7 +1161,7 @@ VisualsTab:CreateToggle({
     end
 })
 
--- // COMBAT SECTION (Aimbot, FOV, Desync, Silent Aim, Desync, Kill All Showcase) 
+-- // COMBAT SECTION (Aimbot, FOV, Desync, Silent Aim, Kill All Showcase) 
 local CombatTab = Window:CreateTab("Combat", 4483362458) 
 
 local AimbotEnabled = false 
@@ -1230,15 +1230,6 @@ local BulletMagnetStrength = 0.5  -- Slider لـ Bullet Magnet Strength (0-1, ق
 
 -- New: Moving FOV circle
 local movingFOVCircleEnabled = false
-
--- New: Weapon Check for Aim Bot
-local weaponCheckEnabled = false
-
--- New: Smart Aim Bot
-local smartAimBotEnabled = false
-
--- New: Closest Aim
-local closestAimEnabled = false
 
 -- دالة Humanization Factor لإضافة عشوائية للتصويب
 local function ApplyHumanization(position)
@@ -1745,7 +1736,7 @@ CombatTab:CreateSlider({
 
 CombatTab:CreateSlider({ 
     Name = "Smoothness (Visible Aim)", 
-    Range = {0.05, 2}, 
+    Range = {0.05, 0.5}, 
     Increment = 0.01, 
     CurrentValue = 0.15, 
     Flag = "AIMBOT_SMOOTHNESS", 
@@ -1940,7 +1931,7 @@ CombatTab:CreateToggle({
     CurrentValue = false, 
     Flag = "ENABLE_STATS", 
     Callback = function(Value) EnableStats = Value end 
-}) 
+})
 
 -- ميزة جديدة: No Miss Bullets
 CombatTab:CreateToggle({ 
@@ -1964,82 +1955,6 @@ CombatTab:CreateToggle({
     CurrentValue = false, 
     Flag = "MOVING_FOV_CIRCLE", 
     Callback = function(Value) movingFOVCircleEnabled = Value; UpdateFOVCircle() end 
-})
-
--- New: Weapon Check
-CombatTab:CreateToggle({ 
-    Name = "Weapon Check", 
-    CurrentValue = false, 
-    Flag = "WEAPON_CHECK", 
-    Callback = function(Value) 
-        weaponCheckEnabled = Value 
-        if Value then 
-            connections.weaponCheck = RunService.Heartbeat:Connect(function() 
-                local char = LocalPlayer.Character 
-                if char then 
-                    local tool = char:FindFirstChildOfClass("Tool") 
-                    AimbotEnabled = tool ~= nil 
-                else 
-                    AimbotEnabled = false 
-                end 
-            end) 
-        else 
-            if connections.weaponCheck then connections.weaponCheck:Disconnect() end 
-            AimbotEnabled = false  -- Reset if disabled
-        end 
-    end 
-})
-
--- New: Smart Aim Bot
-CombatTab:CreateToggle({ 
-    Name = "Smart Aim Bot", 
-    CurrentValue = false, 
-    Flag = "SMART_AIM", 
-    Callback = function(Value) 
-        smartAimBotEnabled = Value 
-        if Value then 
-            closestAimEnabled = false  -- Disable Closest if Smart is enabled
-            aimbotConnection = RunService.Heartbeat:Connect(function() 
-                if smartAimBotEnabled then 
-                    CurrentTarget = GetBestTarget()  -- Use advanced selection
-                    if CurrentTarget and CurrentTarget.Character then 
-                        local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
-                        if targetPart then
-                            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)), Smoothness) 
-                        end
-                    end 
-                end 
-            end) 
-        else 
-            if aimbotConnection then aimbotConnection:Disconnect() end 
-        end 
-    end 
-})
-
--- New: Closest Aim
-CombatTab:CreateToggle({ 
-    Name = "Closest Aim", 
-    CurrentValue = false, 
-    Flag = "CLOSEST_AIM", 
-    Callback = function(Value) 
-        closestAimEnabled = Value 
-        if Value then 
-            smartAimBotEnabled = false  -- Disable Smart if Closest is enabled
-            aimbotConnection = RunService.Heartbeat:Connect(function() 
-                if closestAimEnabled then 
-                    CurrentTarget = GetBestTarget()  -- Use closest only
-                    if CurrentTarget and CurrentTarget.Character then 
-                        local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
-                        if targetPart then
-                            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)), Smoothness) 
-                        end
-                    end 
-                end 
-            end) 
-        else 
-            if aimbotConnection then aimbotConnection:Disconnect() end 
-        end 
-    end 
 })
   
 
