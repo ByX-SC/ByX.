@@ -2707,12 +2707,12 @@ TeleportTab:CreateButton({
 })  
 
 -- Gun Spawner Section  
-TeleportTab:CreateLabel("Gun Spawner")  
+TeleportTab:CreateLabel("Gun Spawner (Locations)")  
 
 local gunOptions = {"max", "min", "booking"}  
 
 TeleportTab:CreateDropdown({  
-    Name = "Select Gun Type",  
+    Name = "Select Locations",  
     Options = gunOptions,  
     CurrentOption = {},  
     MultipleOptions = false,  
@@ -2735,7 +2735,7 @@ TeleportTab:CreateButton({
 })  
 
 -- Player Spawner Section  
-TeleportTab:CreateLabel("Player Spawner")  
+TeleportTab:CreateLabel("Gun Spawner (Players)")  
 
 local playerNames = {}  
 for _, player in pairs(Players:GetPlayers()) do  
@@ -2754,7 +2754,7 @@ TeleportTab:CreateDropdown({
 })  
 
 TeleportTab:CreateButton({  
-    Name = "Spawn Player",  
+    Name = "Spawn",  
     Callback = function()  
         local selected = Rayfield:GetFlag("PLAYER_DROPDOWN")  
         if selected and selected[1] then  
@@ -2763,7 +2763,7 @@ TeleportTab:CreateButton({
             Rayfield:Notify({ Title = "Error", Content = "No player selected!", Duration = 3, Image = 4483362458 })  
         end  
     end  
-})   
+})    
   
 -- // ITEMS SECTION  
 local ItemsTab = Window:CreateTab("Items", 4483362458)  
