@@ -2763,6 +2763,115 @@ TeleportTab:CreateButton({
             Rayfield:Notify({ Title = "Error", Content = "No player selected!", Duration = 3, Image = 4483362458 })  
         end  
     end  
+})  
+
+-- GUI Teleports Button  
+local guiWindow = nil  
+TeleportTab:CreateButton({  
+    Name = "gui teleports",  
+    Callback = function()  
+        if guiWindow then  
+            guiWindow:Destroy()  
+            guiWindow = nil  
+            return  
+        end  
+  
+        guiWindow = Rayfield:CreateWindow({  
+            Name = "Teleports GUI",  
+            LoadingTitle = "Loading...",  
+            LoadingSubtitle = "ByX",  
+            ConfigurationSaving = { Enabled = false },  
+            Discord = { Enabled = false },  
+            KeySystem = false,  
+            Theme = randomTheme  
+        })  
+  
+        local guiTab = guiWindow:CreateTab("Teleports")  
+  
+        -- General Teleports Section  
+        guiTab:CreateLabel("General Teleports")  
+  
+        guiTab:CreateDropdown({  
+            Name = "Select Location",  
+            Options = generalLocations,  
+            CurrentOption = {},  
+            MultipleOptions = false,  
+            Callback = function(Option)  
+                local selected = Option[1]  
+                local index = table.find(generalLocations, selected)  
+                if index then  
+                    LocalPlayer.Character:PivotTo(generalCfValues[index])  
+                end  
+            end  
+        })  
+  
+        -- Item Teleports Section  
+        guiTab:CreateLabel("Item Teleports")  
+  
+        guiTab:CreateButton({  
+            Name = "Get a Gun",  
+            Callback = function()  
+                -- Add your get a gun script here  
+            end  
+        })  
+  
+        guiTab:CreateButton({  
+            Name = "Keycard",  
+            Callback = function()  
+                -- Add your keycard script here  
+            end  
+        })  
+  
+        -- Gun Spawner Section  
+        guiTab:CreateLabel("Gun Spawner (Locations)")  
+  
+        guiTab:CreateDropdown({  
+            Name = "Select Locations",  
+            Options = gunOptions,  
+            CurrentOption = {},  
+            MultipleOptions = false,  
+            Callback = function(Option)  
+                -- Optional: Handle selection if needed before spawn  
+            end  
+        })  
+  
+        guiTab:CreateButton({  
+            Name = "Spawn Gun",  
+            Callback = function()  
+                local selected = Rayfield:GetFlag("GUN_DROPDOWN")  
+                if selected and selected[1] then  
+                    -- Add your spawn gun script here based on selected[1]  
+                else  
+                    Rayfield:Notify({ Title = "Error", Content = "No gun type selected!", Duration = 3, Image = 4483362458 })  
+                end  
+            end  
+        })  
+  
+        -- Player Spawner Section  
+        guiTab:CreateLabel("Gun Spawner (Players)")  
+  
+        guiTab:CreateDropdown({  
+            Name = "Select Player",  
+            Options = playerNames,  
+            CurrentOption = {},  
+            MultipleOptions = false,  
+            Callback = function(Option)  
+                -- Optional: Handle selection if needed  
+            end  
+        })  
+  
+        guiTab:CreateButton({  
+            Name = "Spawn",  
+            Callback = function()  
+                local selected = Rayfield:GetFlag("PLAYER_DROPDOWN")  
+                if selected and selected[1] then  
+                    -- Add your spawn for player script here based on selected[1]  
+                else  
+                    Rayfield:Notify({ Title = "Error", Content = "No player selected!", Duration = 3, Image = 4483362458 })  
+                end  
+            end  
+        })  
+    end  
 })    
   
 -- // ITEMS SECTION  
