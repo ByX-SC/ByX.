@@ -2654,11 +2654,14 @@ CombatTab:CreateToggle({
 -- // TELEPORT SECTION  
 local TeleportTab = Window:CreateTab("Teleports", 4483362458)  
 
-local locations = {  
-    "Maintenance", "Security", "OC Lockers", "RIOT Lockers", "Ventilation", "Maximum", "Generator", "Outside", "Escape Base", "Escape", "Keycard (💳)", "GAS STATION", "armory", "BARN", "R&D"  
+-- General Teleports Section  
+TeleportTab:CreateLabel("General Teleports")  
+
+local generalLocations = {  
+    "Maintenance", "Security", "OC Lockers", "RIOT Lockers", "Ventilation", "Maximum", "Generator", "Outside", "Escape Base", "Escape"  
 }  
 
-local cfValues = {  
+local generalCfValues = {  
     CFrame.new(172.34, 23.10, -143.87),  
     CFrame.new(224.47, 23.10, -167.90),  
     CFrame.new(137.60, 23.10, -169.93),  
@@ -2668,7 +2671,32 @@ local cfValues = {
     CFrame.new(100.95, -8.82, -57.59),  
     CFrame.new(350.22, 5.40, -171.09),  
     CFrame.new(749.02, -0.97, -470.45),  
-    CFrame.new(307.06, 5.40, -177.88),  
+    CFrame.new(307.06, 5.40, -177.88)  
+}  
+
+TeleportTab:CreateDropdown({  
+    Name = "Select Location",  
+    Options = generalLocations,  
+    CurrentOption = {},  
+    MultipleOptions = false,  
+    Flag = "GENERAL_TELEPORT_DROPDOWN",  
+    Callback = function(Option)  
+        local selected = Option[1]  
+        local index = table.find(generalLocations, selected)  
+        if index then  
+            LocalPlayer.Character:PivotTo(generalCfValues[index])  
+        end  
+    end  
+})  
+
+-- Item Teleports Section  
+TeleportTab:CreateLabel("Item Teleports")  
+
+local itemLocations = {  
+    "Keycard (💳)", "GAS STATION", "armory", "BARN", "R&D"  
+}  
+
+local itemCfValues = {  
     CFrame.new(-13.36, 22.13, -27.47),  
     CFrame.new(274.30, 6.21, -612.77),  
     CFrame.new(189.40, 23.10, -214.47),  
@@ -2677,34 +2705,35 @@ local cfValues = {
 }  
 
 TeleportTab:CreateDropdown({  
-    Name = "Select Teleport Location",  
-    Options = locations,  
+    Name = "Select Item Location",  
+    Options = itemLocations,  
     CurrentOption = {},  
     MultipleOptions = false,  
-    Flag = "TELEPORT_DROPDOWN",  
+    Flag = "ITEM_TELEPORT_DROPDOWN",  
     Callback = function(Option)  
         local selected = Option[1]  
-        local index = table.find(locations, selected)  
+        local index = table.find(itemLocations, selected)  
         if index then  
-            LocalPlayer.Character:PivotTo(cfValues[index])  
+            LocalPlayer.Character:PivotTo(itemCfValues[index])  
         end  
     end  
 })  
 
 TeleportTab:CreateButton({  
-    Name = "get a gun",  
+    Name = "Get a Gun",  
     Callback = function()  
         -- Add your get a gun script here  
     end  
 })  
 
 TeleportTab:CreateButton({  
-    Name = "keycard",  
+    Name = "Keycard",  
     Callback = function()  
         -- Add your keycard script here  
     end  
 })  
 
+-- Gun Spawner Section  
 TeleportTab:CreateLabel("Gun Spawner")  
 
 local gunOptions = {"max", "min", "booking"}  
@@ -2721,7 +2750,7 @@ TeleportTab:CreateDropdown({
 })  
 
 TeleportTab:CreateButton({  
-    Name = "spawn",  
+    Name = "Spawn Gun",  
     Callback = function()  
         local selected = Rayfield:GetFlag("GUN_DROPDOWN")  
         if selected and selected[1] then  
@@ -2731,6 +2760,9 @@ TeleportTab:CreateButton({
         end  
     end  
 })  
+
+-- Player Spawner Section  
+TeleportTab:CreateLabel("Player Spawner")  
 
 local playerNames = {}  
 for _, player in pairs(Players:GetPlayers()) do  
@@ -2749,7 +2781,7 @@ TeleportTab:CreateDropdown({
 })  
 
 TeleportTab:CreateButton({  
-    Name = "spawn",  
+    Name = "Spawn Player",  
     Callback = function()  
         local selected = Rayfield:GetFlag("PLAYER_DROPDOWN")  
         if selected and selected[1] then  
@@ -2758,7 +2790,7 @@ TeleportTab:CreateButton({
             Rayfield:Notify({ Title = "Error", Content = "No player selected!", Duration = 3, Image = 4483362458 })  
         end  
     end  
-})  
+})   
   
 -- // ITEMS SECTION  
 local ItemsTab = Window:CreateTab("Items", 4483362458)  
