@@ -2653,26 +2653,43 @@ CombatTab:CreateToggle({
   
 -- // TELEPORT SECTION  
 local TeleportTab = Window:CreateTab("Teleports", 4483362458)  
+
 local locations = {  
-    ["Maintenance"] = CFrame.new(172.34, 23.10, -143.87),  
-    ["Security"] = CFrame.new(224.47, 23.10, -167.90),  
-    ["OC Lockers"] = CFrame.new(137.60, 23.10, -169.93),  
-    ["RIOT Lockers"] = CFrame.new(165.63, 23.10, -192.25),  
-    ["Ventilation"] = CFrame.new(76.96, -7.02, -19.21),  
-    ["Maximum"] = CFrame.new(99.85, -8.87, -156.13),  
-    ["Generator"] = CFrame.new(100.95, -8.82, -57.59),  
-    ["Outside"] = CFrame.new(350.22, 5.40, -171.09),  
-    ["Escape Base"] = CFrame.new(749.02, -0.97, -470.45)  
+    "Maintenance", "Security", "OC Lockers", "RIOT Lockers", "Ventilation", "Maximum", "Generator", "Outside", "Escape Base", "Escape", "Keycard (💳)", "GAS STATION", "armory", "BARN", "R&D"  
 }  
-for name, cf in pairs(locations) do  
-    TeleportTab:CreateButton({ Name = name, Callback = function() LocalPlayer.Character:PivotTo(cf) end })  
-end  
-TeleportTab:CreateButton({ Name = "Escape", Callback = function() LocalPlayer.Character:PivotTo(CFrame.new(307.06, 5.40, -177.88)) end })  
-TeleportTab:CreateButton({ Name = "Keycard (💳)", Callback = function() LocalPlayer.Character:PivotTo(CFrame.new(-13.36, 22.13, -27.47)) end })  
-TeleportTab:CreateButton({ Name = "GAS STATION", Callback = function() LocalPlayer.Character:PivotTo(CFrame.new(274.30, 6.21, -612.77)) end })  
-TeleportTab:CreateButton({ Name = "armory", Callback = function() LocalPlayer.Character:PivotTo(CFrame.new(189.40, 23.10, -214.47)) end })  
-TeleportTab:CreateButton({ Name = "BARN", Callback = function() LocalPlayer.Character:PivotTo(CFrame.new(43.68, 10.37, 395.04)) end })  
-TeleportTab:CreateButton({ Name = "R&D", Callback = function() LocalPlayer.Character:PivotTo(CFrame.new(-182.35, -85.90, 158.07)) end })  
+
+local cfValues = {  
+    CFrame.new(172.34, 23.10, -143.87),  
+    CFrame.new(224.47, 23.10, -167.90),  
+    CFrame.new(137.60, 23.10, -169.93),  
+    CFrame.new(165.63, 23.10, -192.25),  
+    CFrame.new(76.96, -7.02, -19.21),  
+    CFrame.new(99.85, -8.87, -156.13),  
+    CFrame.new(100.95, -8.82, -57.59),  
+    CFrame.new(350.22, 5.40, -171.09),  
+    CFrame.new(749.02, -0.97, -470.45),  
+    CFrame.new(307.06, 5.40, -177.88),  
+    CFrame.new(-13.36, 22.13, -27.47),  
+    CFrame.new(274.30, 6.21, -612.77),  
+    CFrame.new(189.40, 23.10, -214.47),  
+    CFrame.new(43.68, 10.37, 395.04),  
+    CFrame.new(-182.35, -85.90, 158.07)  
+}  
+
+TeleportTab:CreateDropdown({  
+    Name = "Select Teleport Location",  
+    Options = locations,  
+    CurrentOption = {},  
+    MultipleOptions = false,  
+    Flag = "TELEPORT_DROPDOWN",  
+    Callback = function(Option)  
+        local selected = Option[1]  
+        local index = table.find(locations, selected)  
+        if index then  
+            LocalPlayer.Character:PivotTo(cfValues[index])  
+        end  
+    end  
+})  
   
 -- // ITEMS SECTION  
 local ItemsTab = Window:CreateTab("Items", 4483362458)  
