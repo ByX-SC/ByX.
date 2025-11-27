@@ -2690,6 +2690,75 @@ TeleportTab:CreateDropdown({
         end  
     end  
 })  
+
+TeleportTab:CreateButton({  
+    Name = "get a gun",  
+    Callback = function()  
+        -- Add your get a gun script here  
+    end  
+})  
+
+TeleportTab:CreateButton({  
+    Name = "keycard",  
+    Callback = function()  
+        -- Add your keycard script here  
+    end  
+})  
+
+TeleportTab:CreateLabel("Gun Spawner")  
+
+local gunOptions = {"max", "min", "booking"}  
+
+TeleportTab:CreateDropdown({  
+    Name = "Select Gun Type",  
+    Options = gunOptions,  
+    CurrentOption = {},  
+    MultipleOptions = false,  
+    Flag = "GUN_DROPDOWN",  
+    Callback = function(Option)  
+        -- Optional: Handle selection if needed before spawn  
+    end  
+})  
+
+TeleportTab:CreateButton({  
+    Name = "spawn",  
+    Callback = function()  
+        local selected = Rayfield:GetFlag("GUN_DROPDOWN")  
+        if selected and selected[1] then  
+            -- Add your spawn gun script here based on selected[1]  
+        else  
+            Rayfield:Notify({ Title = "Error", Content = "No gun type selected!", Duration = 3, Image = 4483362458 })  
+        end  
+    end  
+})  
+
+local playerNames = {}  
+for _, player in pairs(Players:GetPlayers()) do  
+    table.insert(playerNames, player.Name)  
+end  
+
+TeleportTab:CreateDropdown({  
+    Name = "Select Player",  
+    Options = playerNames,  
+    CurrentOption = {},  
+    MultipleOptions = false,  
+    Flag = "PLAYER_DROPDOWN",  
+    Callback = function(Option)  
+        -- Optional: Handle selection if needed  
+    end  
+})  
+
+TeleportTab:CreateButton({  
+    Name = "spawn",  
+    Callback = function()  
+        local selected = Rayfield:GetFlag("PLAYER_DROPDOWN")  
+        if selected and selected[1] then  
+            -- Add your spawn for player script here based on selected[1]  
+        else  
+            Rayfield:Notify({ Title = "Error", Content = "No player selected!", Duration = 3, Image = 4483362458 })  
+        end  
+    end  
+})  
   
 -- // ITEMS SECTION  
 local ItemsTab = Window:CreateTab("Items", 4483362458)  
