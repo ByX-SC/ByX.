@@ -2692,6 +2692,33 @@ TeleportTab:CreateDropdown({
 -- Item Teleports Section  
 TeleportTab:CreateLabel("Item Teleports")  
 
+local itemLocations = {  
+    "Keycard (💳)", "GAS STATION", "armory", "BARN", "R&D"  
+}  
+
+local itemCfValues = {  
+    CFrame.new(-13.36, 22.13, -27.47),  
+    CFrame.new(274.30, 6.21, -612.77),  
+    CFrame.new(189.40, 23.10, -214.47),  
+    CFrame.new(43.68, 10.37, 395.04),  
+    CFrame.new(-182.35, -85.90, 158.07)  
+}  
+
+TeleportTab:CreateDropdown({  
+    Name = "Select Item Location",  
+    Options = itemLocations,  
+    CurrentOption = {},  
+    MultipleOptions = false,  
+    Flag = "ITEM_TELEPORT_DROPDOWN",  
+    Callback = function(Option)  
+        local selected = Option[1]  
+        local index = table.find(itemLocations, selected)  
+        if index then  
+            LocalPlayer.Character:PivotTo(itemCfValues[index])  
+        end  
+    end  
+})  
+
 TeleportTab:CreateButton({  
     Name = "Get a Gun",  
     Callback = function()  
@@ -2763,7 +2790,7 @@ TeleportTab:CreateButton({
             Rayfield:Notify({ Title = "Error", Content = "No player selected!", Duration = 3, Image = 4483362458 })  
         end  
     end  
-})     
+})  
   
 -- // ITEMS SECTION  
 local ItemsTab = Window:CreateTab("Items", 4483362458)  
