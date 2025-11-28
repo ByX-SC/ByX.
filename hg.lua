@@ -2654,14 +2654,12 @@ CombatTab:CreateToggle({
 -- // TELEPORT SECTION  
 local TeleportTab = Window:CreateTab("Teleports", 4483362458)  
 
--- General Teleports Section  
-TeleportTab:CreateLabel("General Teleports")  
-
-local generalLocations = {  
-    "Maintenance", "Security", "OC Lockers", "RIOT Lockers", "Ventilation", "Maximum", "Generator", "Outside", "Escape Base", "Escape"  
+local locations = {  
+    "Maintenance", "Security", "OC Lockers", "RIOT Lockers", "Ventilation", "Maximum", "Generator", "Outside", "Escape Base", "Escape",  
+    "Keycard (💳)", "GAS STATION", "armory", "BARN", "R&D"  
 }  
 
-local generalCfValues = {  
+local cfValues = {  
     CFrame.new(172.34, 23.10, -143.87),  
     CFrame.new(224.47, 23.10, -167.90),  
     CFrame.new(137.60, 23.10, -169.93),  
@@ -2671,32 +2669,7 @@ local generalCfValues = {
     CFrame.new(100.95, -8.82, -57.59),  
     CFrame.new(350.22, 5.40, -171.09),  
     CFrame.new(749.02, -0.97, -470.45),  
-    CFrame.new(307.06, 5.40, -177.88)  
-}  
-
-TeleportTab:CreateDropdown({  
-    Name = "Select Location",  
-    Options = generalLocations,  
-    CurrentOption = {},  
-    MultipleOptions = false,  
-    Flag = "GENERAL_TELEPORT_DROPDOWN",  
-    Callback = function(Option)  
-        local selected = Option[1]  
-        local index = table.find(generalLocations, selected)  
-        if index then  
-            LocalPlayer.Character:PivotTo(generalCfValues[index])  
-        end  
-    end  
-})  
-
--- Item Teleports Section  
-TeleportTab:CreateLabel("Item Teleports")  
-
-local itemLocations = {  
-    "Keycard (💳)", "GAS STATION", "armory", "BARN", "R&D"  
-}  
-
-local itemCfValues = {  
+    CFrame.new(307.06, 5.40, -177.88),  
     CFrame.new(-13.36, 22.13, -27.47),  
     CFrame.new(274.30, 6.21, -612.77),  
     CFrame.new(189.40, 23.10, -214.47),  
@@ -2705,90 +2678,44 @@ local itemCfValues = {
 }  
 
 TeleportTab:CreateDropdown({  
-    Name = "Select Item Location",  
-    Options = itemLocations,  
+    Name = "Select Teleport Location",  
+    Options = locations,  
     CurrentOption = {},  
     MultipleOptions = false,  
-    Flag = "ITEM_TELEPORT_DROPDOWN",  
+    Flag = "TELEPORT_DROPDOWN",  
     Callback = function(Option)  
         local selected = Option[1]  
-        local index = table.find(itemLocations, selected)  
+        local index = table.find(locations, selected)  
         if index then  
-            LocalPlayer.Character:PivotTo(itemCfValues[index])  
+            LocalPlayer.Character:PivotTo(cfValues[index])  
         end  
     end  
 })  
 
+local gunSpawnerGui = nil  
 TeleportTab:CreateButton({  
-    Name = "Get a Gun",  
+    Name = "Gun Spawner GUI",  
     Callback = function()  
-        -- Add your get a gun script here  
-    end  
-})  
-
-TeleportTab:CreateButton({  
-    Name = "Keycard",  
-    Callback = function()  
-        -- Add your keycard script here  
-    end  
-})  
-
--- Gun Spawner Section  
-TeleportTab:CreateLabel("Gun Spawner (Locations)")  
-
-local gunOptions = {"max", "min", "booking"}  
-
-TeleportTab:CreateDropdown({  
-    Name = "Select Locations",  
-    Options = gunOptions,  
-    CurrentOption = {},  
-    MultipleOptions = false,  
-    Flag = "GUN_DROPDOWN",  
-    Callback = function(Option)  
-        -- Optional: Handle selection if needed before spawn  
-    end  
-})  
-
-TeleportTab:CreateButton({  
-    Name = "Spawn Gun",  
-    Callback = function()  
-        local selected = Rayfield:GetFlag("GUN_DROPDOWN")  
-        if selected and selected[1] then  
-            -- Add your spawn gun script here based on selected[1]  
-        else  
-            Rayfield:Notify({ Title = "Error", Content = "No gun type selected!", Duration = 3, Image = 4483362458 })  
+        if gunSpawnerGui then  
+            gunSpawnerGui:Destroy()  
+            gunSpawnerGui = nil  
+            return  
         end  
-    end  
-})  
-
--- Player Spawner Section  
-TeleportTab:CreateLabel("Gun Spawner (Players)")  
-
-local playerNames = {}  
-for _, player in pairs(Players:GetPlayers()) do  
-    table.insert(playerNames, player.Name)  
-end  
-
-TeleportTab:CreateDropdown({  
-    Name = "Select Player",  
-    Options = playerNames,  
-    CurrentOption = {},  
-    MultipleOptions = false,  
-    Flag = "PLAYER_DROPDOWN",  
-    Callback = function(Option)  
-        -- Optional: Handle selection if needed  
-    end  
-})  
-
-TeleportTab:CreateButton({  
-    Name = "Spawn",  
-    Callback = function()  
-        local selected = Rayfield:GetFlag("PLAYER_DROPDOWN")  
-        if selected and selected[1] then  
-            -- Add your spawn for player script here based on selected[1]  
-        else  
-            Rayfield:Notify({ Title = "Error", Content = "No player selected!", Duration = 3, Image = 4483362458 })  
-        end  
+  
+        -- هنا حط الكود حق الـ GUI اللي هتعطيني إياها بعدين  
+        -- مؤقتًا، أنا حطيت placeholder عشان يشتغل  
+        gunSpawnerGui = Rayfield:CreateWindow({  
+            Name = "Gun Spawner",  
+            LoadingTitle = "Loading...",  
+            LoadingSubtitle = "ByX",  
+            ConfigurationSaving = { Enabled = false },  
+            Discord = { Enabled = false },  
+            KeySystem = false,  
+            Theme = randomTheme  
+        })  
+  
+        local guiTab = gunSpawnerGui:CreateTab("Spawner")  
+        guiTab:CreateLabel("Gun Spawner GUI - Coming Soon")  
     end  
 })  
   
