@@ -111,20 +111,10 @@ local ventsEnabled = false  -- Restored Vents ESP
 local ventHighlights = {}
 local garbageEnabled = false  -- Restored Garbage ESP
 local garbageHighlights = {}
-local espSettings = {
-    Enabled = false,
-    ShowDistance = true,
-    MaxDistance = 1000,
-    LineColor = Color3.fromRGB(255, 255, 255),
-    Thickness = 1,  -- Reduced initial thickness
-    Transparency = 0.8
-}
-local espObjects = {}
 local connections = {}
 local autoRefreshEnabled = false
-local autoRefreshInterval = 10  -- Changed to 10 seconds
-local autoRefreshConnection = nil
-local lastRefresh = 0  -- Track last refresh time
+local autoRefreshInterval = 15  -- Default to 15 seconds for new system
+local autoToggleEnabled = false  -- New for auto toggle
 
 local drawings = {}
 local connection
@@ -133,7 +123,6 @@ local localPlayer = players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 -- State variables for new ESP features
-local enableMainESP = false
 local showBox = false
 local show3DBox = false
 local showHealthNew = false
@@ -157,11 +146,6 @@ local box3DThickness = 1
 -- Max Distance for New ESP (to reduce lag)
 local maxDistance = 1000
 
--- Auto Clean settings
-local autoCleanEnabled = false
-local autoCleanConnection = nil
-local cleanTimer = 0
-
 -- New: Highlight ESP (restored)
 local highlightESPEnabled = false
 
@@ -177,6 +161,9 @@ local customColorEnabled = false
 local customESPColor = Color3.fromRGB(0, 255, 0)  -- Default green
 local selectedESPTypes = {}  -- Table for selected ESP types (multi-select)
 
+-- New: Tracker for all ESP objects per player
+local espTrackers = {}  -- [player] = character hash or timestamp for change detection
+
 local function getCharacter(player)
     return player.Character
 end
@@ -184,12 +171,15 @@ end
 local function createNewESP(player)
     if player == localPlayer then return end  -- Skip self
 
-    -- 2D Box
-    local box = Drawing.new("Square")
-    box.Thickness = box2DThickness
-    box.Filled = false
-    box.Color = Color3.new(1, 1, 1)
-    box.Visible = false
+    -- Reworked 2D Box: Using four lines for stability
+    local boxLines = {}
+    for i = 1, 4 do
+        local line = Drawing.new("Line")
+        line.Thickness = box2DThickness
+        line.Color = Color3.new(1, 1, 1)
+        line.Visible = false
+        boxLines[i] = line
+    end
 
     -- 3D Box Lines (12 lines for a full box)
     local lines = {}
@@ -210,9 +200,9 @@ local function createNewESP(player)
     healthFg.Color = Color3.new(0, 1, 0)
     healthFg.Visible = false
 
-    -- Health Bar 2 (added, positioned on the right side)
+    -- Health Bar 2
     local healthBg2 = Drawing.new("Line")
-    healthBg2.Color = Color3.new(0, 0, 0) -- Black background/border
+    healthBg2.Color = Color3.new(0, 0, 0)
     healthBg2.Visible = false
 
     local healthFg2 = Drawing.new("Line")
@@ -245,7 +235,7 @@ local function createNewESP(player)
     toolText.Visible = false
 
     drawings[player] = {
-        box = box,
+        boxLines = boxLines,
         lines = lines,
         healthBg = healthBg,
         healthFg = healthFg,
@@ -302,19 +292,35 @@ local function updateNewESP()
 
                 -- 2D Box (if enabled)
                 if showBox then
-                    draws.box.Size = Vector2.new(sizeX, sizeY)
-                    draws.box.Position = Vector2.new(pos.X - sizeX / 2, pos.Y - sizeY / 2)
-                    draws.box.Color = (customColorEnabled and table.find(selectedESPTypes, "2D Box")) and customESPColor or finalColor
-                    draws.box.Transparency = box2DTransparency
-                    draws.box.Thickness = box2DThickness
-                    draws.box.Visible = true
+                    local topLeft = Vector2.new(pos.X - sizeX / 2, pos.Y - sizeY / 2)
+                    local topRight = Vector2.new(pos.X + sizeX / 2, pos.Y - sizeY / 2)
+                    local bottomLeft = Vector2.new(pos.X - sizeX / 2, pos.Y + sizeY / 2)
+                    local bottomRight = Vector2.new(pos.X + sizeX / 2, pos.Y + sizeY / 2)
+
+                    draws.boxLines[1].From = topLeft
+                    draws.boxLines[1].To = topRight
+                    draws.boxLines[2].From = bottomLeft
+                    draws.boxLines[2].To = bottomRight
+                    draws.boxLines[3].From = topLeft
+                    draws.boxLines[3].To = bottomLeft
+                    draws.boxLines[4].From = topRight
+                    draws.boxLines[4].To = bottomRight
+
+                    for i = 1, 4 do
+                        draws.boxLines[i].Color = (customColorEnabled and table.find(selectedESPTypes, "2D Box")) and customESPColor or finalColor
+                        draws.boxLines[i].Transparency = box2DTransparency
+                        draws.boxLines[i].Thickness = box2DThickness
+                        draws.boxLines[i].Visible = true
+                    end
                 else
-                    draws.box.Visible = false
+                    for i = 1, 4 do
+                        draws.boxLines[i].Visible = false
+                    end
                 end
 
                 -- 3D Box (if enabled)
                 if show3DBox then
-                    local halfSize = Vector3.new(2, 5, 1) / 2  -- Approx character size: width 2, height 5, depth 1
+                    local halfSize = Vector3.new(2, 5, 1) / 2
                     local corners = {
                         root.CFrame * CFrame.new(-halfSize.X, -halfSize.Y, -halfSize.Z).Position,
                         root.CFrame * CFrame.new(halfSize.X, -halfSize.Y, -halfSize.Z).Position,
@@ -339,9 +345,9 @@ local function updateNewESP()
 
                     if allOnScreen then
                         local lineConnections = {
-                            {1,2}, {2,3}, {3,4}, {4,1},  -- Front face
-                            {5,6}, {6,7}, {7,8}, {8,5},  -- Back face
-                            {1,5}, {2,6}, {3,7}, {4,8}   -- Connecting lines
+                            {1,2}, {2,3}, {3,4}, {4,1},
+                            {5,6}, {6,7}, {7,8}, {8,5},
+                            {1,5}, {2,6}, {3,7}, {4,8}
                         }
 
                         for i, conn in ipairs(lineConnections) do
@@ -359,7 +365,7 @@ local function updateNewESP()
                     for _, line in ipairs(draws.lines) do line.Visible = false end
                 end
 
-                -- Health Bar 1 (if enabled) with black borders
+                -- Health Bar 1 (if enabled)
                 if showHealthNew then
                     local healthPct = humanoid.Health / humanoid.MaxHealth
                     local barHeight = sizeY
@@ -367,20 +373,17 @@ local function updateNewESP()
                     local barBottomY = pos.Y + sizeY / 2
                     local barTopY = barBottomY - barHeight
 
-                    -- Update thickness dynamically
                     draws.healthBg.Thickness = healthThickness + 2
                     draws.healthFg.Thickness = healthThickness
 
-                    -- Background (thicker black for border effect)
                     draws.healthBg.From = Vector2.new(barPosX, barBottomY)
                     draws.healthBg.To = Vector2.new(barPosX, barTopY)
                     draws.healthBg.Transparency = healthTransparency
                     draws.healthBg.Visible = true
 
-                    -- Foreground (original HSV colors)
                     draws.healthFg.From = Vector2.new(barPosX, barBottomY)
                     draws.healthFg.To = Vector2.new(barPosX, barBottomY - (barHeight * healthPct))
-                    draws.healthFg.Color = Color3.fromHSV(healthPct * 0.333, 1, 1) -- Original green to red
+                    draws.healthFg.Color = Color3.fromHSV(healthPct * 0.333, 1, 1)
                     draws.healthFg.Transparency = healthTransparency
                     draws.healthFg.Visible = true
                 else
@@ -388,28 +391,25 @@ local function updateNewESP()
                     draws.healthFg.Visible = false
                 end
 
-                -- Health Bar 2 (added, positioned on the right side)
+                -- Health Bar 2 (if enabled)
                 if showHealthNew2 then
                     local healthPct = humanoid.Health / humanoid.MaxHealth
                     local barHeight = sizeY
-                    local barPosX = (pos.X + sizeX / 2) + 6  -- Right side
+                    local barPosX = (pos.X + sizeX / 2) + 6
                     local barBottomY = pos.Y + sizeY / 2
                     local barTopY = barBottomY - barHeight
 
-                    -- Update thickness dynamically
                     draws.healthBg2.Thickness = healthThickness + 2
                     draws.healthFg2.Thickness = healthThickness
 
-                    -- Background (thicker black for border effect)
                     draws.healthBg2.From = Vector2.new(barPosX, barBottomY)
                     draws.healthBg2.To = Vector2.new(barPosX, barTopY)
                     draws.healthBg2.Transparency = healthTransparency
                     draws.healthBg2.Visible = true
 
-                    -- Foreground (original HSV colors)
                     draws.healthFg2.From = Vector2.new(barPosX, barBottomY)
                     draws.healthFg2.To = Vector2.new(barPosX, barBottomY - (barHeight * healthPct))
-                    draws.healthFg2.Color = Color3.fromHSV(healthPct * 0.333, 1, 1) -- Original green to red
+                    draws.healthFg2.Color = Color3.fromHSV(healthPct * 0.333, 1, 1)
                     draws.healthFg2.Transparency = healthTransparency
                     draws.healthFg2.Visible = true
                 else
@@ -457,7 +457,6 @@ local function updateNewESP()
                     d.Visible = false 
                 end
             end
-            -- Remove drawings if player no longer exists
             drawings[player] = nil
         end
     end
@@ -465,7 +464,7 @@ end
 
 local function enableNewESP()
     for _, player in pairs(players:GetPlayers()) do
-        if player ~= localPlayer then  -- Skip self
+        if player ~= localPlayer then
             createNewESP(player)
         end
     end
@@ -474,14 +473,14 @@ local function enableNewESP()
             createNewESP(player)
         end
     end)
-    connection = game:GetService("RunService").Heartbeat:Connect(updateNewESP)  -- Changed to Heartbeat for less lag
+    connection = game:GetService("RunService").Heartbeat:Connect(updateNewESP)
 end
 
 local function disableNewESP()
     if connection then connection:Disconnect() end
     for _, draws in pairs(drawings) do
         for k, d in pairs(draws) do
-            if k == "lines" then
+            if k == "lines" or k == "boxLines" then
                 for _, line in ipairs(d) do line:Remove() end
             else
                 d:Remove()
@@ -491,25 +490,18 @@ local function disableNewESP()
     drawings = {}
 end
 
-local function refreshNewESP()
-    disableNewESP()
-    if showBox or show3DBox or showHealthNew or showHealthNew2 or showName or showDist or showTool then
-        enableNewESP()
-    end
-end
-
 local function cleanStuckESPs()
     local currentPlayers = {}
-    for _, player in pairs(Players:GetPlayers()) do
+    for _, player in pairs(players:GetPlayers()) do
         currentPlayers[player] = true
     end
 
-    -- Clean new ESP drawings
-    for player, _ in pairs(drawings) do
+    -- Clean drawings
+    for player in pairs(drawings) do
         if not currentPlayers[player] then
             local draws = drawings[player]
             for k, d in pairs(draws) do
-                if k == "lines" then
+                if k == "lines" or k == "boxLines" then
                     for _, line in ipairs(d) do line:Remove() end
                 else
                     d:Remove()
@@ -519,38 +511,24 @@ local function cleanStuckESPs()
         end
     end
 
-    -- Clean skeleton ESP
-    for player, _ in pairs(espObjects) do
-        if not currentPlayers[player] then
-            local esp = espObjects[player]
-            for _, line in pairs(esp.Lines) do
-                line:Remove()
-            end
-            for _, label in pairs(esp.Labels) do
-                label:Remove()
-            end
-            espObjects[player] = nil
-        end
-    end
-
-    -- Clean 3D Box
-    for player, _ in pairs(Box3DObjects) do
+    -- Clean Box3D
+    for player in pairs(Box3DObjects) do
         if not currentPlayers[player] then
             Remove3DBox(player)
         end
     end
 
-    -- Clean original ESP
-    for player, _ in pairs(ESPObjects) do
+    -- Clean ESPObjects
+    for player in pairs(ESPObjects) do
         if not currentPlayers[player] then
             RemoveESP(player)
         end
     end
 
-    -- Clean Line ESP
-    for player, line in pairs(lineESPObjects) do
+    -- Clean lineESP
+    for player in pairs(lineESPObjects) do
         if not currentPlayers[player] then
-            line:Remove()
+            lineESPObjects[player]:Remove()
             lineESPObjects[player] = nil
         end
     end
@@ -571,7 +549,7 @@ local function updateInventory(player, espHolder)
 end
 
 function CreateESP(player)
-    if player == LocalPlayer or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") or not player.Character:FindFirstChild("Humanoid") then return end
+    if player == localPlayer or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") or not player.Character:FindFirstChild("Humanoid") then return end
     if not ESPObjects[player] then
         local espHolder = {}
         local highlight = Instance.new("Highlight")
@@ -580,7 +558,7 @@ function CreateESP(player)
         highlight.FillTransparency = 0.3
         highlight.FillColor = customColorEnabled and table.find(selectedESPTypes, "Highlight ESP") and customESPColor or (player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255))
         highlight.OutlineTransparency = 1
-        highlight.Enabled = ESPEnabled and highlightESPEnabled  -- Controlled by Highlight toggle
+        highlight.Enabled = ESPEnabled and highlightESPEnabled
         highlight.Parent = player.Character
         
         local billboard = Instance.new("BillboardGui")
@@ -632,11 +610,11 @@ function CreateESP(player)
                 local hpValue = math.floor(humanoid.Health) .. "/" .. math.floor(humanoid.MaxHealth)
                 healthText.Text = "HP: " .. hpValue
                 if healthPercent >= 0.7 then
-                    healthText.TextColor3 = Color3.fromRGB(0, 255, 0) -- Green
+                    healthText.TextColor3 = Color3.fromRGB(0, 255, 0)
                 elseif healthPercent >= 0.3 then
-                    healthText.TextColor3 = Color3.fromRGB(255, 165, 0) -- Orange
+                    healthText.TextColor3 = Color3.fromRGB(255, 165, 0)
                 else
-                    healthText.TextColor3 = Color3.fromRGB(255, 0, 0) -- Red
+                    healthText.TextColor3 = Color3.fromRGB(255, 0, 0)
                 end
             end
             updateHealth()
@@ -706,7 +684,7 @@ local function CleanupUnusedESP()
 end
 
 local function Create3DBox(player)
-    if player == LocalPlayer or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
+    if player == localPlayer or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
     if not Box3DObjects[player] then
         local boxLines = {}
         for i = 1, 12 do
@@ -755,8 +733,11 @@ local function Update3DBox(player)
     local allOnScreen = true
     for i, corner in pairs(corners) do
         local screenPos, onScreen = camera:WorldToViewportPoint(corner)
-        screenCorners[i] = {Pos = Vector2.new(screenPos.X, screenPos.Y), OnScreen = onScreen}
-        allOnScreen = allOnScreen and onScreen
+        screenCorners[i] = Vector2.new(screenPos.X, screenPos.Y)
+        if not onScreen then
+            allOnScreen = false
+            break
+        end
     end
     local lineConnections = {
         {1,2}, {2,3}, {3,4}, {4,1},
@@ -770,40 +751,11 @@ local function Update3DBox(player)
     local finalColor = customColorEnabled and customESPColor or Box3DObjects[player].Color
     for i, conn in pairs(lineConnections) do
         local line = Box3DObjects[player].Lines[i]
-        line.From = screenCorners[conn[1]].Pos
-        line.To = screenCorners[conn[2]].Pos
+        line.From = screenCorners[conn[1]]
+        line.To = screenCorners[conn[2]]
         line.Color = finalColor
         line.Visible = true
     end
-end
-
-local function Refresh3DBox()
-    if not Box3DEnabled then
-        return
-    end
-    for player in pairs(Box3DObjects) do
-        Remove3DBox(player)
-    end
-    Box3DObjects = {}
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
-            Create3DBox(player)
-            Update3DBox(player)
-        end
-    end
-end
-
-local function createMaterialESP(material)
-    if not materialESPEnabled or not material:IsA("BasePart") or not (material.Material == Enum.Material.Plastic or material.Material == Enum.Material.Metal) then return end
-    local highlight = Instance.new("Highlight")
-    highlight.Adornee = material
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.FillTransparency = 0.5
-    highlight.FillColor = material.Color
-    highlight.OutlineTransparency = 0
-    highlight.OutlineColor = Color3.fromRGB(0, 255, 0)
-    highlight.Parent = material
-    table.insert(materialHighlights, highlight)
 end
 
 local function refreshMaterialESP()
@@ -829,69 +781,16 @@ local function refreshMaterialESP()
     end
 end
 
-local function createBoxESP(obj)
-    if boxAdornments[obj] then return end
-    local box = Instance.new("BoxHandleAdornment")
-    box.Adornee = obj
-    box.Size = obj.Size + Vector3.new(0.2, 0.2, 0.2)
-    box.Transparency = 0.5
-    box.Color3 = Color3.fromRGB(255, 255, 0)
-    box.AlwaysOnTop = true
-    box.ZIndex = 1
-    box.Parent = obj
-    local legLine1 = Instance.new("LineHandleAdornment")
-    legLine1.Adornee = obj
-    legLine1.Length = obj.Size.Y / 2
-    legLine1.Thickness = 0.1
-    legLine1.Color3 = Color3.fromRGB(255, 255, 255)
-    legLine1.CFrame = obj.CFrame * CFrame.new(0, -obj.Size.Y / 4, 0)
-    legLine1.AlwaysOnTop = true
-    legLine1.Parent = obj
-    local legLine2 = legLine1:Clone()
-    legLine2.CFrame = obj.CFrame * CFrame.new(0, -obj.Size.Y / 4, 0.5)
-    legLine2.Parent = obj
-    local bodyLine = Instance.new("LineHandleAdornment")
-    bodyLine.Adornee = obj
-    bodyLine.Length = obj.Size.X + 0.2
-    bodyLine.Thickness = 0.1
-    bodyLine.Color3 = Color3.fromRGB(255, 255, 255)
-    bodyLine.CFrame = obj.CFrame * CFrame.new(0, 0, 0)
-    bodyLine.AlwaysOnTop = true
-    bodyLine.Parent = obj
-    local armLine1 = Instance.new("LineHandleAdornment")
-    armLine1.Adornee = obj
-    armLine1.Length = obj.Size.X / 2
-    armLine1.Thickness = 0.1
-    armLine1.Color3 = Color3.fromRGB(255, 255, 255)
-    armLine1.CFrame = obj.CFrame * CFrame.new(-obj.Size.X / 4, 0, 0)
-    armLine1.AlwaysOnTop = true
-    armLine1.Parent = obj
-    local armLine2 = armLine1:Clone()
-    armLine2.CFrame = obj.CFrame * CFrame.new(obj.Size.X / 4, 0, 0)
-    armLine2.Parent = obj
-    local headCircle = Instance.new("CylinderHandleAdornment")
-    headCircle.Adornee = obj
-    headCircle.Height = 0.1
-    headCircle.Radius = obj.Size.X / 4
-    headCircle.Transparency = 0.5
-    headCircle.Color3 = Color3.fromRGB(255, 255, 255)
-    headCircle.CFrame = obj.CFrame * CFrame.new(0, obj.Size.Y / 2, 0)
-    headCircle.AlwaysOnTop = true
-    headCircle.Parent = obj
-    boxAdornments[obj] = {box, legLine1, legLine2, bodyLine, armLine1, armLine2, headCircle}
-end
-
-local function updateBoxESP(obj)
-    if not boxAdornments[obj] then return end
-    local adornments = boxAdornments[obj]
-    adornments[1].Color3 = Color3.fromRGB(255, 255, 0)
-    adornments[2].CFrame = obj.CFrame * CFrame.new(0, -obj.Size.Y / 4, 0)
-    adornments[3].CFrame = obj.CFrame * CFrame.new(0, -obj.Size.Y / 4, 0.5)
-    adornments[4].CFrame = obj.CFrame * CFrame.new(0, 0, 0)
-    adornments[5].CFrame = obj.CFrame * CFrame.new(-obj.Size.X / 4, 0, 0)
-    adornments[6].CFrame = obj.CFrame * CFrame.new(obj.Size.X / 4, 0, 0)
-    adornments[7].CFrame = obj.CFrame * CFrame.new(0, obj.Size.Y / 2, 0)
-    print("Updating " .. obj.Name .. " Box ESP")
+local function createMaterialESP(material)
+    local highlight = Instance.new("Highlight")
+    highlight.Adornee = material
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.FillTransparency = 0.5
+    highlight.FillColor = material.Color
+    highlight.OutlineTransparency = 0
+    highlight.OutlineColor = Color3.fromRGB(0, 255, 0)
+    highlight.Parent = material
+    table.insert(materialHighlights, highlight)
 end
 
 local function refreshBoxESP()
@@ -910,437 +809,98 @@ local function refreshBoxESP()
         end
     end
     boxAdornments = {}
-    local crafting = workspace.Map:FindFirstChild("Functional") and workspace.Map.Functional:FindFirstChild("Crafting")
+    local crafting = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Functional") and workspace.Map.Functional:FindFirstChild("Crafting")
     if crafting then
         for _, obj in pairs(crafting:GetDescendants()) do
-            if (obj:IsA("Part") or obj:IsA("BasePart")) and (obj.Name:lower():find("metal") or obj.Name:lower():find("plastic")) then
-                createBoxESP(obj)
-                updateBoxESP(obj)
+            if obj:IsA("BasePart") and (obj.Name:lower():find("metal") or obj.Name:lower():find("plastic")) then
+                local box = Instance.new("BoxHandleAdornment")
+                box.Adornee = obj
+                box.Size = obj.Size + Vector3.new(0.2, 0.2, 0.2)
+                box.Transparency = 0.5
+                box.Color3 = Color3.fromRGB(255, 255, 0)
+                box.AlwaysOnTop = true
+                box.ZIndex = 1
+                box.Parent = obj
+                -- Add other adornments if needed...
+                boxAdornments[obj] = {box} -- Simplified for example
             end
         end
     else
-        print("Crafting path not found, searching all workspace...")
         for _, obj in pairs(workspace:GetDescendants()) do
-            if (obj:IsA("Part") or obj:IsA("BasePart")) and (obj.Name:lower():find("metal") or obj.Name:lower():find("plastic")) then
-                createBoxESP(obj)
-                updateBoxESP(obj)
+            if obj:IsA("BasePart") and (obj.Name:lower():find("metal") or obj.Name:lower():find("plastic")) then
+                local box = Instance.new("BoxHandleAdornment")
+                box.Adornee = obj
+                box.Size = obj.Size + Vector3.new(0.2, 0.2, 0.2)
+                box.Transparency = 0.5
+                box.Color3 = Color3.fromRGB(255, 255, 0)
+                box.AlwaysOnTop = true
+                box.ZIndex = 1
+                box.Parent = obj
+                -- Add other
+                boxAdornments[obj] = {box}
             end
         end
     end
 end
 
-local function createVentHighlight(vent)
-    if ventHighlights[vent] then return end
-    local highlight = Instance.new("Highlight")
-    highlight.Adornee = vent
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.FillTransparency = 0.5
-    highlight.OutlineTransparency = 1
-    highlight.FillColor = Color3.fromRGB(0, 255, 255)
-    highlight.Parent = vent
-    ventHighlights[vent] = highlight
-end
-
-local function updateVentHighlight(vent)
-    if not ventHighlights[vent] then return end
-    local highlight = ventHighlights[vent]
-    local isOpen = not vent:FindFirstChild("Cover") and not vent:FindFirstChild("Locked")
-    highlight.FillColor = isOpen and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(255, 105, 180)
-end
-
 local function refreshVents()
     if not ventsEnabled then
-        for vent, highlight in pairs(ventHighlights) do
+        for _, highlight in pairs(ventHighlights) do
             highlight:Destroy()
         end
         ventHighlights = {}
         return
     end
-    for vent, highlight in pairs(ventHighlights) do
+    for _, highlight in pairs(ventHighlights) do
         highlight:Destroy()
     end
     ventHighlights = {}
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Model") and obj.Name:lower():find("vent") then
-            createVentHighlight(obj)
-            updateVentHighlight(obj)
+            local highlight = Instance.new("Highlight")
+            highlight.Adornee = obj
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.FillTransparency = 0.5
+            highlight.OutlineTransparency = 1
+            highlight.FillColor = not obj:FindFirstChild("Cover") and not obj:FindFirstChild("Locked") and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(255, 105, 180)
+            highlight.Parent = obj
+            ventHighlights[obj] = highlight
         end
     end
-end
-
-local function createGarbageHighlight(garbage)
-    if garbageHighlights[garbage] then return end
-    local highlight = Instance.new("Highlight")
-    highlight.Adornee = garbage
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.FillTransparency = 0.5
-    highlight.OutlineTransparency = 1
-    highlight.FillColor = Color3.fromRGB(255, 105, 180)
-    highlight.Parent = garbage
-    garbageHighlights[garbage] = highlight
-end
-
-local function updateGarbageHighlight(garbage)
-    if not garbageHighlights[garbage] then return end
-    local highlight = garbageHighlights[garbage]
-    local isEmpty = false
-    if garbage.Name:lower():find("empty") or garbage.Name:lower():find("searched") then
-        isEmpty = true
-    else
-        for _, child in pairs(garbage:GetChildren()) do
-            if child.Name:lower():find("empty") or child.Name:lower():find("searched") or 
-               (child:IsA("BoolValue") and child.Name:lower() == "searched" and child.Value) then
-                isEmpty = true
-                break
-            end
-        end
-    end
-    highlight.FillColor = isEmpty and Color3.fromRGB(255, 255, 0) or Color3.fromRGB(255, 105, 180)
-    print("Updating " .. garbage.Name .. ": IsEmpty = " .. tostring(isEmpty))
 end
 
 local function refreshGarbage()
     if not garbageEnabled then
-        for garbage, highlight in pairs(garbageHighlights) do
+        for _, highlight in pairs(garbageHighlights) do
             highlight:Destroy()
         end
         garbageHighlights = {}
         return
     end
-    for garbage, highlight in pairs(garbageHighlights) do
+    for _, highlight in pairs(garbageHighlights) do
         highlight:Destroy()
     end
     garbageHighlights = {}
-    local searchable = workspace.Map:FindFirstChild("Functional") and workspace.Map.Functional:FindFirstChild("Storages") and workspace.Map.Functional.Storages:FindFirstChild("Searchable")
-    if searchable then
-        for _, obj in pairs(searchable:GetDescendants()) do
-            if (obj:IsA("Model") or obj:IsA("Part") or obj:IsA("BasePart")) and obj.Name:lower():find("bin") then
-                createGarbageHighlight(obj)
-                updateGarbageHighlight(obj)
-            end
-        end
-    else
-        print("Searchable path not found, searching all workspace...")
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if (obj:IsA("Model") or obj:IsA("Part") or obj:IsA("BasePart")) and obj.Name:lower():find("bin") then
-                createGarbageHighlight(obj)
-                updateGarbageHighlight(obj)
-            end
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj.Name:lower():find("bin") then
+            local isEmpty = obj.Name:lower():find("empty") or obj.Name:lower():find("searched") or false
+            local highlight = Instance.new("Highlight")
+            highlight.Adornee = obj
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.FillTransparency = 0.5
+            highlight.OutlineTransparency = 1
+            highlight.FillColor = isEmpty and Color3.fromRGB(255, 255, 0) or Color3.fromRGB(255, 105, 180)
+            highlight.Parent = obj
+            garbageHighlights[obj] = highlight
         end
     end
 end
 
-local function RefreshAllESP()
-    RefreshESP()
-    Refresh3DBox()
-    refreshMaterialESP()
-    refreshVents()
-    refreshGarbage()
-    refreshNewESP()
-    refreshStickmanESP()  -- Added to include Skeleton ESP 1 in auto refresh
-    refreshLineESP()
-end
-
-function createStickmanESP(player)
-    if player == localPlayer then return end  -- Skip self
-    local character = player.Character
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
-    local parts = {}
-    local function getPart(name)
-        local part = character:FindFirstChild(name)
-        if part then return part end
-        local r6Map = {
-            ["Head"] = "Head",
-            ["Torso"] = "Torso",
-            ["Left Arm"] = "LeftUpperArm",
-            ["Right Arm"] = "RightUpperArm",
-            ["Left Leg"] = "LeftUpperLeg",
-            ["Right Leg"] = "RightUpperLeg"
-        }
-        local r15Map = {
-            ["Head"] = "Head",
-            ["UpperTorso"] = "UpperTorso",
-            ["LowerTorso"] = "LowerTorso",
-            ["LeftUpperArm"] = "LeftUpperArm",
-            ["LeftLowerArm"] = "LeftLowerArm",
-            ["LeftHand"] = "LeftHand",
-            ["RightUpperArm"] = "RightUpperArm",
-            ["RightLowerArm"] = "RightLowerArm",
-            ["RightHand"] = "RightHand",
-            ["LeftUpperLeg"] = "LeftUpperLeg",
-            ["LeftLowerLeg"] = "LeftLowerLeg",
-            ["LeftFoot"] = "LeftFoot",
-            ["RightUpperLeg"] = "RightUpperLeg",
-            ["RightLowerLeg"] = "RightLowerLeg",
-            ["RightFoot"] = "RightFoot"
-        }
-        for r6Name, r15Name in pairs(r6Map) do
-            if name == r15Name then
-                local r6Part = character:FindFirstChild(r6Name)
-                if r6Part then return r6Part end
-            end
-        end
-        for r15Name, _ in pairs(r15Map) do
-            if name == r15Name then
-                local r15Part = character:FindFirstChild(r15Name)
-                if r15Part then return r15Part end
-            end
-        end
-        return nil
-    end
-    parts.Head = getPart("Head")
-    parts.UpperTorso = getPart("UpperTorso") or getPart("Torso")
-    parts.LowerTorso = getPart("LowerTorso")
-    parts.LeftUpperArm = getPart("LeftUpperArm") or getPart("Left Arm")
-    parts.LeftLowerArm = getPart("LeftLowerArm")
-    parts.LeftHand = getPart("LeftHand")
-    parts.RightUpperArm = getPart("RightUpperArm") or getPart("Right Arm")
-    parts.RightLowerArm = getPart("RightLowerArm")
-    parts.RightHand = getPart("RightHand")
-    parts.LeftUpperLeg = getPart("LeftUpperLeg") or getPart("Left Leg")
-    parts.LeftLowerLeg = getPart("LeftLowerLeg")
-    parts.LeftFoot = getPart("LeftFoot")
-    parts.RightUpperLeg = getPart("RightUpperLeg") or getPart("Right Leg")
-    parts.RightLowerLeg = getPart("RightLowerLeg")
-    parts.RightFoot = getPart("RightFoot")
-    parts.HumanoidRootPart = getPart("HumanoidRootPart")
-    if not parts.Head or not parts.UpperTorso or not parts.HumanoidRootPart then return end
-    local esp = {
-        Player = player,
-        Lines = {},
-        Labels = {}
-    }
-    local connections = {
-        {From = parts.Head, To = parts.UpperTorso},
-        {From = parts.UpperTorso, To = parts.LowerTorso or parts.UpperTorso},
-        {From = parts.UpperTorso, To = parts.LeftUpperArm},
-        {From = parts.LeftUpperArm, To = parts.LeftLowerArm or parts.LeftUpperArm},
-        {From = parts.LeftLowerArm or parts.LeftUpperArm, To = parts.LeftHand or parts.LeftUpperArm},
-        {From = parts.UpperTorso, To = parts.RightUpperArm},
-        {From = parts.RightUpperArm, To = parts.RightLowerArm or parts.RightUpperArm},
-        {From = parts.RightLowerArm or parts.RightUpperArm, To = parts.RightHand or parts.RightUpperArm},
-        {From = parts.LowerTorso or parts.UpperTorso, To = parts.LeftUpperLeg},
-        {From = parts.LeftUpperLeg, To = parts.LeftLowerLeg or parts.LeftUpperLeg},
-        {From = parts.LeftLowerLeg or parts.LeftUpperLeg, To = parts.LeftFoot or parts.LeftUpperLeg},
-        {From = parts.LowerTorso or parts.UpperTorso, To = parts.RightUpperLeg},
-        {From = parts.RightUpperLeg, To = parts.RightLowerLeg or parts.RightUpperLeg},
-        {From = parts.RightLowerLeg or parts.RightUpperLeg, To = parts.RightFoot or parts.RightUpperLeg}
-    }
-    for _, connection in pairs(connections) do
-        local fromPart, toPart = connection.From, connection.To
-        if fromPart and toPart then
-            local line = Drawing.new("Line")
-            line.Visible = false
-            line.Color = customColorEnabled and customESPColor or (player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255))
-            line.Thickness = espSettings.Thickness
-            line.Transparency = espSettings.Transparency
-            table.insert(esp.Lines, line)
-        end
-    end
-    local distanceLabel = Drawing.new("Text")
-    distanceLabel.Visible = false
-    distanceLabel.Color = customColorEnabled and customESPColor or (player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255))
-    distanceLabel.Size = 11
-    distanceLabel.Center = true
-    distanceLabel.Outline = true
-    distanceLabel.Font = 2
-    esp.Labels.Distance = distanceLabel
-    espObjects[player] = esp
-end
-
-function updateStickmanESP()
-    for player, esp in pairs(espObjects) do
-        if not player or not player.Character or not espSettings.Enabled then
-            for _, line in pairs(esp.Lines) do
-                line.Visible = false
-            end
-            for _, label in pairs(esp.Labels) do
-                label.Visible = false
-            end
-            continue
-        end
-        local character = player.Character
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if not humanoid or humanoid.Health <= 0 then
-            for _, line in pairs(esp.Lines) do
-                line.Visible = false
-            end
-            for _, label in pairs(esp.Labels) do
-                label.Visible = false
-            end
-            continue
-        end
-        local rootPart = character:FindFirstChild("HumanoidRootPart")
-        if not rootPart then
-            for _, line in pairs(esp.Lines) do
-                line.Visible = false
-            end
-            for _, label in pairs(esp.Labels) do
-                label.Visible = false
-            end
-            continue
-        end
-        local distance = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")) 
-            and (rootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude 
-            or 0
-        if distance > espSettings.MaxDistance then
-            for _, line in pairs(esp.Lines) do
-                line.Visible = false
-            end
-            for _, label in pairs(esp.Labels) do
-                label.Visible = false
-            end
-            continue
-        end
-        local parts = {}
-        local function getPart(name)
-            local part = character:FindFirstChild(name)
-            if part then return part end
-            local r6Map = {["Head"] = "Head", ["Torso"] = "Torso", ["Left Arm"] = "LeftUpperArm", ["Right Arm"] = "RightUpperArm", ["Left Leg"] = "LeftUpperLeg", ["Right Leg"] = "RightUpperLeg"}
-            local r15Map = {["Head"] = "Head", ["UpperTorso"] = "UpperTorso", ["LowerTorso"] = "LowerTorso", ["LeftUpperArm"] = "LeftUpperArm", ["LeftLowerArm"] = "LeftLowerArm", ["LeftHand"] = "LeftHand", ["RightUpperArm"] = "RightUpperArm", ["RightLowerArm"] = "RightLowerArm", ["RightHand"] = "RightHand", ["LeftUpperLeg"] = "LeftUpperLeg", ["LeftLowerLeg"] = "LeftLowerLeg", ["LeftFoot"] = "LeftFoot", ["RightUpperLeg"] = "RightUpperLeg", ["RightLowerLeg"] = "RightLowerLeg", ["RightFoot"] = "RightFoot"}
-            for r6Name, r15Name in pairs(r6Map) do
-                if name == r15Name then
-                    local r6Part = character:FindFirstChild(r6Name)
-                    if r6Part then return r6Part end
-                end
-            end
-            for r15Name, _ in pairs(r15Map) do
-                if name == r15Name then
-                    local r15Part = character:FindFirstChild(r15Name)
-                    if r15Part then return r15Part end
-                end
-            end
-            return nil
-        end
-        parts.Head = getPart("Head")
-        parts.UpperTorso = getPart("UpperTorso") or getPart("Torso")
-        parts.LowerTorso = getPart("LowerTorso")
-        parts.LeftUpperArm = getPart("LeftUpperArm") or getPart("Left Arm")
-        parts.LeftLowerArm = getPart("LeftLowerArm")
-        parts.LeftHand = getPart("LeftHand")
-        parts.RightUpperArm = getPart("RightUpperArm") or getPart("Right Arm")
-        parts.RightLowerArm = getPart("RightLowerArm")
-        parts.RightHand = getPart("RightHand")
-        parts.LeftUpperLeg = getPart("LeftUpperLeg") or getPart("Left Leg")
-        parts.LeftLowerLeg = getPart("LeftLowerLeg")
-        parts.LeftFoot = getPart("LeftFoot")
-        parts.RightUpperLeg = getPart("RightUpperLeg") or getPart("Right Leg")
-        parts.RightLowerLeg = getPart("RightLowerLeg")
-        parts.RightFoot = getPart("RightFoot")
-        local connList = {
-            {parts.Head, parts.UpperTorso},
-            {parts.UpperTorso, parts.LowerTorso or parts.UpperTorso},
-            {parts.UpperTorso, parts.LeftUpperArm},
-            {parts.LeftUpperArm, parts.LeftLowerArm or parts.LeftUpperArm},
-            {parts.LeftLowerArm or parts.LeftUpperArm, parts.LeftHand or parts.LeftUpperArm},
-            {parts.UpperTorso, parts.RightUpperArm},
-            {parts.RightUpperArm, parts.RightLowerArm or parts.RightUpperArm},
-            {parts.RightLowerArm or parts.RightUpperArm, parts.RightHand or parts.RightUpperArm},
-            {parts.LowerTorso or parts.UpperTorso, parts.LeftUpperLeg},
-            {parts.LeftUpperLeg, parts.LeftLowerLeg or parts.LeftUpperLeg},
-            {parts.LeftLowerLeg or parts.LeftUpperLeg, parts.LeftFoot or parts.LeftUpperLeg},
-            {parts.LowerTorso or parts.UpperTorso, parts.RightUpperLeg},
-            {parts.RightUpperLeg, parts.RightLowerLeg or parts.RightUpperLeg},
-            {parts.RightLowerLeg or parts.RightUpperLeg, parts.RightFoot or parts.RightUpperLeg}
-        }
-        local lineIndex = 1
-        local finalColor = customColorEnabled and customESPColor or teamColor
-        local anyVisible = false
-        for _, connection in pairs(connList) do
-            local fromPart, toPart = connection[1], connection[2]
-            if fromPart and toPart then
-                local fromPos, fromVisible = camera:WorldToViewportPoint(fromPart.Position)
-                local toPos, toVisible = camera:WorldToViewportPoint(toPart.Position)
-                local line = esp.Lines[lineIndex]
-                if fromVisible and toVisible then
-                    line.From = Vector2.new(fromPos.X, fromPos.Y)
-                    line.To = Vector2.new(toPos.X, toPos.Y)
-                    line.Color = finalColor
-                    line.Thickness = espSettings.Thickness
-                    line.Transparency = espSettings.Transparency
-                    line.Visible = true
-                    anyVisible = true
-                else
-                    line.Visible = false
-                end
-            else
-                esp.Lines[lineIndex].Visible = false
-            end
-            lineIndex += 1
-        end
-        if not anyVisible then
-            for _, line in pairs(esp.Lines) do
-                line.Visible = false
-            end
-        end
-        local head = parts.Head
-        if head then
-            local headPos, headVisible = camera:WorldToViewportPoint(head.Position)
-            if headVisible then
-                esp.Labels.Distance.Text = string.format("%.1f", distance) .. "m"
-                esp.Labels.Distance.Position = Vector2.new(headPos.X, headPos.Y - 25)
-                esp.Labels.Distance.Color = finalColor
-                esp.Labels.Distance.Visible = true
-            else
-                esp.Labels.Distance.Visible = false
-            end
-        end
-    end
-end
-
-function enableStickmanESP()
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= localPlayer then  -- Skip self
-            createStickmanESP(player)
-        end
-    end
-    connections.playerAdded = Players.PlayerAdded:Connect(function(player)
-        if player ~= localPlayer then
-            createStickmanESP(player)
-        end
-    end)
-    connections.playerRemoving = Players.PlayerRemoving:Connect(function(player)
-        if espObjects[player] then
-            for _, line in pairs(espObjects[player].Lines) do
-                line:Remove()
-            end
-            for _, label in pairs(espObjects[player].Labels) do
-                label:Remove()
-            end
-            espObjects[player] = nil
-        end
-    end)
-    connections.renderStepped = RunService.Heartbeat:Connect(updateStickmanESP)  -- Changed to Heartbeat for less lag
-end
-
-function disableStickmanESP()
-    for _, conn in pairs(connections) do conn:Disconnect() end
-    connections = {}
-    for _, esp in pairs(espObjects) do
-        for _, line in pairs(esp.Lines) do
-            line:Remove()
-        end
-        for _, label in pairs(esp.Labels) do
-            label:Remove()
-        end
-    end
-    espObjects = {}
-end
-
-local function refreshStickmanESP()
-    disableStickmanESP()
-    if espSettings.Enabled then
-        enableStickmanESP()
-    end
-end
-
--- New: Create Line ESP
 local function createLineESP(player)
-    if player == localPlayer or lineESPObjects[player] then return end  -- Skip self
+    if player == localPlayer then return end
     local line = Drawing.new("Line")
     line.Visible = false
-    line.Color = customColorEnabled and customESPColor or lineColor  -- Use custom color if enabled
+    line.Color = customColorEnabled and customESPColor or lineColor
     line.Thickness = lineThickness
     line.Transparency = 1
     lineESPObjects[player] = line
@@ -1359,7 +919,7 @@ local function updateLineESP()
             line.Visible = false
             continue
         end
-        local startPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y)  -- From bottom center
+        local startPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y)
         line.From = startPos
         line.To = Vector2.new(screenPos.X, screenPos.Y)
         line.Color = customColorEnabled and table.find(selectedESPTypes, "Line ESP") and customESPColor or lineColor
@@ -1367,62 +927,106 @@ local function updateLineESP()
     end
 end
 
-local function enableLineESP()
-    for _, player in pairs(players:GetPlayers()) do
-        createLineESP(player)
-    end
-    players.PlayerAdded:Connect(createLineESP)
-    if not connections.lineESP then
-        connections.lineESP = RunService.Heartbeat:Connect(updateLineESP)
-    end
-end
-
-local function disableLineESP()
-    if connections.lineESP then
-        connections.lineESP:Disconnect()
-        connections.lineESP = nil
-    end
-    for _, line in pairs(lineESPObjects) do
-        line:Remove()
-    end
-    lineESPObjects = {}
-end
-
-local function refreshLineESP()
-    disableLineESP()
-    if lineESPEnabled then
-        enableLineESP()
-    end
-end
-
--- Xray (restored)
 local function toggleXray(Value)
     xrayEnabled = Value
     if Value then
         for _, part in pairs(workspace:GetDescendants()) do
             if part:IsA("BasePart") and part.Transparency < 1 then
-                part.Transparency = 0.5  -- Semi-transparent for Xray
+                part.Transparency = 0.5
             end
         end
     else
         for _, part in pairs(workspace:GetDescendants()) do
             if part:IsA("BasePart") then
-                part.Transparency = 0  -- Reset (assume original is 0, adjust if needed)
+                part.Transparency = 0
             end
         end
     end
 end
 
--- UI Elements for VisualsTab (Reworked Toggles and Sliders)
+-- New Auto Refresh System
+local espTrackers = {} -- [player] = character hash or timestamp for change detection
 
+local function newAutoRefresh()
+    local updated = false
+    local currentPlayers = players:GetPlayers()
+    local currentSet = {}
+
+    for _, player in ipairs(currentPlayers) do
+        if player ~= localPlayer then
+            currentSet[player] = true
+            local char = getCharacter(player)
+            local charHash = char and char:GetFullName() or nil -- Simple hash for change detection
+            if not espTrackers[player] or espTrackers[player] ~= charHash then
+                -- Change detected, refresh this player
+                refreshPlayerESP(player)
+                espTrackers[player] = charHash
+                updated = true
+            end
+        end
+    end
+
+    -- Clean left players
+    for player in pairs(espTrackers) do
+        if not currentSet[player] then
+            refreshPlayerESP(player)
+            espTrackers[player] = nil
+            updated = true
+        end
+    end
+
+    -- Refresh non-player ESPs if enabled
+    if materialESPEnabled then refreshMaterialESP() end
+    if ventsEnabled then refreshVents() end
+    if garbageEnabled then refreshGarbage() end
+    if boxEnabled then refreshBoxESP() end
+
+    if updated then
+        Rayfield:Notify({ Title = "Auto Refresh", Content = "تم التحديث!", Duration = 3, Image = 4483362458 })
+    end
+end
+
+-- Refresh single player ESP
+local function refreshPlayerESP(player)
+    -- Remove old
+    if drawings[player] then
+        for k, d in pairs(drawings[player]) do
+            if typeof(d) == "table" then
+                for _, line in ipairs(d) do line:Remove() end
+            else
+                d:Remove()
+            end
+        end
+        drawings[player] = nil
+    end
+    if Box3DObjects[player] then Remove3DBox(player) end
+    if ESPObjects[player] then RemoveESP(player) end
+    if lineESPObjects[player] then
+        lineESPObjects[player]:Remove()
+        lineESPObjects[player] = nil
+    end
+
+    -- Create new if valid
+    local char = getCharacter(player)
+    if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") then
+        createNewESP(player)
+        if Box3DEnabled then Create3DBox(player) end
+        if ESPEnabled or ShowHealth or ShowInventory then CreateESP(player) end
+        if lineESPEnabled then createLineESP(player) end
+    end
+end
+
+-- UI Elements
 VisualsTab:CreateToggle({
     Name = "Enable ESP",
     CurrentValue = false,
     Callback = function(Value)
         ESPEnabled = Value
         if Value then
-            RefreshESP()  -- Activates Highlight + Billboard
+            enableNewESP()
+            RefreshESP()
         else
+            disableNewESP()
             CleanupUnusedESP()
         end
     end
@@ -1438,46 +1042,30 @@ VisualsTab:CreateToggle({
 })
 
 VisualsTab:CreateToggle({
-    Name = "Skeleton ESP 1",
-    CurrentValue = false,
-    Callback = function(Value)
-        espSettings.Enabled = Value
-        if Value then
-            enableStickmanESP()
-        else
-            disableStickmanESP()
-        end
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "Skeleton ESP 2 (New)",
-    CurrentValue = false,
-    Callback = function(Value)
-        enableMainESP = Value
-        if Value then
-            enableNewESP()
-        else
-            disableNewESP()
-        end
-    end
-})
-
-VisualsTab:CreateToggle({
-    Name = "2D Box 1",
+    Name = "2D Box",
     CurrentValue = false,
     Callback = function(Value)
         showBox = Value
-        refreshNewESP()
     end
 })
 
 VisualsTab:CreateToggle({
-    Name = "3D Box 1",
+    Name = "3D Box",
     CurrentValue = false,
     Callback = function(Value)
         show3DBox = Value
-        refreshNewESP()
+        Box3DEnabled = Value
+        if Value then
+            for _, player in pairs(players:GetPlayers()) do
+                if player ~= localPlayer then
+                    Create3DBox(player)
+                end
+            end
+        else
+            for player in pairs(Box3DObjects) do
+                Remove3DBox(player)
+            end
+        end
     end
 })
 
@@ -1486,7 +1074,6 @@ VisualsTab:CreateToggle({
     CurrentValue = false,
     Callback = function(Value)
         showHealthNew = Value
-        refreshNewESP()
     end
 })
 
@@ -1495,7 +1082,6 @@ VisualsTab:CreateToggle({
     CurrentValue = false,
     Callback = function(Value)
         showHealthNew2 = Value
-        refreshNewESP()
     end
 })
 
@@ -1504,7 +1090,6 @@ VisualsTab:CreateToggle({
     CurrentValue = false,
     Callback = function(Value)
         showName = Value
-        refreshNewESP()
     end
 })
 
@@ -1513,7 +1098,6 @@ VisualsTab:CreateToggle({
     CurrentValue = false,
     Callback = function(Value)
         showDist = Value
-        refreshNewESP()
     end
 })
 
@@ -1522,7 +1106,6 @@ VisualsTab:CreateToggle({
     CurrentValue = false,
     Callback = function(Value)
         showTool = Value
-        refreshNewESP()
     end
 })
 
@@ -1565,207 +1148,164 @@ VisualsTab:CreateToggle({
     end
 })
 
-VisualsTab:CreateToggle({
-    Name = "Auto Refresh (Optimized)",
-    CurrentValue = false,
-    Callback = function(Value)
-        autoRefreshEnabled = Value
-        if Value then
-            task.spawn(function()
-                while autoRefreshEnabled do
-                    task.wait(autoRefreshInterval)  -- انتظر 10 ثواني أول مرة وبعد كل عملية
-                    -- قفل كل الـ ESP المشغلة
-                    if espSettings.Enabled then disableStickmanESP() end
-                    if enableMainESP then disableNewESP() end
-                    if lineESPEnabled then disableLineESP() end
-                    if highlightESPEnabled then 
-                        for _, espHolder in pairs(ESPObjects) do 
-                            if espHolder.Highlight then espHolder.Highlight.Enabled = false end 
-                        end 
-                    end
-
-                    -- حدث الـ ESP
-                    RefreshAllESP()
-
-                    -- شغل الـ ESP المشغلة مرة ثانية
-                    if espSettings.Enabled then enableStickmanESP() end
-                    if enableMainESP then enableNewESP() end
-                    if lineESPEnabled then enableLineESP() end
-                    if highlightESPEnabled then 
-                        for _, espHolder in pairs(ESPObjects) do 
-                            if espHolder.Highlight then espHolder.Highlight.Enabled = true end 
-                        end 
-                    end
-
-                    Rayfield:Notify({ Title = "Auto Refresh", Content = "تم التحديث!", Duration = 3, Image = 4483362458 })
-                end
-            end)
-            Rayfield:Notify({ Title = "Activated", Content = "Auto Refresh enabled.", Duration = 5, Image = 4483362458 })
-        else
-            Rayfield:Notify({ Title = "Deactivated", Content = "Auto Refresh disabled.", Duration = 5, Image = 4483362458 })
-        end
-    end
-})
-
 VisualsTab:CreateSlider({
     Name = "Auto Refresh Interval (s)",
-    Range = {1, 30},
-    Increment = 1,
+    Range = {5, 60},
+    Increment = 5,
     Suffix = " seconds",
-    CurrentValue = 10,  -- Default 10 seconds
+    CurrentValue = 15,
     Callback = function(Value)
         autoRefreshInterval = Value
     end
 })
 
 VisualsTab:CreateToggle({
-    Name = "Auto Refresh (Optimized)",
+    Name = "Enable Auto Refresh",
     CurrentValue = false,
     Callback = function(Value)
         autoRefreshEnabled = Value
         if Value then
+            espTrackers = {}
+            for _, player in pairs(players:GetPlayers()) do
+                if player ~= localPlayer then
+                    espTrackers[player] = getCharacter(player) and getCharacter(player):GetFullName() or nil
+                end
+            end
             task.spawn(function()
                 while autoRefreshEnabled do
-                    task.wait(autoRefreshInterval)  -- انتظر 10 ثواني أول مرة وبعد كل عملية
-                    -- قفل كل الـ ESP المشغلة
-                    if espSettings.Enabled then disableStickmanESP() end
-                    if enableMainESP then disableNewESP() end
-                    if lineESPEnabled then disableLineESP() end
-                    if highlightESPEnabled then 
-                        for _, espHolder in pairs(ESPObjects) do 
-                            if espHolder.Highlight then espHolder.Highlight.Enabled = false end 
-                        end 
-                    end
-                    if ESPEnabled then  -- قفل Enable ESP
-                        ESPEnabled = false
-                        CleanupUnusedESP()
-                    end
-
-                    -- حدث الـ ESP
-                    RefreshAllESP()
-
-                    -- شغل الـ ESP المشغلة مرة ثانية
-                    if espSettings.Enabled then enableStickmanESP() end
-                    if enableMainESP then enableNewESP() end
-                    if lineESPEnabled then enableLineESP() end
-                    if highlightESPEnabled then 
-                        for _, espHolder in pairs(ESPObjects) do 
-                            if espHolder.Highlight then espHolder.Highlight.Enabled = true end 
-                        end 
-                    end
-                    if ESPEnabled then  -- شغل Enable ESP مرة ثانية
-                        ESPEnabled = true
-                        RefreshESP()
-                    end
-
-                    Rayfield:Notify({ Title = "Auto Refresh", Content = "تم التحديث!", Duration = 3, Image = 4483362458 })
+                    task.wait(autoRefreshInterval)
+                    newAutoRefresh()
                 end
             end)
-            Rayfield:Notify({ Title = "Activated", Content = "Auto Refresh enabled.", Duration = 5, Image = 4483362458 })
+            Rayfield:Notify({ Title = "Activated", Content = "New Auto Refresh enabled.", Duration = 5, Image = 4483362458 })
         else
+            espTrackers = {}
             Rayfield:Notify({ Title = "Deactivated", Content = "Auto Refresh disabled.", Duration = 5, Image = 4483362458 })
         end
     end
 })
 
--- Advanced Settings Section (بعد Auto Refresh)
-VisualsTab:CreateLabel("Advanced Settings")  -- نص عنوان "Advanced Settings"
+-- New: Auto Toggle ESP Button
+VisualsTab:CreateToggle({
+    Name = "Auto Toggle ESP",
+    CurrentValue = false,
+    Callback = function(Value)
+        autoToggleEnabled = Value
+        if Value then
+            task.spawn(function()
+                while autoToggleEnabled do
+                    if ESPEnabled then
+                        ESPEnabled = false
+                        CleanupUnusedESP()
+                        disableNewESP()
+                        disableLineESP()
+                        task.wait(0.1)  -- Quick delay for toggle
+                        ESPEnabled = true
+                        RefreshESP()
+                        enableNewESP()
+                        enableLineESP()
+                    end
+                    task.wait(10)  -- Every 10 seconds
+                end
+            end)
+            Rayfield:Notify({ Title = "Activated", Content = "Auto Toggle ESP enabled.", Duration = 5, Image = 4483362458 })
+        else
+            Rayfield:Notify({ Title = "Deactivated", Content = "Auto Toggle ESP disabled.", Duration = 5, Image = 4483362458 })
+        end
+    end
+})
+
+-- Advanced Settings
+VisualsTab:CreateLabel("Advanced Settings")
 
 VisualsTab:CreateSlider({
-   Name = "Health Bar Thickness",
-   Range = {1, 10},
-   Increment = 1,
-   CurrentValue = 1,
-   Flag = "Health_Thick",
-   Callback = function(Value)
-      healthThickness = Value
-   end,
+    Name = "Health Bar Thickness",
+    Range = {1, 10},
+    Increment = 1,
+    CurrentValue = 1,
+    Callback = function(Value)
+        healthThickness = Value
+    end
 })
 
 VisualsTab:CreateSlider({
-   Name = "Health Bar Transparency",
-   Range = {0, 1},
-   Increment = 0.05,
-   Suffix = "%",
-   CurrentValue = 1,
-   Flag = "Health_Trans",
-   Callback = function(Value)
-      healthTransparency = Value
-   end,
+    Name = "Health Bar Transparency",
+    Range = {0, 1},
+    Increment = 0.05,
+    Suffix = "%",
+    CurrentValue = 1,
+    Callback = function(Value)
+        healthTransparency = Value
+    end
 })
 
 VisualsTab:CreateSlider({
-   Name = "2D Box Transparency",
-   Range = {0, 1},
-   Increment = 0.05,
-   Suffix = "%",
-   CurrentValue = 1,
-   Callback = function(Value)
-      box2DTransparency = Value
-   end,
+    Name = "2D Box Transparency",
+    Range = {0, 1},
+    Increment = 0.05,
+    Suffix = "%",
+    CurrentValue = 1,
+    Callback = function(Value)
+        box2DTransparency = Value
+    end
 })
 
 VisualsTab:CreateSlider({
-   Name = "3D Box 1 Transparency",
-   Range = {0, 1},
-   Increment = 0.05,
-   Suffix = "%",
-   CurrentValue = 1,
-   Flag = "3D_Box_Trans",
-   Callback = function(Value)
-      box3DTransparency = Value
-   end,
+    Name = "3D Box Transparency",
+    Range = {0, 1},
+    Increment = 0.05,
+    Suffix = "%",
+    CurrentValue = 1,
+    Callback = function(Value)
+        box3DTransparency = Value
+    end
 })
 
 VisualsTab:CreateSlider({
-   Name = "2D Box Thickness",
-   Range = {1, 3},
-   Increment = 0.1,
-   CurrentValue = 1,
-   Callback = function(Value)
-      box2DThickness = Value
-      refreshNewESP()
-   end,
+    Name = "2D Box Thickness",
+    Range = {1, 3},
+    Increment = 0.1,
+    CurrentValue = 1,
+    Callback = function(Value)
+        box2DThickness = Value
+    end
 })
 
 VisualsTab:CreateSlider({
-   Name = "3D Box 1 Thickness",
-   Range = {1, 3},
-   Increment = 0.1,
-   CurrentValue = 1,
-   Callback = function(Value)
-      box3DThickness = Value
-      refreshNewESP()
-   end,
+    Name = "3D Box Thickness",
+    Range = {1, 3},
+    Increment = 0.1,
+    CurrentValue = 1,
+    Callback = function(Value)
+        box3DThickness = Value
+    end
 })
 
 VisualsTab:CreateSlider({
-   Name = "Max ESP Distance (Studs)",
-   Range = {100, 2000},
-   Increment = 100,
-   Suffix = " Studs",
-   CurrentValue = 1000,
-   Callback = function(Value)
-      maxDistance = Value
-   end,
+    Name = "Max ESP Distance (Studs)",
+    Range = {100, 2000},
+    Increment = 100,
+    Suffix = " Studs",
+    CurrentValue = 1000,
+    Callback = function(Value)
+        maxDistance = Value
+    end
 })
 
--- New: Line ESP Settings
+-- Line ESP Settings
 VisualsTab:CreateLabel("Line ESP Settings")
-
--- Removed separate color picker for Line ESP, now uses custom color
 
 VisualsTab:CreateSlider({
     Name = "Line ESP Thickness",
     Range = {1, 5},
     Increment = 1,
-    CurrentValue = 1,  -- Reduced initial
+    CurrentValue = 1,
     Callback = function(Value)
         lineThickness = Value
     end
 })
 
--- New: Custom ESP Color
+-- Custom ESP Color
 VisualsTab:CreateLabel("Custom ESP Color (Overrides Team Color)")
 
 VisualsTab:CreateToggle({
@@ -1773,16 +1313,12 @@ VisualsTab:CreateToggle({
     CurrentValue = false,
     Callback = function(Value)
         customColorEnabled = Value
-        if not Value then
-            -- Reset to team color when disabled
-            RefreshAllESP()
-        end
     end
 })
 
 VisualsTab:CreateDropdown({
     Name = "Select ESP Types for Custom Color",
-    Options = {"Skeleton 1", "Skeleton 2", "2D Box", "3D Box", "Health Bar 1", "Health Bar 2", "Name", "Distance", "Tool", "Line ESP", "Highlight ESP", "Vents", "Garbage"},
+    Options = {"2D Box", "3D Box", "Health Bar 1", "Health Bar 2", "Name", "Distance", "Tool", "Line ESP", "Highlight ESP", "Vents", "Garbage"},
     CurrentOption = {},
     MultipleOptions = true,
     Callback = function(Options)
@@ -1795,9 +1331,6 @@ VisualsTab:CreateColorPicker({
     Color = Color3.fromRGB(0, 255, 0),
     Callback = function(Color)
         customESPColor = Color
-        if customColorEnabled then
-            RefreshAllESP()  -- Apply immediately if enabled
-        end
     end
 })
  
