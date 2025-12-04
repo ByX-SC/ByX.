@@ -599,7 +599,7 @@ playersSpawnBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ===================================
--- إضافة ViewportFrame لعرض الشخصية 3D (مدمج ومُعدل للثيم والموقع)
+-- إضافة ViewportFrame لعرض الشخصية 3D داخل المستطيل الأيمن
 -- ===================================
 local charClone, renderConn
 
@@ -615,29 +615,20 @@ local function initAvatar()
     local char = player.Character
     char.Archivable = true
     charClone = char:Clone()
-
-    -- إزالة جميع السكربتات لتجنب مشاكل التنفيذ
     for _, v in ipairs(charClone:GetDescendants()) do
         if v:IsA("Script") or v:IsA("LocalScript") then v:Destroy() end
     end
+    charClone.Parent = nil
 
-    -- ضبط PrimaryPart قبل إضافته للـ WorldModel
-    if not charClone.PrimaryPart then
-        charClone.PrimaryPart = charClone:FindFirstChild("HumanoidRootPart")
-    end
+    -- ربط الـ ViewportFrame بالمستطيل الأيمن مباشرة
+    local avatarFrame = rightPanel -- افترضنا أن المستطيل الأيمن اسمه rightPanel
 
-    -- إنشاء Frame للـ Viewport (لاصق من اليمين للواجهة الرئيسية)
-    local avatarFrame = Instance.new("Frame")
-    avatarFrame.Size = UDim2.new(0, 200, 0, 580)
-    avatarFrame.BackgroundColor3 = Color3.new(1, 1, 1)
-    avatarFrame.BorderSizePixel = 0
-    avatarFrame.Parent = screenGui
-
+    -- تدرج الألوان ليطابق الثيم
     local uiGradient = Instance.new("UIGradient")
     uiGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(52, 50, 82)), 
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(35, 22, 44)), 
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 12, 19)) 
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(52, 50, 82)), -- #343252
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(35, 22, 44)), -- #23162C
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 12, 19)) -- #0C0C13
     })
     uiGradient.Rotation = 0
     uiGradient.Parent = avatarFrame
@@ -651,34 +642,20 @@ local function initAvatar()
     avatarStroke.Color = Color3.fromRGB(0, 0, 0)
     avatarStroke.Parent = avatarFrame
 
-    -- ربط الموقع بالواجهة الرئيسية
-    avatarFrame.Position = UDim2.new(
-        mainFrame.Position.X.Scale,
-        mainFrame.Position.X.Offset + mainFrame.Size.X.Offset + 10,
-        mainFrame.Position.Y.Scale,
-        mainFrame.Position.Y.Offset
-    )
-    mainFrame:GetPropertyChangedSignal("Position"):Connect(function()
-        avatarFrame.Position = UDim2.new(
-            mainFrame.Position.X.Scale,
-            mainFrame.Position.X.Offset + mainFrame.Size.X.Offset + 10,
-            mainFrame.Position.Y.Scale,
-            mainFrame.Position.Y.Offset
-        )
-    end)
-
-    -- إنشاء ViewportFrame و WorldModel
+    -- ViewportFrame
     local viewport = Instance.new("ViewportFrame")
     viewport.Size = UDim2.new(1, 0, 1, 0)
+    viewport.Position = UDim2.new(0, 0, 0, 0)
     viewport.BackgroundTransparency = 1
     viewport.Ambient = Color3.fromRGB(80, 80, 90)
     viewport.LightColor = Color3.new(1, 1, 1)
     viewport.Parent = avatarFrame
 
+    -- WorldModel للإضاءة الصحيحة
     local worldModel = Instance.new("WorldModel")
     worldModel.Parent = viewport
 
-    -- إضافة الإضاءة
+    -- إضاءة قوية
     local dirLight = Instance.new("DirectionalLight")
     dirLight.Brightness = 3
     dirLight.Color = Color3.new(1, 1, 1)
@@ -691,14 +668,16 @@ local function initAvatar()
     fillLight.Direction = Vector3.new(0.7, -0.5, 0.5)
     fillLight.Parent = worldModel
 
-    -- إضافة الشخصية بعد ضبط PrimaryPart
-    charClone.Parent = worldModel
-
-    -- الكاميرا
     local cam = Instance.new("Camera")
     viewport.CurrentCamera = cam
 
-    -- حساب مركز الشخصية
+    charClone.Parent = worldModel
+
+    if not charClone.PrimaryPart then
+        charClone.PrimaryPart = charClone:FindFirstChild("HumanoidRootPart")
+    end
+
+    -- نحسب مركز الشخصية تلقائياً
     local function getCharacterCenter()
         local lowestY = math.huge
         local highestY = -math.huge
@@ -712,7 +691,7 @@ local function initAvatar()
         return Vector3.new(charClone.PrimaryPart.Position.X, centerY, charClone.PrimaryPart.Position.Z)
     end
 
-    -- تحديث الكاميرا وتدوير الشخصية
+    -- تحديث الكاميرا لتكون في منتصف الشخصية
     local function updateCamera()
         local center = getCharacterCenter()
         cam.CFrame = CFrame.lookAt(center + Vector3.new(0, 0, 8), center)
