@@ -1,4 +1,3 @@
--- خدمات روبلوكس
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -6,25 +5,30 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local PlayerGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
+
 -- متغيرات الحالة
 local selectedLocation = nil -- خيار واحد فقط في Locations ("Min" أو "Max")
 local selectedPlayer = nil -- لاعب واحد فقط في Players
 local isOnCooldownLocations = false
 local isOnCooldownPlayers = false
 local cooldownTime = 9 -- 9 ثواني كول داون
+
 -- إحداثيات Min الجديدة (اللي طلبتها للـ Min)
 local MinArmoryPos = Vector3.new(196, 23.23, -215)
 local MinSecretDropPos = Vector3.new(-6.64, 26.10, -58.50)
 local MinCamArmoryPos = Vector3.new(197.10, 24.68, -215.00)
 local MinCamDropPos = Vector3.new(-6.10, 24.13, -104.07)
+
 -- إحداثيات Max الجديدة
 local MaxArmoryPos = Vector3.new(196, 23.23, -215)
 local MaxSecretDropPos = Vector3.new(58.19, -8.87, -140.50)
 local MaxCamArmoryPos = Vector3.new(197.10, 24.68, -215.00)
 local MaxCamDropPos = Vector3.new(85.27, -7.25, -140.44)
+
 -- إحداثيات عامة
 local ArmoryTeleport = Vector3.new(189.40, 23.10, -214.47) -- زر Armory
 local FinalFarmPos = Vector3.new(20.06, 11.23, -117.39) -- النهاية + Teleport to Farm
+
 -- ===================================
 -- إنشاء الواجهة الرسومية (الثيم الجديد)
 -- ===================================
@@ -32,6 +36,7 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "GunSpawnerUI"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = PlayerGui
+
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
 mainFrame.Size = UDim2.new(0, 360, 0, 580)
@@ -42,6 +47,7 @@ mainFrame.Active = true
 mainFrame.Draggable = true
 mainFrame.Parent = screenGui
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 16)
+
 local gradient = Instance.new("UIGradient")
 gradient.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(0, Color3.fromRGB(52, 50, 82)), -- #343252
@@ -50,19 +56,23 @@ gradient.Color = ColorSequence.new({
 })
 gradient.Rotation = 0 -- تدرج أفقي
 gradient.Parent = mainFrame
+
 local mainStroke = Instance.new("UIStroke")
 mainStroke.Thickness = 3
 mainStroke.Color = Color3.fromRGB(0, 0, 0)
 mainStroke.Parent = mainFrame
+
 -- التبويبات
 local tabNames = {"Locations", "Players", "Teleport"}
 local tabButtons = {}
 local tabContents = {}
+
 local tabsFrame = Instance.new("Frame")
 tabsFrame.Size = UDim2.new(0.9, 0, 0, 50)
 tabsFrame.Position = UDim2.new(0.05, 0, 0, 20) -- عدلت الموقع بعد شيل العنوان
 tabsFrame.BackgroundTransparency = 1
 tabsFrame.Parent = mainFrame
+
 for i, name in ipairs(tabNames) do
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.3, 0, 1, 0)
@@ -76,6 +86,7 @@ for i, name in ipairs(tabNames) do
     btn.Parent = tabsFrame
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 12)
     tabButtons[name] = btn
+
     local content = Instance.new("Frame")
     content.Size = UDim2.new(0.9, 0, 0, 500) -- زدت الحجم بعد شيل العنوان
     content.Position = UDim2.new(0.05, 0, 0, 80)
@@ -84,6 +95,7 @@ for i, name in ipairs(tabNames) do
     content.Parent = mainFrame
     tabContents[name] = content
 end
+
 -- تبديل التبويبات بدون أنيميشن
 for _, name in ipairs(tabNames) do
     tabButtons[name].MouseButton1Click:Connect(function()
@@ -97,8 +109,10 @@ for _, name in ipairs(tabNames) do
         newContent.Visible = true
     end)
 end
+
 -- ==================== Locations Tab (Min & Max) ====================
 local locContent = tabContents["Locations"]
+
 local minBtn = Instance.new("TextButton")
 minBtn.Size = UDim2.new(0.9, 0, 0, 70)
 minBtn.Position = UDim2.new(0.05, 0, 0, 20)
@@ -109,16 +123,7 @@ minBtn.TextSize = 30
 minBtn.Font = Enum.Font.GothamBold
 minBtn.Parent = locContent
 Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 14)
-local maxBtn = Instance.new("TextButton")
-maxBtn.Size = UDim2.new(0.9, 0, 0, 70)
-maxBtn.Position = UDim2.new(0.05, 0, 0, 110)
-maxBtn.BackgroundColor3 = Color3.fromRGB(102, 65, 129) -- #664181
-maxBtn.Text = "Max"
-maxBtn.TextColor3 = Color3.new(1,1,1)
-minBtn.TextSize = 30
-minBtn.Font = Enum.Font.GothamBold
-minBtn.Parent = locContent
-Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 14)
+
 local maxBtn = Instance.new("TextButton")
 maxBtn.Size = UDim2.new(0.9, 0, 0, 70)
 maxBtn.Position = UDim2.new(0.05, 0, 0, 110)
@@ -129,6 +134,7 @@ maxBtn.TextSize = 30
 maxBtn.Font = Enum.Font.GothamBold
 maxBtn.Parent = locContent
 Instance.new("UICorner", maxBtn).CornerRadius = UDim.new(0, 14)
+
 -- عند الضغط على Min يتحول لونه
 minBtn.MouseButton1Click:Connect(function()
     minBtn.BackgroundColor3 = Color3.fromRGB(62, 39, 78) -- نشط #3E274E
@@ -140,6 +146,7 @@ maxBtn.MouseButton1Click:Connect(function()
     minBtn.BackgroundColor3 = Color3.fromRGB(102, 65, 129) -- #664181
     selectedLocation = "Max"
 end)
+
 -- زر Spawn لـ Locations
 local locSpawnBtn = Instance.new("TextButton")
 locSpawnBtn.Size = UDim2.new(0.9, 0, 0, 60)
@@ -151,6 +158,7 @@ locSpawnBtn.TextSize = 30
 locSpawnBtn.Font = Enum.Font.GothamBold
 locSpawnBtn.Parent = locContent
 Instance.new("UICorner", locSpawnBtn).CornerRadius = UDim.new(0, 14)
+
 -- إنشاء النقطة للتحميل داخل الزر
 local locLoadingDot = Instance.new("Frame")
 locLoadingDot.Size = UDim2.new(0, 20, 0, 20)
@@ -159,17 +167,21 @@ locLoadingDot.BackgroundColor3 = Color3.fromHex("#22B365")
 locLoadingDot.Visible = false
 locLoadingDot.Parent = locSpawnBtn
 Instance.new("UICorner", locLoadingDot).CornerRadius = UDim.new(1, 0) -- دائرة
+
 -- ==================== Players Tab ====================
 local playersContent = tabContents["Players"]
+
 local scroll = Instance.new("ScrollingFrame")
 scroll.Size = UDim2.new(1,0,0.8,0)
 scroll.Position = UDim2.new(0,0,0,0)
 scroll.BackgroundTransparency = 1
 scroll.ScrollBarThickness = 6
 scroll.Parent = playersContent
+
 local list = Instance.new("UIListLayout")
 list.Padding = UDim.new(0,8)
 list.Parent = scroll
+
 local function refreshPlayers()
     for _,v in scroll:GetChildren() do if v:IsA("TextButton") then v:Destroy() end end
     for _,p in Players:GetPlayers() do
@@ -194,9 +206,11 @@ local function refreshPlayers()
     end
     scroll.CanvasSize = UDim2.new(0,0,0,(#Players:GetPlayers()-1)*58)
 end
+
 Players.PlayerAdded:Connect(refreshPlayers)
 Players.PlayerRemoving:Connect(refreshPlayers)
 refreshPlayers()
+
 -- زر Spawn لـ Players (تحت الـ ScrollingFrame تمامًا)
 local playersSpawnBtn = Instance.new("TextButton")
 playersSpawnBtn.Size = UDim2.new(0.9, 0, 0, 60)
@@ -208,6 +222,7 @@ playersSpawnBtn.TextSize = 30
 playersSpawnBtn.Font = Enum.Font.GothamBold
 playersSpawnBtn.Parent = playersContent
 Instance.new("UICorner", playersSpawnBtn).CornerRadius = UDim.new(0, 14)
+
 -- إنشاء النقطة للتحميل داخل الزر
 local playersLoadingDot = Instance.new("Frame")
 playersLoadingDot.Size = UDim2.new(0, 20, 0, 20)
@@ -216,8 +231,10 @@ playersLoadingDot.BackgroundColor3 = Color3.fromHex("#22B365")
 playersLoadingDot.Visible = false
 playersLoadingDot.Parent = playersSpawnBtn
 Instance.new("UICorner", playersLoadingDot).CornerRadius = UDim.new(1, 0) -- دائرة
+
 -- ==================== Teleport Tab ====================
 local tpContent = tabContents["Teleport"]
+
 -- أزرار التليبورت الجديدة (بدون وظائف بعد)
 local teleportButtons = {
     {name = "Gun", action = "gun"},
@@ -238,6 +255,7 @@ local teleportButtons = {
     {name = "BARN", pos = CFrame.new(43.68, 10.37, 395.04)},
     {name = "R&D", pos = CFrame.new(-182.35, -85.90, 158.07)}
 }
+
 -- إنشاء ScrollingFrame لكل الأزرار
 local tpScroll = Instance.new("ScrollingFrame")
 tpScroll.Size = UDim2.new(1,0,1,0)
@@ -245,9 +263,11 @@ tpScroll.Position = UDim2.new(0,0,0,0)
 tpScroll.BackgroundTransparency = 1
 tpScroll.ScrollBarThickness = 6
 tpScroll.Parent = tpContent
+
 local tpList = Instance.new("UIListLayout")
 tpList.Padding = UDim.new(0,8)
 tpList.Parent = tpScroll
+
 for i, tp in ipairs(teleportButtons) do
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.95,0,0,50)
@@ -279,6 +299,7 @@ for i, tp in ipairs(teleportButtons) do
     end
 end
 tpScroll.CanvasSize = UDim2.new(0,0,0,#teleportButtons*58)
+
 -- ===================================
 -- دالة Min (الجديدة تماماً زي اللي بعثتها)
 -- ===================================
@@ -392,6 +413,7 @@ local function RunMin(dropPos)
         Duration = 8;
     })
 end
+
 -- ===================================
 -- دالة Max (تبقى كما هي، مع تعديل مشابه)
 -- ===================================
@@ -505,6 +527,7 @@ local function RunMax(dropPos)
         Duration = 8;
     })
 end
+
 -- دالة تنفيذ عامة للـ Locations أو Players (واحد تلو الآخر)
 local function executeSelected(tabType)
     stopSignal = false
@@ -521,6 +544,7 @@ local function executeSelected(tabType)
         end
     end
 end
+
 -- دالة لتشغيل أنيميشن التلاشي للنقطة
 local function startLoadingAnimation(dot)
     dot.Visible = true
@@ -529,6 +553,7 @@ local function startLoadingAnimation(dot)
     tween:Play()
     return tween
 end
+
 -- دالة الكول داون مع النقطة بدلاً من الرمادي
 local function startCooldown(tabType)
     local dot, btn
@@ -552,6 +577,7 @@ local function startCooldown(tabType)
         isOnCooldownPlayers = false
     end
 end
+
 -- ربط زر Spawn لـ Locations
 locSpawnBtn.MouseButton1Click:Connect(function()
     if not isOnCooldownLocations then
@@ -561,6 +587,7 @@ locSpawnBtn.MouseButton1Click:Connect(function()
         end
     end
 end)
+
 -- ربط زر Spawn لـ Players
 playersSpawnBtn.MouseButton1Click:Connect(function()
     if not isOnCooldownPlayers then
@@ -570,3 +597,123 @@ playersSpawnBtn.MouseButton1Click:Connect(function()
         end
     end
 end)
+
+-- ===================================
+-- إضافة ViewportFrame لعرض الشخصية 3D (مدمج ومُعدل للثيم والموقع)
+-- ===================================
+local charClone, renderConn
+
+local function stopAvatar()
+    if renderConn then renderConn:Disconnect() renderConn = nil end
+    if charClone then charClone:Destroy() charClone = nil end
+end
+
+local function initAvatar()
+    stopAvatar()
+    if not player.Character then return end
+
+    local char = player.Character
+    char.Archivable = true
+    charClone = char:Clone()
+    for _, v in ipairs(charClone:GetDescendants()) do
+        if v:IsA("Script") or v:IsA("LocalScript") then v:Destroy() end
+    end
+    charClone.Parent = nil
+
+    -- إنشاء Frame للـ Viewport (لاصق من اليمين للواجهة الرئيسية)
+    local avatarFrame = Instance.new("Frame")
+    avatarFrame.Size = UDim2.new(0, 360, 0, 420)
+    avatarFrame.Position = UDim2.new(0, 390, 0.5, -210) -- لاصق من اليمين مع مركزة عموديًا
+    avatarFrame.BackgroundColor3 = Color3.new(1, 1, 1) -- ليظهر التدرج
+    avatarFrame.BorderSizePixel = 0
+    avatarFrame.Parent = screenGui
+
+    local uiGradient = Instance.new("UIGradient")
+    uiGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(52, 50, 82)), -- #343252
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(35, 22, 44)), -- #23162C
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 12, 19)) -- #0C0C13
+    })
+    uiGradient.Rotation = 0 -- تدرج أفقي ليطابق الثيم
+    uiGradient.Parent = avatarFrame
+
+    local uicorner = Instance.new("UICorner")
+    uicorner.CornerRadius = UDim.new(0, 16) -- ليطابق الثيم
+    uicorner.Parent = avatarFrame
+
+    local avatarStroke = Instance.new("UIStroke")
+    avatarStroke.Thickness = 3
+    avatarStroke.Color = Color3.fromRGB(0, 0, 0)
+    avatarStroke.Parent = avatarFrame
+
+    -- ViewportFrame
+    local viewport = Instance.new("ViewportFrame")
+    viewport.Size = UDim2.new(1, 0, 1, 0)
+    viewport.BackgroundTransparency = 1
+    viewport.Ambient = Color3.fromRGB(80, 80, 90)
+    viewport.LightColor = Color3.new(1, 1, 1)
+    viewport.Parent = avatarFrame
+
+    -- WorldModel للإضاءة الصحيحة
+    local worldModel = Instance.new("WorldModel")
+    worldModel.Parent = viewport
+
+    -- إضاءة قوية
+    local dirLight = Instance.new("DirectionalLight")
+    dirLight.Brightness = 3
+    dirLight.Color = Color3.new(1, 1, 1)
+    dirLight.Direction = Vector3.new(-0.5, -1, 0.3)
+    dirLight.Parent = worldModel
+
+    local fillLight = Instance.new("DirectionalLight")
+    fillLight.Brightness = 1
+    fillLight.Color = Color3.fromRGB(220, 220, 255)
+    fillLight.Direction = Vector3.new(0.7, -0.5, 0.5)
+    fillLight.Parent = worldModel
+
+    local cam = Instance.new("Camera")
+    viewport.CurrentCamera = cam
+
+    charClone.Parent = worldModel
+
+    if not charClone.PrimaryPart then
+        charClone.PrimaryPart = charClone:FindFirstChild("HumanoidRootPart")
+    end
+
+    -- نحسب مركز الشخصية تلقائياً
+    local function getCharacterCenter()
+        local lowestY = math.huge
+        local highestY = -math.huge
+        for _, part in ipairs(charClone:GetDescendants()) do
+            if part:IsA("BasePart") then
+                if part.Position.Y < lowestY then lowestY = part.Position.Y end
+                if part.Position.Y > highestY then highestY = part.Position.Y end
+            end
+        end
+        local centerY = (lowestY + highestY) / 2
+        return Vector3.new(charClone.PrimaryPart.Position.X, centerY, charClone.PrimaryPart.Position.Z)
+    end
+
+    -- تحديث الكاميرا لتكون في منتصف الشخصية
+    local function updateCamera()
+        local center = getCharacterCenter()
+        cam.CFrame = CFrame.lookAt(center + Vector3.new(0, 0, 8), center)
+    end
+
+    renderConn = RunService.RenderStepped:Connect(function()
+        if not charClone.PrimaryPart then return end
+        charClone:SetPrimaryPartCFrame(charClone.PrimaryPart.CFrame * CFrame.Angles(0, math.rad(0.5), 0))
+        updateCamera()
+    end)
+end
+
+player.CharacterAdded:Connect(function()
+    stopAvatar()
+    task.wait(0.5)
+    initAvatar()
+end)
+
+if player.Character then
+    task.wait(0.5)
+    initAvatar()
+end
