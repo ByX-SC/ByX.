@@ -599,7 +599,7 @@ playersSpawnBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ===================================
--- إضافة ViewportFrame لعرض الشخصية 3D داخل المستطيل الأيمن
+-- إضافة ViewportFrame لعرض الشخصية 3D (مدمج ومُعدل للثيم والموقع)
 -- ===================================
 local charClone, renderConn
 
@@ -620,21 +620,23 @@ local function initAvatar()
     end
     charClone.Parent = nil
 
-    -- ربط الـ ViewportFrame بالمستطيل الأيمن مباشرة
-    local avatarFrame = rightPanel -- افترضنا أن المستطيل الأيمن اسمه rightPanel
+    -- إنشاء Frame للـ Viewport (لاصق من اليمين للواجهة الرئيسية)
+    local avatarFrame = Instance.new("Frame")
+    avatarFrame.Size = UDim2.new(0, 200, 0, 580) -- صغّرنا العرض + نفس طول الواجهة الرئيسية
+    avatarFrame.BackgroundColor3 = Color3.fromRGB(16, 15, 32) -- ليطابق الثيم المطلوب
+    avatarFrame.BorderSizePixel = 0
+    avatarFrame.Parent = screenGui
 
-    -- تدرج الألوان ليطابق الثيم
     local uiGradient = Instance.new("UIGradient")
-    uiGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(52, 50, 82)), -- #343252
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(35, 22, 44)), -- #23162C
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 12, 19)) -- #0C0C13
-    })
-    uiGradient.Rotation = 0
+    uiGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(16,15,32)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(8,8,15))
+    }
+    uiGradient.Rotation = 90 -- تدرج عمودي ليطابق الثيم المطلوب
     uiGradient.Parent = avatarFrame
 
     local uicorner = Instance.new("UICorner")
-    uicorner.CornerRadius = UDim.new(0, 16)
+    uicorner.CornerRadius = UDim.new(0, 15) -- ليطابق الثيم المطلوب
     uicorner.Parent = avatarFrame
 
     local avatarStroke = Instance.new("UIStroke")
@@ -642,16 +644,31 @@ local function initAvatar()
     avatarStroke.Color = Color3.fromRGB(0, 0, 0)
     avatarStroke.Parent = avatarFrame
 
+    -- ربط الموقع بالواجهة الرئيسية (ثابت حتى مع السحب)
+    avatarFrame.Position = UDim2.new(
+        mainFrame.Position.X.Scale,
+        mainFrame.Position.X.Offset + mainFrame.Size.X.Offset + 10,
+        mainFrame.Position.Y.Scale,
+        mainFrame.Position.Y.Offset
+    )
+    mainFrame:GetPropertyChangedSignal("Position"):Connect(function()
+        avatarFrame.Position = UDim2.new(
+            mainFrame.Position.X.Scale,
+            mainFrame.Position.X.Offset + mainFrame.Size.X.Offset + 10,
+            mainFrame.Position.Y.Scale,
+            mainFrame.Position.Y.Offset
+        )
+    end)
+
     -- ViewportFrame
     local viewport = Instance.new("ViewportFrame")
     viewport.Size = UDim2.new(1, 0, 1, 0)
-    viewport.Position = UDim2.new(0, 0, 0, 0)
     viewport.BackgroundTransparency = 1
     viewport.Ambient = Color3.fromRGB(80, 80, 90)
     viewport.LightColor = Color3.new(1, 1, 1)
     viewport.Parent = avatarFrame
 
-    -- WorldModel للإضاءة الصحيحة
+    -- WorldModel للإضاءة الصحيحة (لضمان ظهور الشخصية)
     local worldModel = Instance.new("WorldModel")
     worldModel.Parent = viewport
 
@@ -694,7 +711,7 @@ local function initAvatar()
     -- تحديث الكاميرا لتكون في منتصف الشخصية
     local function updateCamera()
         local center = getCharacterCenter()
-        cam.CFrame = CFrame.lookAt(center + Vector3.new(0, 0, 8), center)
+        cam.CFrame = CFrame.new(center + Vector3.new(0, 0, 8), center)
     end
 
     renderConn = RunService.RenderStepped:Connect(function()
