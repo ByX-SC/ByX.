@@ -2,6 +2,7 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local PlayerGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
@@ -83,15 +84,23 @@ for i, name in ipairs(tabNames) do
     content.Parent = mainFrame
     tabContents[name] = content
 end
--- تبديل التبويبات (الثيم الجديد)
+-- تبديل التبويبات مع أنيميشن slide من اليمين
+local currentTab = "Locations"
 for _, name in ipairs(tabNames) do
     tabButtons[name].MouseButton1Click:Connect(function()
         for k, b in pairs(tabButtons) do
             b.BackgroundColor3 = Color3.fromRGB(102, 65, 129) -- غير نشط #664181
-            tabContents[k].Visible = false
+            if tabContents[k].Visible then
+                tabContents[k].Visible = false
+            end
         end
         tabButtons[name].BackgroundColor3 = Color3.fromRGB(62, 39, 78) -- نشط #3E274E
-        tabContents[name].Visible = true
+        local newContent = tabContents[name]
+        newContent.Position = UDim2.new(1, 0, 0, 80) -- ابدأ من اليمين خارج الشاشة
+        newContent.Visible = true
+        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local tween = TweenService:Create(newContent, tweenInfo, {Position = UDim2.new(0.05, 0, 0, 80)})
+        tween:Play()
     end)
 end
 -- ==================== Locations Tab (Min & Max) ====================
@@ -138,6 +147,14 @@ locSpawnBtn.TextSize = 30
 locSpawnBtn.Font = Enum.Font.GothamBold
 locSpawnBtn.Parent = locContent
 Instance.new("UICorner", locSpawnBtn).CornerRadius = UDim.new(0, 14)
+-- إنشاء النقطة للتحميل داخل الزر
+local locLoadingDot = Instance.new("Frame")
+locLoadingDot.Size = UDim2.new(0, 20, 0, 20)
+locLoadingDot.Position = UDim2.new(1, -30, 0.5, -10)
+locLoadingDot.BackgroundColor3 = Color3.fromHex("#22B365")
+locLoadingDot.Visible = false
+locLoadingDot.Parent = locSpawnBtn
+Instance.new("UICorner", locLoadingDot).CornerRadius = UDim.new(1, 0) -- دائرة
 -- ==================== Players Tab ====================
 local playersContent = tabContents["Players"]
 local scroll = Instance.new("ScrollingFrame")
@@ -187,6 +204,14 @@ playersSpawnBtn.TextSize = 30
 playersSpawnBtn.Font = Enum.Font.GothamBold
 playersSpawnBtn.Parent = playersContent
 Instance.new("UICorner", playersSpawnBtn).CornerRadius = UDim.new(0, 14)
+-- إنشاء النقطة للتحميل داخل الزر
+local playersLoadingDot = Instance.new("Frame")
+playersLoadingDot.Size = UDim2.new(0, 20, 0, 20)
+playersLoadingDot.Position = UDim2.new(1, -30, 0.5, -10)
+playersLoadingDot.BackgroundColor3 = Color3.fromHex("#22B365")
+playersLoadingDot.Visible = false
+playersLoadingDot.Parent = playersSpawnBtn
+Instance.new("UICorner", playersLoadingDot).CornerRadius = UDim.new(1, 0) -- دائرة
 -- ==================== Teleport Tab ====================
 local tpContent = tabContents["Teleport"]
 -- أزرار التليبورت الجديدة (بدون وظائف بعد)
@@ -492,20 +517,35 @@ local function executeSelected(tabType)
         end
     end
 end
--- دالة الكول داون
+-- دالة لتشغيل أنيميشن التلاشي للنقطة
+local function startLoadingAnimation(dot)
+    dot.Visible = true
+    local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true)
+    local tween = TweenService:Create(dot, tweenInfo, {Transparency = 1})
+    tween:Play()
+    return tween
+end
+-- دالة الكول داون مع النقطة بدلاً من الرمادي
 local function startCooldown(tabType)
+    local dot, btn
     if tabType == "Locations" then
         isOnCooldownLocations = true
-        locSpawnBtn.BackgroundColor3 = Color3.fromRGB(128,128,128) -- رمادي
-        task.wait(cooldownTime)
-        isOnCooldownLocations = false
-        locSpawnBtn.BackgroundColor3 = Color3.fromRGB(52, 50, 82) -- رجع #343252
+        dot = locLoadingDot
+        btn = locSpawnBtn
     elseif tabType == "Players" then
         isOnCooldownPlayers = true
-        playersSpawnBtn.BackgroundColor3 = Color3.fromRGB(128,128,128) -- رمادي
-        task.wait(cooldownTime)
+        dot = playersLoadingDot
+        btn = playersSpawnBtn
+    end
+    local tween = startLoadingAnimation(dot)
+    task.wait(cooldownTime)
+    tween:Cancel()
+    dot.Transparency = 0
+    dot.Visible = false
+    if tabType == "Locations" then
+        isOnCooldownLocations = false
+    elseif tabType == "Players" then
         isOnCooldownPlayers = false
-        playersSpawnBtn.BackgroundColor3 = Color3.fromRGB(52, 50, 82) -- رجع #343252
     end
 end
 -- ربط زر Spawn لـ Locations
