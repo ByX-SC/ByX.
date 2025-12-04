@@ -622,8 +622,7 @@ local function initAvatar()
 
     -- إنشاء Frame للـ Viewport (لاصق من اليمين للواجهة الرئيسية)
     local avatarFrame = Instance.new("Frame")
-    avatarFrame.Size = UDim2.new(0, 360, 0, 420)
-    avatarFrame.Position = UDim2.new(0, 390, 0.5, -210) -- لاصق من اليمين مع مركزة عموديًا
+    avatarFrame.Size = UDim2.new(0, 200, 0, 580) -- صغّرنا العرض + نفس طول الواجهة الرئيسية
     avatarFrame.BackgroundColor3 = Color3.new(1, 1, 1) -- ليظهر التدرج
     avatarFrame.BorderSizePixel = 0
     avatarFrame.Parent = screenGui
@@ -645,6 +644,22 @@ local function initAvatar()
     avatarStroke.Thickness = 3
     avatarStroke.Color = Color3.fromRGB(0, 0, 0)
     avatarStroke.Parent = avatarFrame
+
+    -- ربط الموقع بالواجهة الرئيسية (ثابت حتى مع السحب)
+    avatarFrame.Position = UDim2.new(
+        mainFrame.Position.X.Scale,
+        mainFrame.Position.X.Offset + mainFrame.Size.X.Offset + 10,
+        mainFrame.Position.Y.Scale,
+        mainFrame.Position.Y.Offset
+    )
+    mainFrame:GetPropertyChangedSignal("Position"):Connect(function()
+        avatarFrame.Position = UDim2.new(
+            mainFrame.Position.X.Scale,
+            mainFrame.Position.X.Offset + mainFrame.Size.X.Offset + 10,
+            mainFrame.Position.Y.Scale,
+            mainFrame.Position.Y.Offset
+        )
+    end)
 
     -- ViewportFrame
     local viewport = Instance.new("ViewportFrame")
