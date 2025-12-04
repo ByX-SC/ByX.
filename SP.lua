@@ -1,4 +1,3 @@
--- خدمات روبلوكس
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -93,7 +92,9 @@ local function setTransparency(frame, trans)
         if f:IsA("ImageLabel") or f:IsA("ImageButton") then
             f.ImageTransparency = trans
         end
-        f.BackgroundTransparency = trans
+        if not f:IsA("ScrollingFrame") then
+            f.BackgroundTransparency = trans
+        end
         for _, child in ipairs(f:GetChildren()) do
             if child:IsA("GuiObject") then
                 recurse(child)
@@ -115,8 +116,10 @@ local function fadeFrame(frame, startTrans, endTrans, info)
             table.insert(tweens, TweenService:Create(f, info, {ImageTransparency = endTrans}))
         end
         if f:IsA("Frame") or f:IsA("ScrollingFrame") or f:IsA("TextButton") or f:IsA("ImageButton") then
-            f.BackgroundTransparency = startTrans
-            table.insert(tweens, TweenService:Create(f, info, {BackgroundTransparency = endTrans}))
+            if not f:IsA("ScrollingFrame") then
+                f.BackgroundTransparency = startTrans
+                table.insert(tweens, TweenService:Create(f, info, {BackgroundTransparency = endTrans}))
+            end
         end
         for _, child in ipairs(f:GetChildren()) do
             if child:IsA("GuiObject") then
