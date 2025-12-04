@@ -84,23 +84,17 @@ for i, name in ipairs(tabNames) do
     content.Parent = mainFrame
     tabContents[name] = content
 end
--- تبديل التبويبات مع أنيميشن slide من اليمين
-local currentTab = "Locations"
+-- تبديل التبويبات بدون أنيميشن
 for _, name in ipairs(tabNames) do
     tabButtons[name].MouseButton1Click:Connect(function()
         for k, b in pairs(tabButtons) do
             b.BackgroundColor3 = Color3.fromRGB(102, 65, 129) -- غير نشط #664181
-            if tabContents[k].Visible then
-                tabContents[k].Visible = false
-            end
+            tabContents[k].Visible = false
         end
         tabButtons[name].BackgroundColor3 = Color3.fromRGB(62, 39, 78) -- نشط #3E274E
         local newContent = tabContents[name]
-        newContent.Position = UDim2.new(1, 0, 0, 80) -- ابدأ من اليمين خارج الشاشة
+        newContent.Position = UDim2.new(0.05, 0, 0, 80)
         newContent.Visible = true
-        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-        local tween = TweenService:Create(newContent, tweenInfo, {Position = UDim2.new(0.05, 0, 0, 80)})
-        tween:Play()
     end)
 end
 -- ==================== Locations Tab (Min & Max) ====================
@@ -111,6 +105,16 @@ minBtn.Position = UDim2.new(0.05, 0, 0, 20)
 minBtn.BackgroundColor3 = Color3.fromRGB(102, 65, 129) -- #664181
 minBtn.Text = "Min Lobby"
 minBtn.TextColor3 = Color3.new(1,1,1)
+minBtn.TextSize = 30
+minBtn.Font = Enum.Font.GothamBold
+minBtn.Parent = locContent
+Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 14)
+local maxBtn = Instance.new("TextButton")
+maxBtn.Size = UDim2.new(0.9, 0, 0, 70)
+maxBtn.Position = UDim2.new(0.05, 0, 0, 110)
+maxBtn.BackgroundColor3 = Color3.fromRGB(102, 65, 129) -- #664181
+maxBtn.Text = "Max"
+maxBtn.TextColor3 = Color3.new(1,1,1)
 minBtn.TextSize = 30
 minBtn.Font = Enum.Font.GothamBold
 minBtn.Parent = locContent
