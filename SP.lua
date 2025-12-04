@@ -84,23 +84,65 @@ for i, name in ipairs(tabNames) do
     content.Parent = mainFrame
     tabContents[name] = content
 end
--- تبديل التبويبات مع أنيميشن slide من اليمين
+-- دالة لتعيين الشفافية بشكل فوري
+local function setTransparency(frame, trans)
+    local function recurse(f)
+        if f:IsA("TextLabel") or f:IsA("TextButton") then
+            f.TextTransparency = trans
+        end
+        if f:IsA("ImageLabel") or f:IsA("ImageButton") then
+            f.ImageTransparency = trans
+        end
+        f.BackgroundTransparency = trans
+        for _, child in ipairs(f:GetChildren()) do
+            if child:IsA("GuiObject") then
+                recurse(child)
+            end
+        end
+    end
+    recurse(frame)
+end
+-- دالة لتلاشي الإطار
+local function fadeFrame(frame, startTrans, endTrans, info)
+    local tweens = {}
+    local function recurse(f)
+        if f:IsA("TextLabel") or f:IsA("TextButton") then
+            f.TextTransparency = startTrans
+            table.insert(tweens, TweenService:Create(f, info, {TextTransparency = endTrans}))
+        end
+        if f:IsA("ImageLabel") or f:IsA("ImageButton") then
+            f.ImageTransparency = startTrans
+            table.insert(tweens, TweenService:Create(f, info, {ImageTransparency = endTrans}))
+        end
+        if f:IsA("Frame") or f:IsA("ScrollingFrame") or f:IsA("TextButton") or f:IsA("ImageButton") then
+            f.BackgroundTransparency = startTrans
+            table.insert(tweens, TweenService:Create(f, info, {BackgroundTransparency = endTrans}))
+        end
+        for _, child in ipairs(f:GetChildren()) do
+            if child:IsA("GuiObject") then
+                recurse(child)
+            end
+        end
+    end
+    recurse(frame)
+    for _, t in ipairs(tweens) do
+        t:Play()
+    end
+end
+-- تبديل التبويبات مع تلاشي سلس
 local currentTab = "Locations"
 for _, name in ipairs(tabNames) do
     tabButtons[name].MouseButton1Click:Connect(function()
         for k, b in pairs(tabButtons) do
             b.BackgroundColor3 = Color3.fromRGB(102, 65, 129) -- غير نشط #664181
-            if tabContents[k].Visible then
-                tabContents[k].Visible = false
-            end
+            tabContents[k].Visible = false
         end
         tabButtons[name].BackgroundColor3 = Color3.fromRGB(62, 39, 78) -- نشط #3E274E
         local newContent = tabContents[name]
-        newContent.Position = UDim2.new(1, 0, 0, 80) -- ابدأ من اليمين خارج الشاشة
+        setTransparency(newContent, 1)
         newContent.Visible = true
-        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-        local tween = TweenService:Create(newContent, tweenInfo, {Position = UDim2.new(0.05, 0, 0, 80)})
-        tween:Play()
+        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+        fadeFrame(newContent, 1, 0, tweenInfo)
     end)
 end
 -- ==================== Locations Tab (Min & Max) ====================
