@@ -622,7 +622,7 @@ local function initAvatar()
 
     -- إنشاء Frame للـ Viewport (لاصق من اليمين للواجهة الرئيسية)
     local avatarFrame = Instance.new("Frame")
-    avatarFrame.Size = UDim2.new(0, 200, 0, 580) -- صغّرنا العرض + نفس طول الواجهة الرئيسية
+    avatarFrame.Size = UDim2.new(0, 360, 0, 420) -- الحجم المطلوب
     avatarFrame.BackgroundColor3 = Color3.fromRGB(16, 15, 32) -- ليطابق الثيم المطلوب
     avatarFrame.BorderSizePixel = 0
     avatarFrame.Parent = screenGui
@@ -639,24 +639,21 @@ local function initAvatar()
     uicorner.CornerRadius = UDim.new(0, 15) -- ليطابق الثيم المطلوب
     uicorner.Parent = avatarFrame
 
-    local avatarStroke = Instance.new("UIStroke")
-    avatarStroke.Thickness = 3
-    avatarStroke.Color = Color3.fromRGB(0, 0, 0)
-    avatarStroke.Parent = avatarFrame
-
-    -- ربط الموقع بالواجهة الرئيسية (ثابت حتى مع السحب)
+    -- ربط الموقع بالواجهة الرئيسية (ثابت حتى مع السحب، مركز عمودي)
+    local mainHeight = mainFrame.Size.Y.Offset
+    local avatarHeight = 420
     avatarFrame.Position = UDim2.new(
         mainFrame.Position.X.Scale,
         mainFrame.Position.X.Offset + mainFrame.Size.X.Offset + 10,
         mainFrame.Position.Y.Scale,
-        mainFrame.Position.Y.Offset
+        mainFrame.Position.Y.Offset + (mainHeight - avatarHeight) / 2
     )
     mainFrame:GetPropertyChangedSignal("Position"):Connect(function()
         avatarFrame.Position = UDim2.new(
             mainFrame.Position.X.Scale,
             mainFrame.Position.X.Offset + mainFrame.Size.X.Offset + 10,
             mainFrame.Position.Y.Scale,
-            mainFrame.Position.Y.Offset
+            mainFrame.Position.Y.Offset + (mainHeight - avatarHeight) / 2
         )
     end)
 
@@ -668,7 +665,7 @@ local function initAvatar()
     viewport.LightColor = Color3.new(1, 1, 1)
     viewport.Parent = avatarFrame
 
-    -- WorldModel للإضاءة الصحيحة (لضمان ظهور الشخصية)
+    -- WorldModel للإضاءة الصحيحة
     local worldModel = Instance.new("WorldModel")
     worldModel.Parent = viewport
 
@@ -694,7 +691,14 @@ local function initAvatar()
         charClone.PrimaryPart = charClone:FindFirstChild("HumanoidRootPart")
     end
 
-    -- نحسب مركز الشخصية تلقائياً
+    -- مركز الشخصية في المستطيل
+    local modelCFrame, modelSize = charClone:GetBoundingBox()
+    local center = modelCFrame.Position
+    local oldCFrame = charClone.PrimaryPart.CFrame
+    local newPosition = oldCFrame.Position - center
+    charClone:SetPrimaryPartCFrame(CFrame.new(newPosition) * oldCFrame.Rotation)
+
+    -- نحسب مركز الشخصية تلقائياً (الآن حوالي 0 بعد المركزة)
     local function getCharacterCenter()
         local lowestY = math.huge
         local highestY = -math.huge
@@ -705,13 +709,14 @@ local function initAvatar()
             end
         end
         local centerY = (lowestY + highestY) / 2
-        return Vector3.new(charClone.PrimaryPart.Position.X, centerY, charClone.PrimaryPart.Position.Z)
+        return Vector3.new(0, centerY, 0)
     end
 
-    -- تحديث الكاميرا لتكون في منتصف الشخصية
+    -- تحديث الكاميرا لتكون في منتصف الشخصية مع تعديل الحجم (مسافة أكبر للتناسب)
     local function updateCamera()
         local center = getCharacterCenter()
-        cam.CFrame = CFrame.new(center + Vector3.new(0, 0, 8), center)
+        local distance = 12 -- مسافة مُعدلة للتناسب مع الحجم (يمكن زيادتها إذا كانت الشخصية كبيرة)
+        cam.CFrame = CFrame.lookAt(Vector3.new(0, 0, distance), center)
     end
 
     renderConn = RunService.RenderStepped:Connect(function()
