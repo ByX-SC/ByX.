@@ -1,3026 +1,2891 @@
--- Load Rayfield UI Library with retry mechanism  
-local success, Rayfield  
-local maxAttempts, attempt = 3, 1  
-while attempt <= maxAttempts and not success do  
-    success, Rayfield = pcall(function() return loadstring(game:HttpGet('https://sirius.menu/rayfield'))() end)  
-    if not success then  
-        warn("Failed to load Rayfield (Attempt " .. attempt .. "): " .. tostring(Rayfield))  
-        task.wait(1)  
-        attempt = attempt + 1  
-    end  
-end  
-if not success then  
-    warn("Failed to load Rayfield after " .. maxAttempts .. " attempts.")  
-    return  
-end  
-print("Rayfield loaded successfully!")  
-  
--- Random theme selection (initial theme)  
-local themes = {"Ocean", "Amethyst", "DarkBlue"}  
-local randomIndex = math.random(1, #themes)  
-local randomTheme = themes[randomIndex]  
-  
--- Create the Window with KeySystem disabled for testing  
-local Window = Rayfield:CreateWindow({  
-    Name = "Valley Prison ByX",  
-    LoadingTitle = ".",  
-    LoadingSubtitle = "ByX",  
-    ConfigurationSaving = { Enabled = false },  
-    Discord = { Enabled = false },  
-    KeySystem = false,  
-    KeySettings = {  
-        Title = "Valley Prison ByX",  
-        Subtitle = "Enter the key to unlock the script",  
-        Note = ".",  
-        Key = "BYXVALLYPRISON_BEST2025ioiup_V2",  
-        SaveKey = false,  
-        WrongKeyMessage = "Incorrect key! Please try again.",  
-        CorrectKeyMessage = "Script unlocked successfully!"  
-    },  
-    Theme = randomTheme  
-})  
-  
--- Verify Window creation  
-if not Window then  
-    warn("Failed to create Rayfield window.")  
-    return  
-else  
-    print("Rayfield window created successfully!")  
-end  
-  
--- Services  
-local RunService = game:GetService("RunService")  
-local Players = game:GetService("Players")  
-local UserInputService = game:GetService("UserInputService")  
-local Camera = workspace.CurrentCamera  
-local LocalPlayer = Players.LocalPlayer  
-local Mouse = LocalPlayer:GetMouse()  
-local prisonerTeams = {"Minimum Security", "Medium Security", "Maximum Security"}  
-  
--- Variables  
-local infiniteStaminaEnabled = false  
-local speed = 16  
-local infjumpv2 = false  
-local antiOCSprayEnabled = false  
-local antiOCSprayHumanoidConnection = nil  
-local antiOCSprayHumanoidConnection2 = nil  
-local antiOCSprayGuiConnection = nil  
-local antiOCSprayEffectConnection = nil  
-local antiOCSprayToolConnection = nil  
-local antiArrestEnabled = false  
-local antiTazeEnabled = false  
-local antiArrestConnection = nil  
-local originalCuffsState = false  
-local antiTazeHumanoidConnection = nil  
-local antiTazeHumanoidConnection2 = nil  
-local antiTazeGuiConnection = nil  
-local antiTazeEffectConnection = nil  
-local antiTazeToolConnection = nil  
-  
--- // INFO TAB  
-local InfoTab = Window:CreateTab("Info", 4483362458)  
-  
-InfoTab:CreateButton({  
-    Name = "Copy YouTube Link",  
-    Callback = function()  
-        local link = "https://www.youtube.com/@6rb-l5r"  
-        if setclipboard then  
-            setclipboard(link)  
-            Rayfield:Notify({ Title = "Link Copied!", Content = "The link has been copied to your clipboard.", Duration = 3, Image = 4483362458 })  
-        else  
-            Rayfield:Notify({ Title = "Error", Content = "Your executor does not support clipboard copying. Link: " .. link, Duration = 5, Image = 4483362458 })  
-        end  
-    end  
-})  
-  
--- // VISUALS SECTION (ESP, Xray, 3D Box, Material ESP) 
-local VisualsTab = Window:CreateTab("Visuals", 4483362458) 
- 
-local ESPEnabled = false 
-local ShowHealth = false 
-local ShowInventory = false 
-local ESPObjects = {} 
-local xrayEnabled = false 
-local Box3DEnabled = false 
-local Box3DObjects = {} 
-local materialESPEnabled = false 
-local materialHighlights = {} 
-local boxEnabled = false 
-local boxAdornments = {} 
-local ventsEnabled = false 
-local ventHighlights = {} 
-local garbageEnabled = false 
-local garbageHighlights = {} 
-local espSettings = { 
-    Enabled = false, 
-    ShowDistance = true, 
-    MaxDistance = 1000, 
-    LineColor = Color3.fromRGB(255, 255, 255), 
-    Thickness = 1, 
-    Transparency = 0.8 
-} 
-local espObjects = {} 
-local connections = {} 
-local autoRefreshEnabled = false 
-local autoRefreshConnection = nil 
- 
-local drawings = {} 
-local connection 
-local players = game:GetService("Players") 
-local localPlayer = players.LocalPlayer 
-local camera = workspace.CurrentCamera 
- 
--- State variables for new ESP features 
-local enableMainESP = false 
-local showBox = false 
-local show3DBox = false 
-local showHealthNew = false 
-local showName = false 
-local showDist = false 
-local showTool = false 
- 
--- Health Bar settings 
-local healthTransparency = 1 -- Default max transparency (100%) 
-local healthThickness = 1 -- Default thickness for foreground (bg will be +2) 
- 
--- Box Transparency settings 
-local box2DTransparency = 1 
-local box3DTransparency = 1 
- 
--- Box Thickness settings 
-local box2DThickness = 1 
-local box3DThickness = 1 
- 
--- Max Distance for New ESP (to reduce lag) 
-local maxDistance = 1000 
- 
--- Auto Clean settings 
-local autoCleanEnabled = false 
-local autoCleanConnection = nil 
-local cleanTimer = 0 
- 
-local function getCharacter(player) 
-    return player.Character 
-end 
- 
-local function createNewESP(player) 
-    if player == localPlayer then return end 
- 
-    -- 2D Box 
-    local box = Drawing.new("Square") 
-    box.Thickness = box2DThickness 
-    box.Filled = false 
-    box.Color = Color3.new(1, 1, 1) 
-    box.Visible = false 
- 
-    -- 3D Box Lines (12 lines for a full box) 
-    local lines = {} 
-    for i = 1, 12 do 
-        local line = Drawing.new("Line") 
-        line.Thickness = box3DThickness 
-        line.Color = Color3.new(1, 1, 1) 
-        line.Visible = false 
-        lines[i] = line 
-    end 
- 
-    -- Health Bar 
-    local healthBg = Drawing.new("Line") 
-    healthBg.Color = Color3.new(0, 0, 0) -- Black background/border 
-    healthBg.Visible = false 
- 
-    local healthFg = Drawing.new("Line") 
-    healthFg.Color = Color3.new(0, 1, 0) 
-    healthFg.Visible = false 
- 
-    -- Texts 
-    local nameText = Drawing.new("Text") 
-    nameText.Size = 12 
-    nameText.Center = true 
-    nameText.Outline = true 
-    nameText.Color = Color3.new(1, 1, 1) 
-    nameText.Font = Drawing.Fonts.UI 
-    nameText.Visible = false 
- 
-    local distText = Drawing.new("Text") 
-    distText.Size = 13 
-    distText.Center = true 
-    distText.Outline = true 
-    distText.Color = Color3.new(1, 1, 1) 
-    distText.Font = Drawing.Fonts.UI 
-    distText.Visible = false 
- 
-    local toolText = Drawing.new("Text") 
-    toolText.Size = 13 
-    toolText.Center = true 
-    toolText.Outline = true 
-    toolText.Color = Color3.new(1, 1, 1) 
-    toolText.Font = Drawing.Fonts.UI 
-    toolText.Visible = false 
- 
-    drawings[player] = { 
-        box = box, 
-        lines = lines, 
-        healthBg = healthBg, 
-        healthFg = healthFg, 
-        name = nameText, 
-        dist = distText, 
-        tool = toolText 
-    } 
-end 
- 
-local function updateNewESP() 
-    local myChar = getCharacter(localPlayer) 
-    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end 
-    local myRoot = myChar.HumanoidRootPart 
- 
-    for player, draws in pairs(drawings) do 
-        local char = getCharacter(player) 
-        if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") and char.Humanoid.Health > 0 then 
-            local root = char.HumanoidRootPart 
-            local dist = (myRoot.Position - root.Position).Magnitude 
-            if dist > maxDistance then 
-                for _, d in pairs(draws) do  
-                    if typeof(d) == "table" then 
-                        for _, line in ipairs(d) do line.Visible = false end 
-                    else 
-                        d.Visible = false  
-                    end 
-                end 
-                continue 
-            end 
- 
-            local humanoid = char.Humanoid 
-            local head = char:FindFirstChild("Head") 
-            if head then 
-                local pos, onScreen = camera:WorldToViewportPoint(root.Position) 
-                if not onScreen then 
-                    for _, d in pairs(draws) do  
-                        if typeof(d) == "table" then 
-                            for _, line in ipairs(d) do line.Visible = false end 
-                        else 
-                            d.Visible = false  
-                        end 
-                    end 
-                    continue 
-                end 
- 
-                local headPos = camera:WorldToViewportPoint(head.Position + Vector3.new(0, 1, 0)) 
-                local legPos = camera:WorldToViewportPoint(root.Position - Vector3.new(0, 4, 0)) 
-                local sizeY = math.abs(headPos.Y - legPos.Y) 
-                local sizeX = sizeY / 2 
- 
-                -- 2D Box (if enabled) 
-                if showBox then 
-                    draws.box.Size = Vector2.new(sizeX, sizeY) 
-                    draws.box.Position = Vector2.new(pos.X - sizeX / 2, pos.Y - sizeY / 2) 
-                    draws.box.Color = player.Team and player.Team.TeamColor.Color or Color3.new(1, 1, 1) 
-                    draws.box.Transparency = box2DTransparency 
-                    draws.box.Thickness = box2DThickness 
-                    draws.box.Visible = true 
-                else 
-                    draws.box.Visible = false 
-                end 
- 
-                -- 3D Box (if enabled) 
-                if show3DBox then 
-                    local teamColor = player.Team and player.Team.TeamColor.Color or Color3.new(1, 1, 1) 
-                    local halfSize = Vector3.new(2, 5, 1) / 2  -- Approx character size: width 2, height 5, depth 1 
-                    local corners = { 
-                        root.CFrame * CFrame.new(-halfSize.X, -halfSize.Y, -halfSize.Z).Position, 
-                        root.CFrame * CFrame.new(halfSize.X, -halfSize.Y, -halfSize.Z).Position, 
-                        root.CFrame * CFrame.new(halfSize.X, halfSize.Y, -halfSize.Z).Position, 
-                        root.CFrame * CFrame.new(-halfSize.X, halfSize.Y, -halfSize.Z).Position, 
-                        root.CFrame * CFrame.new(-halfSize.X, -halfSize.Y, halfSize.Z).Position, 
-                        root.CFrame * CFrame.new(halfSize.X, -halfSize.Y, halfSize.Z).Position, 
-                        root.CFrame * CFrame.new(halfSize.X, halfSize.Y, halfSize.Z).Position, 
-                        root.CFrame * CFrame.new(-halfSize.X, halfSize.Y, halfSize.Z).Position 
-                    } 
- 
-                    local screenCorners = {} 
-                    local allOnScreen = true 
-                    for i, corner in ipairs(corners) do 
-                        local screenPos, visible = camera:WorldToViewportPoint(corner) 
-                        screenCorners[i] = Vector2.new(screenPos.X, screenPos.Y) 
-                        if not visible then 
-                            allOnScreen = false 
-                            break 
-                        end 
-                    end 
- 
-                    if allOnScreen then 
-                        local lineConnections = { 
-                            {1,2}, {2,3}, {3,4}, {4,1},  -- Front face 
-                            {5,6}, {6,7}, {7,8}, {8,5},  -- Back face 
-                            {1,5}, {2,6}, {3,7}, {4,8}   -- Connecting lines 
-                        } 
- 
-                        for i, conn in ipairs(lineConnections) do 
-                            draws.lines[i].From = screenCorners[conn[1]] 
-                            draws.lines[i].To = screenCorners[conn[2]] 
-                            draws.lines[i].Color = teamColor 
-                            draws.lines[i].Transparency = box3DTransparency 
-                            draws.lines[i].Thickness = box3DThickness 
-                            draws.lines[i].Visible = true 
-                        end 
-                    else 
-                        for _, line in ipairs(draws.lines) do line.Visible = false end 
-                    end 
-                else 
-                    for _, line in ipairs(draws.lines) do line.Visible = false end 
-                end 
- 
-                -- Health Bar (if enabled) with black borders 
-                if showHealthNew then 
-                    local healthPct = humanoid.Health / humanoid.MaxHealth 
-                    local barHeight = sizeY 
-                    local barPosX = (pos.X - sizeX / 2) - 6 
-                    local barBottomY = pos.Y + sizeY / 2 
-                    local barTopY = barBottomY - barHeight 
- 
-                    -- Update thickness dynamically 
-                    draws.healthBg.Thickness = healthThickness + 2 
-                    draws.healthFg.Thickness = healthThickness 
- 
-                    -- Background (thicker black for border effect) 
-                    draws.healthBg.From = Vector2.new(barPosX, barBottomY) 
-                    draws.healthBg.To = Vector2.new(barPosX, barTopY) 
-                    draws.healthBg.Transparency = healthTransparency 
-                    draws.healthBg.Visible = true 
- 
-                    -- Foreground (original HSV colors) 
-                    draws.healthFg.From = Vector2.new(barPosX, barBottomY) 
-                    draws.healthFg.To = Vector2.new(barPosX, barBottomY - (barHeight * healthPct)) 
-                    draws.healthFg.Color = Color3.fromHSV(healthPct * 0.333, 1, 1) -- Original green to red 
-                    draws.healthFg.Transparency = healthTransparency 
-                    draws.healthFg.Visible = true 
-                else 
-                    draws.healthBg.Visible = false 
-                    draws.healthFg.Visible = false 
-                end 
- 
-                -- Name (if enabled) 
-                if showName then 
-                    draws.name.Text = player.DisplayName .. " (" .. player.Name .. ")" 
-                    draws.name.Position = Vector2.new(pos.X, (pos.Y - sizeY / 2) - 22) 
-                    draws.name.Visible = true 
-                else 
-                    draws.name.Visible = false 
-                end 
- 
-                -- Distance (if enabled) 
-                if showDist then 
-                    local distTextStr = math.floor(dist) .. " Studs" 
-                    draws.dist.Text = distTextStr 
-                    draws.dist.Position = Vector2.new(pos.X, (pos.Y + sizeY / 2) + 5) 
-                    draws.dist.Visible = true 
-                else 
-                    draws.dist.Visible = false 
-                end 
- 
-                -- Tool (if enabled) 
-                if showTool then 
-                    local tool = char:FindFirstChildOfClass("Tool") 
-                    draws.tool.Text = tool and tool.Name or "Equipped Tool Name Here" 
-                    draws.tool.Position = Vector2.new(pos.X, (pos.Y + sizeY / 2) + 20) 
-                    draws.tool.Visible = true 
-                else 
-                    draws.tool.Visible = false 
-                end 
-            end 
-        else 
-            for _, d in pairs(draws) do  
-                if typeof(d) == "table" then 
-                    for _, line in ipairs(d) do line.Visible = false end 
-                else 
-                    d.Visible = false  
-                end 
-            end 
-            -- Remove drawings if player no longer exists 
-            drawings[player] = nil 
-        end 
-    end 
-end 
- 
-local function enableNewESP() 
-    for _, player in pairs(players:GetPlayers()) do 
-        createNewESP(player) 
-    end 
-    players.PlayerAdded:Connect(createNewESP) 
-    connection = game:GetService("RunService").Heartbeat:Connect(updateNewESP)  -- Changed to Heartbeat for less lag 
-end 
- 
-local function disableNewESP() 
-    if connection then connection:Disconnect() end 
-    for _, draws in pairs(drawings) do 
-        for k, d in pairs(draws) do 
-            if k == "lines" then 
-                for _, line in ipairs(d) do line:Remove() end 
-            else 
-                d:Remove() 
-            end 
-        end 
-    end 
-    drawings = {} 
-end 
- 
-local function refreshNewESP() 
-    disableNewESP() 
-    if showBox or show3DBox or showHealthNew or showName or showDist or showTool then 
-        enableNewESP() 
-    end 
-end 
- 
-local function cleanStuckESPs() 
-    local currentPlayers = {} 
-    for _, player in pairs(Players:GetPlayers()) do 
-        currentPlayers[player] = true 
-    end 
- 
-    -- Clean new ESP drawings 
-    for player, _ in pairs(drawings) do 
-        if not currentPlayers[player] then 
-            local draws = drawings[player] 
-            for k, d in pairs(draws) do 
-                if k == "lines" then 
-                    for _, line in ipairs(d) do line:Remove() end 
-                else 
-                    d:Remove() 
-                end 
-            end 
-            drawings[player] = nil 
-        end 
-    end 
- 
-    -- Clean skeleton ESP 
-    for player, _ in pairs(espObjects) do 
-        if not currentPlayers[player] then 
-            local esp = espObjects[player] 
-            for _, line in pairs(esp.Lines) do 
-                line:Remove() 
-            end 
-            for _, label in pairs(esp.Labels) do 
-                label:Remove() 
-            end 
-            espObjects[player] = nil 
-        end 
-    end 
- 
-    -- Clean 3D Box 
-    for player, _ in pairs(Box3DObjects) do 
-        if not currentPlayers[player] then 
-            Remove3DBox(player) 
-        end 
-    end 
- 
-    -- Clean original ESP 
-    for player, _ in pairs(ESPObjects) do 
-        if not currentPlayers[player] then 
-            RemoveESP(player) 
-        end 
-    end 
-end 
- 
-local function updateInventory(player, espHolder) 
-    if not player or not espHolder or not player.Backpack or not player.Character then 
-        espHolder.InventoryText.Text = "Inventory: N/A" 
-        return 
-    end 
-    local inv = {} 
-    for _, tool in pairs(player.Backpack:GetChildren()) do 
-        if tool:IsA("Tool") then table.insert(inv, tool.Name) end 
-    end 
-    local equipped = player.Character:FindFirstChildOfClass("Tool") 
-    if equipped then table.insert(inv, equipped.Name .. " (equipped)") end 
-    espHolder.InventoryText.Text = #inv == 0 and "Inventory: Empty" or "Inventory: " .. table.concat(inv, ", ") 
-end 
- 
-function CreateESP(player) 
-    if player == LocalPlayer or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") or not player.Character:FindFirstChild("Humanoid") then return end 
-    if not ESPObjects[player] then 
-        local espHolder = {} 
-        local highlight = Instance.new("Highlight") 
-        highlight.Adornee = player.Character 
-        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop 
-        highlight.FillTransparency = 0.3 
-        highlight.FillColor = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255) 
-        highlight.OutlineTransparency = 1 
-        highlight.Enabled = ESPEnabled 
-        highlight.Parent = player.Character 
-         
-        local billboard = Instance.new("BillboardGui") 
-        billboard.Name = "ESP_Billboard" 
-        billboard.Adornee = player.Character.Head 
-        billboard.Size = UDim2.new(0, 200, 0, 100) 
-        billboard.StudsOffset = Vector3.new(0, 2, 0) 
-        billboard.AlwaysOnTop = true 
-        billboard.Enabled = ESPEnabled or ShowHealth or ShowInventory 
-        billboard.Parent = player.Character 
- 
-        local healthText = Instance.new("TextLabel") 
-        healthText.Name = "HealthText" 
-        healthText.Size = UDim2.new(1, 0, 0, 15) 
-        healthText.Position = UDim2.new(0, 0, 0, 10) 
-        healthText.BackgroundTransparency = 1 
-        healthText.TextColor3 = Color3.fromRGB(255, 255, 255) 
-        healthText.TextSize = 12 
-        healthText.Font = Enum.Font.SourceSansBold 
-        healthText.TextStrokeTransparency = 0 
-        healthText.TextStrokeColor3 = Color3.fromRGB(0, 0, 0) 
-        healthText.Text = "HP: N/A" 
-        healthText.Visible = ShowHealth 
-        healthText.Parent = billboard 
- 
-        local inventoryText = Instance.new("TextLabel") 
-        inventoryText.Name = "InventoryText" 
-        inventoryText.Size = UDim2.new(1, 0, 0, 15) 
-        inventoryText.Position = UDim2.new(0, 0, 0, 25) 
-        inventoryText.BackgroundTransparency = 1 
-        inventoryText.TextColor3 = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255) 
-        inventoryText.TextSize = 12 
-        inventoryText.Font = Enum.Font.SourceSansBold 
-        inventoryText.TextStrokeTransparency = 0 
-        inventoryText.TextStrokeColor3 = Color3.fromRGB(0, 0, 0) 
-        inventoryText.Text = "Inventory: N/A" 
-        inventoryText.Visible = ShowInventory and player.Team and table.find(prisonerTeams, player.Team.Name) 
-        inventoryText.Parent = billboard 
- 
-        local humanoid = player.Character.Humanoid 
-        if humanoid then 
-            local function updateHealth() 
-                if not player.Character or not humanoid or not healthText.Visible then 
-                    healthText.Text = "HP: N/A" 
-                    healthText.TextColor3 = Color3.fromRGB(255, 255, 255) 
-                    return 
-                end 
-                local healthPercent = humanoid.Health / humanoid.MaxHealth 
-                local hpValue = math.floor(humanoid.Health) .. "/" .. math.floor(humanoid.MaxHealth) 
-                healthText.Text = "HP: " .. hpValue 
-                if healthPercent >= 0.7 then 
-                    healthText.TextColor3 = Color3.fromRGB(0, 255, 0) -- Green 
-                elseif healthPercent >= 0.3 then 
-                    healthText.TextColor3 = Color3.fromRGB(255, 165, 0) -- Orange 
-                else 
-                    healthText.TextColor3 = Color3.fromRGB(255, 0, 0) -- Red 
-                end 
-            end 
-            updateHealth() 
-            humanoid:GetPropertyChangedSignal("Health"):Connect(updateHealth) 
-            humanoid:GetPropertyChangedSignal("MaxHealth"):Connect(updateHealth) 
-        end 
- 
-        if player.Team and table.find(prisonerTeams, player.Team.Name) then 
-            updateInventory(player, { InventoryText = inventoryText }) 
-            player.Backpack.ChildAdded:Connect(function() updateInventory(player, { InventoryText = inventoryText }) end) 
-            player.Backpack.ChildRemoved:Connect(function() updateInventory(player, { InventoryText = inventoryText }) end) 
-            player.Character.ChildAdded:Connect(function(child) if child:IsA("Tool") then updateInventory(player, { InventoryText = inventoryText }) end end) 
-            player.Character.ChildRemoved:Connect(function(child) if child:IsA("Tool") then updateInventory(player, { InventoryText = inventoryText }) end end) 
-        end 
- 
-        espHolder.Highlight = highlight 
-        espHolder.Billboard = billboard 
-        espHolder.HealthText = healthText 
-        espHolder.InventoryText = inventoryText 
-        ESPObjects[player] = espHolder 
-    end 
-end 
- 
-function RemoveESP(player) 
-    if ESPObjects[player] then 
-        if ESPObjects[player].Highlight then ESPObjects[player].Highlight:Destroy() end 
-        if ESPObjects[player].Billboard then ESPObjects[player].Billboard:Destroy() end 
-        ESPObjects[player] = nil 
-    end 
-end 
- 
-local function RefreshESP() 
-    for _, espHolder in pairs(ESPObjects) do 
-        if espHolder.Highlight then espHolder.Highlight:Destroy() end 
-        if espHolder.Billboard then espHolder.Billboard:Destroy() end 
-    end 
-    ESPObjects = {} 
-    if not (ESPEnabled or ShowHealth or ShowInventory) then return end 
-    for _, player in pairs(Players:GetPlayers()) do 
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then 
-            CreateESP(player) 
-        end 
-    end 
-end 
- 
-local function UpdateESPVisibilities() 
-    for player, espHolder in pairs(ESPObjects) do 
-        if espHolder.Highlight then espHolder.Highlight.Enabled = ESPEnabled end 
-        if espHolder.Billboard then espHolder.Billboard.Enabled = ESPEnabled or ShowHealth or ShowInventory end 
-        if espHolder.HealthText then espHolder.HealthText.Visible = ShowHealth end 
-        if espHolder.InventoryText then  
-            espHolder.InventoryText.Visible = ShowInventory and player.Team and table.find(prisonerTeams, player.Team.Name) or false  
-        end 
-    end 
-end 
- 
-local function CleanupUnusedESP() 
-    if ESPEnabled or ShowHealth or ShowInventory then return end 
-    for player in pairs(ESPObjects) do 
-        RemoveESP(player) 
-    end 
-    ESPObjects = {} 
-end 
- 
-local function Create3DBox(player) 
-    if player == LocalPlayer or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end 
-    if not Box3DObjects[player] then 
-        local boxLines = {} 
-        for i = 1, 12 do 
-            local line = Drawing.new("Line") 
-            line.Visible = false 
-            line.Color = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255) 
-            line.Thickness = 1 
-            line.Transparency = 1 
-            table.insert(boxLines, line) 
-        end 
-        Box3DObjects[player] = {Lines = boxLines, Color = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255)} 
-    end 
-end 
- 
-local function Remove3DBox(player) 
-    if Box3DObjects[player] then 
-        for _, line in pairs(Box3DObjects[player].Lines) do 
-            line:Remove() 
-        end 
-        Box3DObjects[player] = nil 
-    end 
-end 
- 
-local function Update3DBox(player) 
-    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end 
-    local root = player.Character.HumanoidRootPart 
-    local parts = player.Character:GetChildren() 
-    local min, max = Vector3.new(math.huge, math.huge, math.huge), Vector3.new(-math.huge, -math.huge, -math.huge) 
-    for _, part in pairs(parts) do 
-        if part:IsA("BasePart") then 
-            min = Vector3.new(math.min(min.X, part.Position.X - part.Size.X/2), math.min(min.Y, part.Position.Y - part.Size.Y/2), math.min(min.Z, part.Position.Z - part.Size.Z/2)) 
-            max = Vector3.new(math.max(max.X, part.Position.X + part.Size.X/2), math.max(max.Y, part.Position.Y + part.Size.Y/2), math.max(max.Z, part.Position.Z + part.Size.Z/2)) 
-        end 
-    end 
-    local corners = { 
-        Vector3.new(min.X, min.Y, min.Z), 
-        Vector3.new(max.X, min.Y, min.Z), 
-        Vector3.new(max.X, max.Y, min.Z), 
-        Vector3.new(min.X, max.Y, min.Z), 
-        Vector3.new(min.X, min.Y, max.Z), 
-        Vector3.new(max.X, min.Y, max.Z), 
-        Vector3.new(max.X, max.Y, max.Z), 
-        Vector3.new(min.X, max.Y, max.Z) 
-    } 
-    local screenCorners = {} 
-    local allOnScreen = true 
-    for i, corner in pairs(corners) do 
-        local screenPos, onScreen = camera:WorldToViewportPoint(corner) 
-        screenCorners[i] = {Pos = Vector2.new(screenPos.X, screenPos.Y), OnScreen = onScreen} 
-        allOnScreen = allOnScreen and onScreen 
-    end 
-    local lineConnections = { 
-        {1,2}, {2,3}, {3,4}, {4,1}, 
-        {5,6}, {6,7}, {7,8}, {8,5}, 
-        {1,5}, {2,6}, {3,7}, {4,8} 
-    } 
-    if not allOnScreen then 
-        for _, line in pairs(Box3DObjects[player].Lines) do line.Visible = false end 
-        return 
-    end 
-    for i, conn in pairs(lineConnections) do 
-        local line = Box3DObjects[player].Lines[i] 
-        line.From = screenCorners[conn[1]].Pos 
-        line.To = screenCorners[conn[2]].Pos 
-        line.Visible = true 
-    end 
-end 
- 
-local function Refresh3DBox() 
-    if not Box3DEnabled then 
-        return 
-    end 
-    for player in pairs(Box3DObjects) do 
-        Remove3DBox(player) 
-    end 
-    Box3DObjects = {} 
-    for _, player in pairs(Players:GetPlayers()) do 
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then 
-            Create3DBox(player) 
-            Update3DBox(player) 
-        end 
-    end 
-end 
- 
-local function createMaterialESP(material) 
-    if not materialESPEnabled or not material:IsA("BasePart") or not (material.Material == Enum.Material.Plastic or material.Material == Enum.Material.Metal) then return end 
-    local highlight = Instance.new("Highlight") 
-    highlight.Adornee = material 
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop 
-    highlight.FillTransparency = 0.5 
-    highlight.FillColor = material.Color 
-    highlight.OutlineTransparency = 0 
-    highlight.OutlineColor = Color3.fromRGB(0, 255, 0) 
-    highlight.Parent = material 
-    table.insert(materialHighlights, highlight) 
-end 
- 
-local function refreshMaterialESP() 
-    if not materialESPEnabled then 
-        for _, highlight in pairs(materialHighlights) do 
-            highlight:Destroy() 
-        end 
-        materialHighlights = {} 
-        return 
-    end 
-    for _, highlight in pairs(materialHighlights) do 
-        if highlight and highlight.Adornee and highlight.Adornee.Parent then 
-            highlight.OutlineColor = Color3.fromRGB(0, 255, 0) 
-        else 
-            highlight:Destroy() 
-        end 
-    end 
-    materialHighlights = {} 
-    for _, material in pairs(workspace:GetDescendants()) do 
-        if material:IsA("BasePart") and (material.Material == Enum.Material.Plastic or material.Material == Enum.Material.Metal) then 
-            createMaterialESP(material) 
-        end 
-    end 
-end 
- 
-local function createBoxESP(obj) 
-    if boxAdornments[obj] then return end 
-    local box = Instance.new("BoxHandleAdornment") 
-    box.Adornee = obj 
-    box.Size = obj.Size + Vector3.new(0.2, 0.2, 0.2) 
-    box.Transparency = 0.5 
-    box.Color3 = Color3.fromRGB(255, 255, 0) 
-    box.AlwaysOnTop = true 
-    box.ZIndex = 1 
-    box.Parent = obj 
-    local legLine1 = Instance.new("LineHandleAdornment") 
-    legLine1.Adornee = obj 
-    legLine1.Length = obj.Size.Y / 2 
-    legLine1.Thickness = 0.1 
-    legLine1.Color3 = Color3.fromRGB(255, 255, 255) 
-    legLine1.CFrame = obj.CFrame * CFrame.new(0, -obj.Size.Y / 4, 0) 
-    legLine1.AlwaysOnTop = true 
-    legLine1.Parent = obj 
-    local legLine2 = legLine1:Clone() 
-    legLine2.CFrame = obj.CFrame * CFrame.new(0, -obj.Size.Y / 4, 0.5) 
-    legLine2.Parent = obj 
-    local bodyLine = Instance.new("LineHandleAdornment") 
-    bodyLine.Adornee = obj 
-    bodyLine.Length = obj.Size.X + 0.2 
-    bodyLine.Thickness = 0.1 
-    bodyLine.Color3 = Color3.fromRGB(255, 255, 255) 
-    bodyLine.CFrame = obj.CFrame * CFrame.new(0, 0, 0) 
-    bodyLine.AlwaysOnTop = true 
-    bodyLine.Parent = obj 
-    local armLine1 = Instance.new("LineHandleAdornment") 
-    armLine1.Adornee = obj 
-    armLine1.Length = obj.Size.X / 2 
-    armLine1.Thickness = 0.1 
-    armLine1.Color3 = Color3.fromRGB(255, 255, 255) 
-    armLine1.CFrame = obj.CFrame * CFrame.new(-obj.Size.X / 4, 0, 0) 
-    armLine1.AlwaysOnTop = true 
-    armLine1.Parent = obj 
-    local armLine2 = armLine1:Clone() 
-    armLine2.CFrame = obj.CFrame * CFrame.new(obj.Size.X / 4, 0, 0) 
-    armLine2.Parent = obj 
-    local headCircle = Instance.new("CylinderHandleAdornment") 
-    headCircle.Adornee = obj 
-    headCircle.Height = 0.1 
-    headCircle.Radius = obj.Size.X / 4 
-    headCircle.Transparency = 0.5 
-    headCircle.Color3 = Color3.fromRGB(255, 255, 255) 
-    headCircle.CFrame = obj.CFrame * CFrame.new(0, obj.Size.Y / 2, 0) 
-    headCircle.AlwaysOnTop = true 
-    headCircle.Parent = obj 
-    boxAdornments[obj] = {box, legLine1, legLine2, bodyLine, armLine1, armLine2, headCircle} 
-end 
- 
-local function updateBoxESP(obj) 
-    if not boxAdornments[obj] then return end 
-    local adornments = boxAdornments[obj] 
-    adornments[1].Color3 = Color3.fromRGB(255, 255, 0) 
-    adornments[2].CFrame = obj.CFrame * CFrame.new(0, -obj.Size.Y / 4, 0) 
-    adornments[3].CFrame = obj.CFrame * CFrame.new(0, -obj.Size.Y / 4, 0.5) 
-    adornments[4].CFrame = obj.CFrame * CFrame.new(0, 0, 0) 
-    adornments[5].CFrame = obj.CFrame * CFrame.new(-obj.Size.X / 4, 0, 0) 
-    adornments[6].CFrame = obj.CFrame * CFrame.new(obj.Size.X / 4, 0, 0) 
-    adornments[7].CFrame = obj.CFrame * CFrame.new(0, obj.Size.Y / 2, 0) 
-    print("Updating " .. obj.Name .. " Box ESP") 
-end 
- 
-local function refreshBoxESP() 
-    if not boxEnabled then 
-        for obj, adornments in pairs(boxAdornments) do 
-            for _, adornment in pairs(adornments) do 
-                adornment:Destroy() 
-            end 
-        end 
-        boxAdornments = {} 
-        return 
-    end 
-    for obj, adornments in pairs(boxAdornments) do 
-        for _, adornment in pairs(adornments) do 
-            adornment:Destroy() 
-        end 
-    end 
-    boxAdornments = {} 
-    local crafting = workspace.Map:FindFirstChild("Functional") and workspace.Map.Functional:FindFirstChild("Crafting") 
-    if crafting then 
-        for _, obj in pairs(crafting:GetDescendants()) do 
-            if (obj:IsA("Part") or obj:IsA("BasePart")) and (obj.Name:lower():find("metal") or obj.Name:lower():find("plastic")) then 
-                createBoxESP(obj) 
-                updateBoxESP(obj) 
-            end 
-        end 
-    else 
-        print("Crafting path not found, searching all workspace...") 
-        for _, obj in pairs(workspace:GetDescendants()) do 
-            if (obj:IsA("Part") or obj:IsA("BasePart")) and (obj.Name:lower():find("metal") or obj.Name:lower():find("plastic")) then 
-                createBoxESP(obj) 
-                updateBoxESP(obj) 
-            end 
-        end 
-    end 
-end 
- 
-local function createVentHighlight(vent) 
-    if ventHighlights[vent] then return end 
-    local highlight = Instance.new("Highlight") 
-    highlight.Adornee = vent 
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop 
-    highlight.FillTransparency = 0.5 
-    highlight.OutlineTransparency = 1 
-    highlight.FillColor = Color3.fromRGB(0, 255, 255) 
-    highlight.Parent = vent 
-    ventHighlights[vent] = highlight 
-end 
- 
-local function updateVentHighlight(vent) 
-    if not ventHighlights[vent] then return end 
-    local highlight = ventHighlights[vent] 
-    local isOpen = not vent:FindFirstChild("Cover") and not vent:FindFirstChild("Locked") 
-    highlight.FillColor = isOpen and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(255, 105, 180) 
-end 
- 
-local function refreshVents() 
-    if not ventsEnabled then 
-        for vent, highlight in pairs(ventHighlights) do 
-            highlight:Destroy() 
-        end 
-        ventHighlights = {} 
-        return 
-    end 
-    for vent, highlight in pairs(ventHighlights) do 
-        highlight:Destroy() 
-    end 
-    ventHighlights = {} 
-    for _, obj in pairs(workspace:GetDescendants()) do 
-        if obj:IsA("Model") and obj.Name:lower():find("vent") then 
-            createVentHighlight(obj) 
-            updateVentHighlight(obj) 
-        end 
-    end 
-end 
- 
-local function createGarbageHighlight(garbage) 
-    if garbageHighlights[garbage] then return end 
-    local highlight = Instance.new("Highlight") 
-    highlight.Adornee = garbage 
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop 
-    highlight.FillTransparency = 0.5 
-    highlight.OutlineTransparency = 1 
-    highlight.FillColor = Color3.fromRGB(255, 105, 180) 
-    highlight.Parent = garbage 
-    garbageHighlights[garbage] = highlight 
-end 
- 
-local function updateGarbageHighlight(garbage) 
-    if not garbageHighlights[garbage] then return end 
-    local highlight = garbageHighlights[garbage] 
-    local isEmpty = false 
-    if garbage.Name:lower():find("empty") or garbage.Name:lower():find("searched") then 
-        isEmpty = true 
-    else 
-        for _, child in pairs(garbage:GetChildren()) do 
-            if child.Name:lower():find("empty") or child.Name:lower():find("searched") or  
-               (child:IsA("BoolValue") and child.Name:lower() == "searched" and child.Value) then 
-                isEmpty = true 
-                break 
-            end 
-        end 
-    end 
-    highlight.FillColor = isEmpty and Color3.fromRGB(255, 255, 0) or Color3.fromRGB(255, 105, 180) 
-    print("Updating " .. garbage.Name .. ": IsEmpty = " .. tostring(isEmpty)) 
-end 
- 
-local function refreshGarbage() 
-    if not garbageEnabled then 
-        for garbage, highlight in pairs(garbageHighlights) do 
-            highlight:Destroy() 
-        end 
-        garbageHighlights = {} 
-        return 
-    end 
-    for garbage, highlight in pairs(garbageHighlights) do 
-        highlight:Destroy() 
-    end 
-    garbageHighlights = {} 
-    local searchable = workspace.Map:FindFirstChild("Functional") and workspace.Map.Functional:FindFirstChild("Storages") and workspace.Map.Functional.Storages:FindFirstChild("Searchable") 
-    if searchable then 
-        for _, obj in pairs(searchable:GetDescendants()) do 
-            if (obj:IsA("Model") or obj:IsA("Part") or obj:IsA("BasePart")) and obj.Name:lower():find("bin") then 
-                createGarbageHighlight(obj) 
-                updateGarbageHighlight(obj) 
-            end 
-        end 
-    else 
-        print("Searchable path not found, searching all workspace...") 
-        for _, obj in pairs(workspace:GetDescendants()) do 
-            if (obj:IsA("Model") or obj:IsA("Part") or obj:IsA("BasePart")) and obj.Name:lower():find("bin") then 
-                createGarbageHighlight(obj) 
-                updateGarbageHighlight(obj) 
-            end 
-        end 
-    end 
-end 
- 
-local function RefreshAllESP() 
-    RefreshESP() 
-    Refresh3DBox() 
-    refreshMaterialESP() 
-    refreshVents() 
-    refreshGarbage() 
-    refreshNewESP() 
-end 
- 
-function createStickmanESP(player) 
-    if not player.Character or player == LocalPlayer then return end 
-    local character = player.Character 
-    local humanoid = character:FindFirstChildOfClass("Humanoid") 
-    if not humanoid then return end 
-    local parts = {} 
-    local function getPart(name) 
-        local part = character:FindFirstChild(name) 
-        if part then return part end 
-        local r6Map = { 
-            ["Head"] = "Head", 
-            ["Torso"] = "Torso", 
-            ["Left Arm"] = "LeftUpperArm", 
-            ["Right Arm"] = "RightUpperArm", 
-            ["Left Leg"] = "LeftUpperLeg", 
-            ["Right Leg"] = "RightUpperLeg" 
-        } 
-        local r15Map = { 
-            ["Head"] = "Head", 
-            ["UpperTorso"] = "UpperTorso", 
-            ["LowerTorso"] = "LowerTorso", 
-            ["LeftUpperArm"] = "LeftUpperArm", 
-            ["LeftLowerArm"] = "LeftLowerArm", 
-            ["LeftHand"] = "LeftHand", 
-            ["RightUpperArm"] = "RightUpperArm", 
-            ["RightLowerArm"] = "RightLowerArm", 
-            ["RightHand"] = "RightHand", 
-            ["LeftUpperLeg"] = "LeftUpperLeg", 
-            ["LeftLowerLeg"] = "LeftLowerLeg", 
-            ["LeftFoot"] = "LeftFoot", 
-            ["RightUpperLeg"] = "RightUpperLeg", 
-            ["RightLowerLeg"] = "RightLowerLeg", 
-            ["RightFoot"] = "RightFoot" 
-        } 
-        for r6Name, r15Name in pairs(r6Map) do 
-            if name == r15Name then 
-                local r6Part = character:FindFirstChild(r6Name) 
-                if r6Part then return r6Part end 
-            end 
-        end 
-        for r15Name, _ in pairs(r15Map) do 
-            if name == r15Name then 
-                local r15Part = character:FindFirstChild(r15Name) 
-                if r15Part then return r15Part end 
-            end 
-        end 
-        return nil 
-    end 
-    parts.Head = getPart("Head") 
-    parts.UpperTorso = getPart("UpperTorso") or getPart("Torso") 
-    parts.LowerTorso = getPart("LowerTorso") 
-    parts.LeftUpperArm = getPart("LeftUpperArm") or getPart("Left Arm") 
-    parts.LeftLowerArm = getPart("LeftLowerArm") 
-    parts.LeftHand = getPart("LeftHand") 
-    parts.RightUpperArm = getPart("RightUpperArm") or getPart("Right Arm") 
-    parts.RightLowerArm = getPart("RightLowerArm") 
-    parts.RightHand = getPart("RightHand") 
-    parts.LeftUpperLeg = getPart("LeftUpperLeg") or getPart("Left Leg") 
-    parts.LeftLowerLeg = getPart("LeftLowerLeg") 
-    parts.LeftFoot = getPart("LeftFoot") 
-    parts.RightUpperLeg = getPart("RightUpperLeg") or getPart("Right Leg") 
-    parts.RightLowerLeg = getPart("RightLowerLeg") 
-    parts.RightFoot = getPart("RightFoot") 
-    parts.HumanoidRootPart = getPart("HumanoidRootPart") 
-    if not parts.Head or not parts.UpperTorso or not parts.HumanoidRootPart then return end 
-    local esp = { 
-        Player = player, 
-        Lines = {}, 
-        Labels = {} 
-    } 
-    local connections = { 
-        {From = parts.Head, To = parts.UpperTorso}, 
-        {From = parts.UpperTorso, To = parts.LowerTorso or parts.UpperTorso}, 
-        {From = parts.UpperTorso, To = parts.LeftUpperArm}, 
-        {From = parts.LeftUpperArm, To = parts.LeftLowerArm or parts.LeftUpperArm}, 
-        {From = parts.LeftLowerArm or parts.LeftUpperArm, To = parts.LeftHand or parts.LeftUpperArm}, 
-        {From = parts.UpperTorso, To = parts.RightUpperArm}, 
-        {From = parts.RightUpperArm, To = parts.RightLowerArm or parts.RightUpperArm}, 
-        {From = parts.RightLowerArm or parts.RightUpperArm, To = parts.RightHand or parts.RightUpperArm}, 
-        {From = parts.LowerTorso or parts.UpperTorso, To = parts.LeftUpperLeg}, 
-        {From = parts.LeftUpperLeg, To = parts.LeftLowerLeg or parts.LeftUpperLeg}, 
-        {From = parts.LeftLowerLeg or parts.LeftUpperLeg, To = parts.LeftFoot or parts.LeftUpperLeg}, 
-        {From = parts.LowerTorso or parts.UpperTorso, To = parts.RightUpperLeg}, 
-        {From = parts.RightUpperLeg, To = parts.RightLowerLeg or parts.RightUpperLeg}, 
-        {From = parts.RightLowerLeg or parts.RightUpperLeg, To = parts.RightFoot or parts.RightUpperLeg} 
-    } 
-    for _, connection in pairs(connections) do 
-        local fromPart, toPart = connection.From, connection.To 
-        if fromPart and toPart then 
-            local line = Drawing.new("Line") 
-            line.Visible = false 
-            line.Color = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255) 
-            line.Thickness = espSettings.Thickness 
-            line.Transparency = espSettings.Transparency 
-            table.insert(esp.Lines, line) 
-        end 
-    end 
-    local distanceLabel = Drawing.new("Text") 
-    distanceLabel.Visible = false 
-    distanceLabel.Color = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255) 
-    distanceLabel.Size = 11 
-    distanceLabel.Center = true 
-    distanceLabel.Outline = true 
-    distanceLabel.Font = 2 
-    esp.Labels.Distance = distanceLabel 
-    espObjects[player] = esp 
-end 
- 
-function updateStickmanESP() 
-    for player, esp in pairs(espObjects) do 
-        if not player or not player.Character or not espSettings.Enabled then 
-            for _, line in pairs(esp.Lines) do 
-                line.Visible = false 
-            end 
-            for _, label in pairs(esp.Labels) do 
-                label.Visible = false 
-            end 
-            continue 
-        end 
-        local character = player.Character 
-        local humanoid = character:FindFirstChildOfClass("Humanoid") 
-        if not humanoid or humanoid.Health <= 0 then 
-            for _, line in pairs(esp.Lines) do 
-                line.Visible = false 
-            end 
-            for _, label in pairs(esp.Labels) do 
-                label.Visible = false 
-            end 
-            continue 
-        end 
-        local rootPart = character:FindFirstChild("HumanoidRootPart") 
-        if not rootPart then 
-            for _, line in pairs(esp.Lines) do 
-                line.Visible = false 
-            end 
-            for _, label in pairs(esp.Labels) do 
-                label.Visible = false 
-            end 
-            continue 
-        end 
-        local distance = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart"))  
-            and (rootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude  
-            or 0 
-        if distance > espSettings.MaxDistance then 
-            for _, line in pairs(esp.Lines) do 
-                line.Visible = false 
-            end 
-            for _, label in pairs(esp.Labels) do 
-                label.Visible = false 
-            end 
-            continue 
-        end 
-        local parts = {} 
-        local function getPart(name) 
-            local part = character:FindFirstChild(name) 
-            if part then return part end 
-            local r6Map = {["Head"] = "Head", ["Torso"] = "Torso", ["Left Arm"] = "LeftUpperArm", ["Right Arm"] = "RightUpperArm", ["Left Leg"] = "LeftUpperLeg", ["Right Leg"] = "RightUpperLeg"} 
-            local r15Map = {["Head"] = "Head", ["UpperTorso"] = "UpperTorso", ["LowerTorso"] = "LowerTorso", ["LeftUpperArm"] = "LeftUpperArm", ["LeftLowerArm"] = "LeftLowerArm", ["LeftHand"] = "LeftHand", ["RightUpperArm"] = "RightUpperArm", ["RightLowerArm"] = "RightLowerArm", ["RightHand"] = "RightHand", ["LeftUpperLeg"] = "LeftUpperLeg", ["LeftLowerLeg"] = "LeftLowerLeg", ["LeftFoot"] = "LeftFoot", ["RightUpperLeg"] = "RightUpperLeg", ["RightLowerLeg"] = "RightLowerLeg", ["RightFoot"] = "RightFoot"} 
-            for r6Name, r15Name in pairs(r6Map) do 
-                if name == r15Name then 
-                    local r6Part = character:FindFirstChild(r6Name) 
-                    if r6Part then return r6Part end 
-                end 
-            end 
-            for r15Name, _ in pairs(r15Map) do 
-                if name == r15Name then 
-                    local r15Part = character:FindFirstChild(r15Name) 
-                    if r15Part then return r15Part end 
-                end 
-            end 
-            return nil 
-        end 
-        parts.Head = getPart("Head") 
-        parts.UpperTorso = getPart("UpperTorso") or getPart("Torso") 
-        parts.LowerTorso = getPart("LowerTorso") 
-        parts.LeftUpperArm = getPart("LeftUpperArm") or getPart("Left Arm") 
-        parts.LeftLowerArm = getPart("LeftLowerArm") 
-        parts.LeftHand = getPart("LeftHand") 
-        parts.RightUpperArm = getPart("RightUpperArm") or getPart("Right Arm") 
-        parts.RightLowerArm = getPart("RightLowerArm") 
-        parts.RightHand = getPart("RightHand") 
-        parts.LeftUpperLeg = getPart("LeftUpperLeg") or getPart("Left Leg") 
-        parts.LeftLowerLeg = getPart("LeftLowerLeg") 
-        parts.LeftFoot = getPart("LeftFoot") 
-        parts.RightUpperLeg = getPart("RightUpperLeg") or getPart("Right Leg") 
-        parts.RightLowerLeg = getPart("RightLowerLeg") 
-        parts.RightFoot = getPart("RightFoot") 
-        local connList = { 
-            {parts.Head, parts.UpperTorso}, 
-            {parts.UpperTorso, parts.LowerTorso or parts.UpperTorso}, 
-            {parts.UpperTorso, parts.LeftUpperArm}, 
-            {parts.LeftUpperArm, parts.LeftLowerArm or parts.LeftUpperArm}, 
-            {parts.LeftLowerArm or parts.LeftUpperArm, parts.LeftHand or parts.LeftUpperArm}, 
-            {parts.UpperTorso, parts.RightUpperArm}, 
-            {parts.RightUpperArm, parts.RightLowerArm or parts.RightUpperArm}, 
-            {parts.RightLowerArm or parts.RightUpperArm, parts.RightHand or parts.RightUpperArm}, 
-            {parts.LowerTorso or parts.UpperTorso, parts.LeftUpperLeg}, 
-            {parts.LeftUpperLeg, parts.LeftLowerLeg or parts.LeftUpperLeg}, 
-            {parts.LeftLowerLeg or parts.LeftUpperLeg, parts.LeftFoot or parts.LeftUpperLeg}, 
-            {parts.LowerTorso or parts.UpperTorso, parts.RightUpperLeg}, 
-            {parts.RightUpperLeg, parts.RightLowerLeg or parts.RightUpperLeg}, 
-            {parts.RightLowerLeg or parts.RightUpperLeg, parts.RightFoot or parts.RightUpperLeg} 
-        } 
-        local lineIndex = 1 
-        local teamColor = player.Team and player.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255) 
-        local anyVisible = false 
-        for _, connection in pairs(connList) do 
-            local fromPart, toPart = connection[1], connection[2] 
-            if fromPart and toPart then 
-                local fromPos, fromVisible = camera:WorldToViewportPoint(fromPart.Position) 
-                local toPos, toVisible = camera:WorldToViewportPoint(toPart.Position) 
-                local line = esp.Lines[lineIndex] 
-                if fromVisible and toVisible then 
-                    line.From = Vector2.new(fromPos.X, fromPos.Y) 
-                    line.To = Vector2.new(toPos.X, toPos.Y) 
-                    line.Color = teamColor 
-                    line.Thickness = espSettings.Thickness 
-                    line.Transparency = espSettings.Transparency 
-                    line.Visible = true 
-                    anyVisible = true 
-                else 
-                    line.Visible = false 
-                end 
-            else 
-                esp.Lines[lineIndex].Visible = false 
-            end 
-            lineIndex += 1 
-        end 
-        if not anyVisible then 
-            for _, line in pairs(esp.Lines) do 
-                line.Visible = false 
-            end 
-        end 
-        local head = parts.Head 
-        if head then 
-            local headPos, headVisible = camera:WorldToViewportPoint(head.Position) 
-            if headVisible then 
-                esp.Labels.Distance.Text = string.format("%.1f", distance) .. "m" 
-                esp.Labels.Distance.Position = Vector2.new(headPos.X, headPos.Y - 25) 
-                esp.Labels.Distance.Color = teamColor 
-                esp.Labels.Distance.Visible = true 
-            else 
-                esp.Labels.Distance.Visible = false 
-            end 
-        end 
-    end 
-end 
- 
-function enableStickmanESP() 
-    for _, player in pairs(Players:GetPlayers()) do 
-        createStickmanESP(player) 
-    end 
-    connections.playerAdded = Players.PlayerAdded:Connect(function(player) 
-        createStickmanESP(player) 
-    end) 
-    connections.playerRemoving = Players.PlayerRemoving:Connect(function(player) 
-        if espObjects[player] then 
-            for _, line in pairs(espObjects[player].Lines) do 
-                line:Remove() 
-            end 
-            for _, label in pairs(espObjects[player].Labels) do 
-                label:Remove() 
-            end 
-            espObjects[player] = nil 
-        end 
-    end) 
-    connections.renderUpdate = game:GetService("RunService").Heartbeat:Connect(updateStickmanESP)  -- Changed to Heartbeat 
-end 
- 
-function disableStickmanESP() 
-    for _, connection in pairs(connections) do 
-        connection:Disconnect() 
-    end 
-    connections = {} 
-    for player, esp in pairs(espObjects) do 
-        for _, line in pairs(esp.Lines) do 
-            line:Remove() 
-        end 
-        for _, label in pairs(esp.Labels) do 
-            label:Remove() 
-        end 
-    end 
-    espObjects = {} 
-end 
- 
-for _, player in pairs(Players:GetPlayers()) do 
-    if player ~= LocalPlayer then 
-        player.CharacterAdded:Connect(function() 
-            if ESPEnabled or ShowHealth or ShowInventory then task.wait(0.5) CreateESP(player) end 
-            if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end 
-            if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end 
-            if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end 
-        end) 
-        if player.Character and (ESPEnabled or ShowHealth or ShowInventory) then task.spawn(function() task.wait(0.5) CreateESP(player) end) end 
-        if player.Character and Box3DEnabled then task.spawn(function() task.wait(0.5) Create3DBox(player) end) end 
-        if player.Character and (showBox or show3DBox or showHealthNew or showName or showDist or showTool) then task.spawn(function() task.wait(0.5) createNewESP(player) end) end 
-    end 
-end 
- 
-Players.PlayerAdded:Connect(function(player) 
-    if player ~= LocalPlayer then 
-        player.CharacterAdded:Connect(function() 
-            if ESPEnabled or ShowHealth or ShowInventory then task.wait(0.5) CreateESP(player) end 
-            if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end 
-            if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end 
-            if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end 
-        end) 
-    end 
-end) 
- 
-Players.PlayerRemoving:Connect(function(player) 
-    RemoveESP(player) 
-    Remove3DBox(player) 
-end) 
- 
-game:GetService("RunService").Heartbeat:Connect(function() 
-    if ESPEnabled or ShowHealth or ShowInventory then 
-        for _, player in pairs(Players:GetPlayers()) do 
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then 
-                task.spawn(function() CreateESP(player) end) 
-            end 
-        end 
-    end 
-    if Box3DEnabled then 
-        for _, player in pairs(Players:GetPlayers()) do 
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then 
-                task.spawn(function() Create3DBox(player) Update3DBox(player) end) 
-            end 
-        end 
-    end 
-end) 
- 
--- Players Visuals Section (بدل الدروب داون، عناوين وتوجلات فردية) 
-VisualsTab:CreateLabel("Players Visuals")  -- نص عنوان "Players Visuals" 
- 
-VisualsTab:CreateToggle({ 
-    Name = "Enable ESP", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        ESPEnabled = Value 
-        if ESPEnabled then 
-            for _, player in pairs(Players:GetPlayers()) do 
-                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then 
-                    task.spawn(function() CreateESP(player) end) 
-                end 
-            end 
-            UpdateESPVisibilities() 
-        else 
-            for _, espHolder in pairs(ESPObjects) do 
-                if espHolder.Highlight then espHolder.Highlight:Destroy() end 
-                espHolder.Highlight = nil 
-            end 
-            UpdateESPVisibilities() 
-            CleanupUnusedESP() 
-        end 
-    end 
-}) 
- 
-VisualsTab:CreateToggle({ 
-    Name = "Show Health Bar", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        ShowHealth = Value 
-        if ShowHealth then 
-            for _, player in pairs(Players:GetPlayers()) do 
-                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then 
-                    task.spawn(function() CreateESP(player) end) 
-                end 
-            end 
-            UpdateESPVisibilities() 
-        else 
-            UpdateESPVisibilities() 
-            CleanupUnusedESP() 
-        end 
-    end 
-}) 
- 
-VisualsTab:CreateToggle({ 
-    Name = "Show Inventory", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        ShowInventory = Value 
-        if ShowInventory then 
-            for _, player in pairs(Players:GetPlayers()) do 
-                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then 
-                    task.spawn(function() CreateESP(player) end) 
-                end 
-            end 
-            UpdateESPVisibilities() 
-        else 
-            UpdateESPVisibilities() 
-            CleanupUnusedESP() 
-        end 
-    end 
-}) 
- 
-VisualsTab:CreateToggle({ 
-    Name = "Enable 3D Box ESP", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        Box3DEnabled = Value 
-        if Box3DEnabled then 
-            for _, player in pairs(Players:GetPlayers()) do 
-                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then 
-                    task.spawn(function() Create3DBox(player) Update3DBox(player) end) 
-                end 
-            end 
-            local updateConnection 
-            updateConnection = game:GetService("RunService").Heartbeat:Connect(function()  -- Changed to Heartbeat 
-                if not Box3DEnabled then 
-                    updateConnection:Disconnect() 
-                    return 
-                end 
-                for _, player in pairs(Players:GetPlayers()) do 
-                    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then 
-                        Update3DBox(player) 
-                    end 
-                end 
-            end) 
-            Rayfield:Notify({ Title = "3D Box ESP", Content = "تم تفعيل 3D Box ESP", Duration = 3, Image = 4483362458 }) 
-        else 
-            for player in pairs(Box3DObjects) do 
-                Remove3DBox(player) 
-            end 
-            Box3DObjects = {} 
-            Rayfield:Notify({ Title = "3D Box ESP", Content = "تم إيقاف 3D Box ESP", Duration = 3, Image = 4483362458 }) 
-        end 
-    end 
-}) 
- 
-VisualsTab:CreateToggle({ 
-    Name = "Skeleton ESP 2", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        espSettings.Enabled = Value 
-        if espSettings.Enabled then 
-            enableStickmanESP() 
-        else 
-            disableStickmanESP() 
-        end 
-    end 
-}) 
- 
-VisualsTab:CreateToggle({ 
-   Name = "Show 2D Box (Rectangle)", 
-   CurrentValue = false, 
-   Callback = function(state) 
-      showBox = state 
-      refreshNewESP() 
-   end, 
-}) 
- 
-VisualsTab:CreateToggle({ 
-   Name = "Show 3D Box 1", 
-   CurrentValue = false, 
-   Callback = function(state) 
-      show3DBox = state 
-      refreshNewESP() 
-   end, 
-}) 
- 
-VisualsTab:CreateToggle({ 
-   Name = "Show Health Bar 1", 
-   CurrentValue = false, 
-   Callback = function(state) 
-      showHealthNew = state 
-      refreshNewESP() 
-   end, 
-}) 
- 
-VisualsTab:CreateToggle({ 
-   Name = "Show Name", 
-   CurrentValue = false, 
-   Callback = function(state) 
-      showName = state 
-      refreshNewESP() 
-   end, 
-}) 
- 
-VisualsTab:CreateToggle({ 
-   Name = "Show Distance", 
-   CurrentValue = false, 
-   Callback = function(state) 
-      showDist = state 
-      refreshNewESP() 
-   end, 
-}) 
- 
-VisualsTab:CreateToggle({ 
-   Name = "Show Equipped Tool", 
-   CurrentValue = false, 
-   Callback = function(state) 
-      showTool = state 
-      refreshNewESP() 
-   end, 
-}) 
- 
-VisualsTab:CreateToggle({ 
-   Name = "Enable ESP (Main)", 
-   CurrentValue = false, 
-   Callback = function(state) 
-      enableMainESP = state 
-      if state then 
-         showBox = true 
-         show3DBox = true 
-         showHealthNew = true 
-         showName = true 
-         showDist = true 
-         showTool = true 
-         refreshNewESP() 
-      else 
-         showBox = false 
-         show3DBox = false 
-         showHealthNew = false 
-         showName = false 
-         showDist = false 
-         showTool = false 
-         refreshNewESP() 
-      end 
-   end, 
-}) 
- 
--- Map Visuals Section (عنوان وتوجلات فردية) 
-VisualsTab:CreateLabel("Map Visuals")  -- نص عنوان "Map Visuals" 
- 
-VisualsTab:CreateToggle({ 
-    Name = "Show Metal/Plastic", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        boxEnabled = Value 
-        refreshBoxESP() 
-        print(Value and "Show Metal/Plastic enabled!" or "Show Metal/Plastic disabled!") 
-    end 
-}) 
- 
-VisualsTab:CreateToggle({ 
-    Name = "Show Vents", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        ventsEnabled = Value 
-        refreshVents() 
-        print(Value and "Vents ESP enabled!" or "Vents ESP disabled!") 
-    end 
-}) 
- 
-VisualsTab:CreateToggle({ 
-    Name = "Show Garbage", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        garbageEnabled = Value 
-        refreshGarbage() 
-        print(Value and "Garbage ESP enabled!" or "Garbage ESP disabled!") 
-    end 
-}) 
- 
-VisualsTab:CreateToggle({ 
-    Name = "Xray", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        xrayEnabled = Value 
-        if xrayEnabled then 
-            for _, v in pairs(workspace:GetDescendants()) do 
-                if v:IsA("BasePart") then v.LocalTransparencyModifier = 0.5 end 
-            end 
-        else 
-            for _, v in pairs(workspace:GetDescendants()) do 
-                if v:IsA("BasePart") then v.LocalTransparencyModifier = 0 end 
-            end 
-        end 
-    end 
-}) 
- 
--- الفاصل 
-VisualsTab:CreateLabel("__________")  -- خط فاصل "____" (طولته شوية عشان يبدو أفضل) 
- 
--- Auto Refresh Toggle (كما هو، بعد الفاصل) 
-VisualsTab:CreateToggle({  
-    Name = "Auto Refresh",  
-    CurrentValue = false,  
-    Flag = "AUTO_REFRESH",  
-    Callback = function(Value)  
-        autoRefreshEnabled = Value  
-        if autoRefreshEnabled then  
-            for _, player in pairs(Players:GetPlayers()) do  
-                if player ~= LocalPlayer then  
-                    connections[player.Name .. "_CharacterAdded"] = player.CharacterAdded:Connect(function()  
-                        if ESPEnabled then task.wait(0.5) CreateESP(player) end  
-                        if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end  
-                        if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end  
-                        if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end  
-                    end)  
-                end  
-            end  
-            connections.PlayerAdded = Players.PlayerAdded:Connect(function(player)  
-                if player ~= LocalPlayer then  
-                    connections[player.Name .. "_CharacterAdded"] = player.CharacterAdded:Connect(function()  
-                        if ESPEnabled then task.wait(0.5) CreateESP(player) end  
-                        if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end  
-                        if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end  
-                        if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end  
-                    end)  
-                end  
-            end)  
-            RefreshAllESP()  
-            autoRefreshConnection = RunService.Heartbeat:Connect(function()  
-                if autoRefreshEnabled then  
-                    autoRefreshEnabled = false  
-                    task.wait(5)  
-                    autoRefreshEnabled = true  
-                    RefreshAllESP()  
-                end  
-            end)  
-            Rayfield:Notify({ Title = "Activated", Content = "Auto Refresh enabled for all Visuals.", Duration = 5, Image = 4483362458 })  
-        else  
-            for key, connection in pairs(connections) do  
-                if key:find("_CharacterAdded") or key == "PlayerAdded" then  
-                    connection:Disconnect()  
-                end  
-            end  
-            if autoRefreshConnection then autoRefreshConnection:Disconnect() end  
-            Rayfield:Notify({ Title = "Deactivated", Content = "Auto Refresh disabled.", Duration = 5, Image = 4483362458 })  
-        end  
-    end  
-})  
- 
-VisualsTab:CreateToggle({ 
-    Name = "Auto Clean Stuck ESPs", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        autoCleanEnabled = Value 
-        if Value then 
-            autoCleanConnection = RunService.Heartbeat:Connect(function(delta) 
-                cleanTimer = (cleanTimer or 0) + delta 
-                if cleanTimer >= 2 then 
-                    cleanStuckESPs() 
-                    cleanTimer = 0 
-                end 
-            end) 
-        else 
-            if autoCleanConnection then autoCleanConnection:Disconnect() end 
-        end 
-    end 
-}) 
- 
--- Advanced Settings Section (بعد Auto Refresh) 
-VisualsTab:CreateLabel("Advanced Settings")  -- نص عنوان "Advanced Settings" 
- 
-VisualsTab:CreateSlider({ 
-   Name = "Health Bar Thickness", 
-   Range = {1, 10}, 
-   Increment = 1, 
-   CurrentValue = 1, 
-   Flag = "Health_Thick", 
-   Callback = function(Value) 
-      healthThickness = Value 
-   end, 
-}) 
- 
-VisualsTab:CreateSlider({ 
-   Name = "Health Bar Transparency", 
-   Range = {0, 1}, 
-   Increment = 0.05, 
-   Suffix = "%", 
-   CurrentValue = 1, 
-   Flag = "Health_Trans", 
-   Callback = function(Value) 
-      healthTransparency = Value 
-   end, 
-}) 
- 
-VisualsTab:CreateSlider({ 
-   Name = "2D Box Transparency", 
-   Range = {0, 1}, 
-   Increment = 0.05, 
-   Suffix = "%", 
-   CurrentValue = 1, 
-   Callback = function(Value) 
-      box2DTransparency = Value 
-   end, 
-}) 
- 
-VisualsTab:CreateSlider({ 
-   Name = "3D Box 1 Transparency", 
-   Range = {0, 1}, 
-   Increment = 0.05, 
-   Suffix = "%", 
-   CurrentValue = 1, 
-   Flag = "3D_Box_Trans", 
-   Callback = function(Value) 
-      box3DTransparency = Value 
-   end, 
-}) 
- 
-VisualsTab:CreateSlider({ 
-   Name = "2D Box Thickness", 
-   Range = {1, 3}, 
-   Increment = 0.1, 
-   CurrentValue = 1, 
-   Callback = function(Value) 
-      box2DThickness = Value 
-      refreshNewESP() 
-   end, 
-}) 
- 
-VisualsTab:CreateSlider({ 
-   Name = "3D Box 1 Thickness", 
-   Range = {1, 3}, 
-   Increment = 0.1, 
-   CurrentValue = 1, 
-   Callback = function(Value) 
-      box3DThickness = Value 
-      refreshNewESP() 
-   end, 
-}) 
- 
-VisualsTab:CreateSlider({ 
-   Name = "Max ESP Distance (Studs)", 
-   Range = {100, 2000}, 
-   Increment = 100, 
-   Suffix = " Studs", 
-   CurrentValue = 1000, 
-   Callback = function(Value) 
-      maxDistance = Value 
-   end, 
-}) 
-  
--- // COMBAT SECTION  
-local CombatTab = Window:CreateTab("Combat", 4483362458)  
-  
-local AimbotEnabled = false  
-local SilentAim = false  
-local DesyncEnabled = false  
-local PredictionEnabled = false  
-local BulletSpeed = 1000  
-local FOVEnabled = false  
-local DefaultFOV = Camera.FieldOfView  
-local CustomFOV = 90  
-local FOVCircle = nil  
-local FOVRadius = 150  
-local Smoothness = 0.15  
-local HumanizationFactor = 0.2  
-local ShowFOVCircle = true  
-local StickToTarget = false  
-local IgnoreWalls = false  
-local CurrentTarget = nil  
-local TargetPart = "Head"  
-local killAllEnabled = false  
-local DefaultFOV = Camera.FieldOfView 
-local CustomFOV = 90 
-local killAllConnection = nil 
-local desyncConnection = nil 
-local silentAimConnection = nil 
-local originalPosition = nil 
-local originalFOV = nil 
-local killAllAimbotEnabled = false 
-local killAllCameraConnection = nil 
-local playerAddedConnection = nil 
-local FOVColor = Color3.fromRGB(255, 0, 0) 
-local hasNotifiedNoTarget = false 
-local SelectedTeams = { 
-    ["Minimum Security"] = false, 
-    ["VCSO-SWAT"] = false,
-    ["Medium Security"] = false,
-    ["Maximum Security"] = false, 
-    ["Department of Corrections"] = false, 
-    ["State Police"] = false, 
-    ["Escapee"] = false, 
-    ["Civilian"] = false, 
-    ["Dead Body"] = false 
-} 
-local AimAccuracy = 100  -- متغير موجود للـ Aim Stability/Accuracy (0-100, 100 = perfect hit, lower = more spread) 
-local aimbotConnection = nil 
-local outConnection = nil 
+-- Psalms.Tech - سكريبت Roblox Executor كامل مع دعم universal aimbot لجميع المابات
+-- تم تعديل الـ aimbot ليكون عامًا عبر hook للـ remotes الشائعة (shoot/fire/gun/main)
+-- الواجهة باللغة العربية، مع الحفاظ على الهيكل الأصلي والاستقرار
+-- متوافق مع getgenv، hookmetamethod، وجميع executors (Synapse/Krnl/إلخ)
 
--- إضافات جديدة للتخصيص الأكثر دقة
-local OffsetSpread = 1.0  -- Slider لـ Offset Spread (0-5 studs)
-local PredictionMultiplier = 1.0  -- Slider لـ Prediction Multiplier (0.5-2)
-local AimMovingTargetsOnly = false  -- Toggle لـ Aim at Moving Targets Only
-local VelocityThreshold = 5  -- Slider لـ Velocity Threshold (للـ moving targets)
-local AutoSwitchOnKill = false  -- Toggle لـ Auto-Switch Target on Kill
-local TargetPriority = "Closest"  -- Dropdown لـ Target Priority ("Closest", "Lowest Health", "Highest Threat")
-local TriggerbotEnabled = false  -- Toggle لـ Triggerbot
-local TriggerDelay = 100  -- Slider لـ Trigger Delay (0-500 ms)
-local AntiRecoilEnabled = false  -- Toggle لـ Anti-Recoil
-local RecoilFactor = 0.5  -- Slider لـ Recoil Factor (0-1)
-local ScanMode = "Fixed"  -- Dropdown لـ Scan Mode ("Fixed", "Dynamic")
-local DynamicFOV = false  -- Toggle لـ Dynamic FOV
-local MinFOVRadius = 50  -- Slider لـ Min FOV Radius
-local MaxFOVRadius = 300  -- Slider لـ Max FOV Radius
-local DynamicFOVMultiplier = 0.1  -- Slider لـ Dynamic FOV Multiplier (بناءً على distance)
-local EnableStats = false  -- Toggle لـ Enable Stats
-local Stats = { Kills = 0, Misses = 0 }  -- Table لتخزين الـ stats
-local NoMissBullets = false  -- ميزة جديدة: No Miss Bullets (تضمن إصابة كل الرصاص)
-local BulletMagnetStrength = 0.5  -- Slider لـ Bullet Magnet Strength (0-1, قوة جذب الرصاص نحو الهدف)
-
--- New: Moving FOV circle
-local movingFOVCircleEnabled = false
-
--- New: Weapon Check for Aim Bot
-local weaponCheckEnabled = false
-
--- New: Smart Aim Bot
-local smartAimBotEnabled = false
-
--- New: Closest Aim
-local closestAimEnabled = false
-
--- New: Aim on Sight / Approach / Face to Face
-local AimOnSight = false  -- Aim if in line of sight
-local AimOnApproach = false  -- Aim if approaching
-local AimFaceToFace = false  -- Aim if face to face
-
--- New: Advanced Accuracy Controls
-local HitChanceVariance = 0  -- Slider for hit chance variance (0-50%)
-local AimPrecision = 100  -- Slider for aim precision (0-100%)
-local TargetLockStrength = 0.5  -- Slider for target lock strength (0-1)
-
--- دالة Humanization Factor لإضافة عشوائية للتصويب
-local function ApplyHumanization(position)
-    local randomOffset = Vector3.new(
-        math.random(-HumanizationFactor, HumanizationFactor),
-        math.random(-HumanizationFactor, HumanizationFactor),
-        math.random(-HumanizationFactor, HumanizationFactor)
-    )
-    return position + randomOffset
-end
-
--- دالة Prediction مُحدثة مع Ping وGravity وMultiplier
-local function GetPredictedPosition(targetPart)
-    if not targetPart then return Vector3.zero end 
-    local basePos = targetPart.Position
-    if PredictionEnabled then
-        local velocity = targetPart.AssemblyLinearVelocity
-        local distance = (Camera.CFrame.Position - targetPart.Position).Magnitude
-        local timeToHit = (distance / BulletSpeed) * PredictionMultiplier
-        local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 1000
-        timeToHit = timeToHit + ping
-        local gravity = Vector3.new(0, workspace.Gravity * timeToHit^2 / 2, 0)
-        basePos = targetPart.Position + (velocity * timeToHit) + gravity
-    end
-    local spread = (100 - AimAccuracy) / 100 * OffsetSpread  -- استخدام OffsetSpread الجديد
-    local offset = Vector3.new(
-        math.random(-spread, spread),
-        math.random(-spread, spread),
-        math.random(-spread, spread)
-    )
-    local predictedPos = basePos + offset
-    if NoMissBullets then
-        -- ميزة No Miss Bullets: جذب الرصاص نحو الهدف لتقليل الـ misses
-        local diff = (targetPart.Position - predictedPos)
-        if diff.Magnitude > 0 then
-            local magnetOffset = diff.Unit * BulletMagnetStrength
-            predictedPos = predictedPos + magnetOffset
+local function cooked(Sex3)
+    if Sex3 then  
+        if getgenv().executed then
+            return  
         end
-    end
-    return ApplyHumanization(predictedPos) -- إضافة Humanization
-end 
+        getgenv().executed = true
 
--- دالة جديدة لـ GetBestVisiblePart (للـ Dynamic Scan)
-local function GetBestVisiblePart(player)
-    local parts = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart"}
-    for _, partName in ipairs(parts) do
-        local part = player.Character:FindFirstChild(partName)
-        if part and IsVisible(player, partName) then
-            return part
+        local startTime = os.clock()
+
+        repeat wait() until game:IsLoaded()
+
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/shakar60/RickWare.CC/refs/heads/main/Misc/Bypasses", true))()
+
+        if not LPH_OBFUSCATED then
+            LPH_JIT = function(...) return ... end
+            LPH_NO_VIRTUALIZE = function(...) return ... end
         end
-    end
-    return nil
-end
 
--- تعديل IsVisible لدعم partName
-local function IsVisible(player, partName)
-    if not player or not player.Character or not player.Character:FindFirstChild(partName) then return false end 
-    if IgnoreWalls then return true end 
-    local params = RaycastParams.new() 
-    params.FilterType = Enum.RaycastFilterType.Exclude 
-    params.FilterDescendantsInstances = {LocalPlayer.Character} 
-    local ray = workspace:Raycast(Camera.CFrame.Position, (player.Character[partName].Position - Camera.CFrame.Position).Unit * 1000, params) 
-    return ray and ray.Instance and ray.Instance:IsDescendantOf(player.Character) 
-end 
+        local getcustom = string.find(identifyexecutor(), "Delta")
 
-local function CreateFOVCircle() 
-    if FOVCircle then FOVCircle:Remove() end 
-    FOVCircle = Drawing.new("Circle") 
-    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
-    FOVCircle.Radius = FOVRadius 
-    FOVCircle.Color = Color3.new(math.random(), math.random(), math.random())  -- Random color on creation
-    FOVCircle.Thickness = 2 
-    FOVCircle.Filled = false 
-    FOVCircle.Visible = (AimbotEnabled or killAllAimbotEnabled) and ShowFOVCircle 
-end 
+        local Library
 
-local function UpdateFOVCircle() 
-    if FOVCircle then 
-        if movingFOVCircleEnabled then
-            FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)  -- Follow mouse
-            FOVCircle.Radius = FOVRadius
-            FOVCircle.Color = FOVColor
+        local assetsupport = string.find(identifyexecutor(), "Wave") or string.find(identifyexecutor(), "Seliware") or string.find(identifyexecutor(), "AWP") or string.find(identifyexecutor(), "Argon") or string.find(identifyexecutor(), "Swift")
+
+        if assetsupport then
+            Library = loadstring(game:HttpGet("https://pastebin.com/raw/LixdnWjB", true))()
         else
-            FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
-            local currentRadius = FOVRadius
-            if DynamicFOV and CurrentTarget then
-                local distance = (Camera.CFrame.Position - CurrentTarget.Character[TargetPart].Position).Magnitude
-                currentRadius = math.clamp(MinFOVRadius + (distance * DynamicFOVMultiplier), MinFOVRadius, MaxFOVRadius)
-            end
-            FOVCircle.Radius = currentRadius 
-            FOVCircle.Color = FOVColor 
+            Library = loadstring(game:HttpGet("https://gist.githubusercontent.com/CongoOhioDog/35476decfcca390e13120470a8907d26/raw/ec47708b7c28850ea497567972fee63c91f5a893/lol", true))()
         end
-        FOVCircle.Visible = (AimbotEnabled or killAllAimbotEnabled) and ShowFOVCircle 
-    end 
-end 
 
-local function IsValidTarget(player) 
-    if player == LocalPlayer then return false end 
-    local playerTeam = player.Team and player.Team.Name or nil 
-    local anyTeamSelected = false 
-    for _, enabled in pairs(SelectedTeams) do 
-        if enabled then 
-            anyTeamSelected = true
-            break 
-        end 
-    end 
-    if anyTeamSelected and playerTeam then 
-        local isTargetable = false 
-        for team, enabled in pairs(SelectedTeams) do 
-            if enabled and playerTeam == team then 
-                isTargetable = true 
-                break 
-            end 
-        end 
-        if not isTargetable then return false end
-    end 
-    local humanoid = player.Character and player.Character:FindFirstChild("Humanoid") 
-    if SelectedTeams["Dead Body"] == false and humanoid and humanoid.Health <= 0 then return false end 
-    local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(player) or player.Character:FindFirstChild(TargetPart)
-    if AimMovingTargetsOnly and targetPart then
-        local velocity = targetPart.AssemblyLinearVelocity.Magnitude
-        if velocity < VelocityThreshold then return false end
-    end
-    -- Additional checks for AimOnSight, AimOnApproach, AimFaceToFace
-    if AimOnSight then
-        -- Check if in line of sight
-        if not IsVisible(player, TargetPart) then return false end
-    end
-    if AimOnApproach then
-        -- Check if approaching (velocity towards player)
-        local direction = (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Unit
-        if targetPart.AssemblyLinearVelocity:Dot(direction) > 0 then return false end  -- If dot product positive, not approaching
-    end
-    if AimFaceToFace then
-        -- Check if facing each other
-        local myFacing = LocalPlayer.Character.HumanoidRootPart.CFrame.LookVector
-        local targetFacing = player.Character.HumanoidRootPart.CFrame.LookVector
-        if myFacing:Dot(targetFacing) < -0.5 then return false end  -- If dot negative and low, facing each other
-    end
-    return player.Character and targetPart and humanoid and IsVisible(player, targetPart.Name) 
-end 
-
--- تعديل GetClosestPlayerInFOV لدعم TargetPriority
-local function GetBestTarget() 
-    local bestPlayer, bestScore = nil, math.huge
-    local center = movingFOVCircleEnabled and Vector2.new(Mouse.X, Mouse.Y) or Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
-    for _, player in pairs(Players:GetPlayers()) do 
-        if IsValidTarget(player) then 
-            local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(player) or player.Character[TargetPart]
-            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position) 
-            if onScreen then 
-                local distance = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude 
-                if distance > FOVRadius then continue end  -- Ensure within FOV circle
-                local score = distance
-                if TargetPriority == "Lowest Health" then
-                    score = player.Character.Humanoid.Health
-                elseif TargetPriority == "Highest Threat" then
-                    score = -distance  -- أقرب = أعلى تهديد (negative for max)
-                end
-                if score < bestScore then 
-                    bestPlayer = player 
-                    bestScore = score 
-                end 
-            end 
-        end 
-    end 
-    return bestPlayer 
-end 
-
-local function UpdateFOV() 
-    if FOVEnabled then 
-        Camera.FieldOfView = CustomFOV 
-    else 
-        Camera.FieldOfView = DefaultFOV 
-    end 
-end 
-
-local oldIndex = nil 
-local function EnableSilentAim() 
-    if silentAimConnection then return end 
-    oldIndex = getmetatable(game).__index 
-    getmetatable(game).__index = function(self, index) 
-        if SilentAim and (AimbotEnabled or killAllAimbotEnabled) and CurrentTarget and CurrentTarget.Character then 
-            local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
-            if targetPart then
-                local predictedPos = GetPredictedPosition(targetPart) 
-                if index == "Hit" then 
-                    return CFrame.new(predictedPos) 
-                elseif index == "Target" then 
-                    return targetPart 
-                end 
-            end
-        end 
-        return oldIndex(self, index) 
-    end 
-    silentAimConnection = true 
-end 
-
-local function DisableSilentAim() 
-    if oldIndex then 
-        getmetatable(game).__index = oldIndex 
-        oldIndex = nil 
-    end 
-    silentAimConnection = nil 
-end 
-
-local function EnableDesync() 
-    if desyncConnection then return end 
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
-    if not root then return end 
-    desyncConnection = RunService.RenderStepped:Connect(function() 
-        if DesyncEnabled and root then 
-            root.CFrame = root.CFrame * CFrame.new(0, math.random(-0.2, 0.2), 0) 
-        end 
-    end) 
-end 
-
-local function DisableDesync() 
-    if desyncConnection then desyncConnection:Disconnect(); desyncConnection = nil end 
-end 
-
-local function EnableKillAllAimbot() 
-    if killAllCameraConnection then return end 
-    killAllCameraConnection = RunService.RenderStepped:Connect(function() 
-        if killAllAimbotEnabled and CurrentTarget and CurrentTarget.Character then 
-            local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
-            if targetPart then
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)) 
-            end
-        end 
-    end) 
-end 
-
-local function DisableKillAllAimbot() 
-    if killAllCameraConnection then killAllCameraConnection:Disconnect(); killAllCameraConnection = nil end 
-end 
-
-local function EnableKillAll() 
-    if killAllConnection then return end 
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
-    if not root then 
-        Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 }) 
-        return 
-    end 
-    originalPosition = root.CFrame 
-    originalFOV = Camera.FieldOfView 
-    local targetPlayers = {} 
-    local function addPlayer(player) 
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") 
-           and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then 
-            table.insert(targetPlayers, player) 
-        end 
-    end 
-    for _, player in pairs(Players:GetPlayers()) do 
-        addPlayer(player) 
-    end 
-    playerAddedConnection = Players.PlayerAdded:Connect(function(player) 
-        if killAllEnabled then 
-            player.CharacterAdded:Wait() 
-            addPlayer(player) 
-        end 
-    end) 
-    if #targetPlayers == 0 then 
-        Rayfield:Notify({ 
-            Title = "Info", 
-            Content = "No valid targets found!", 
-            Duration = 3, 
-            Image = 4483362458 
-        }) 
-        return 
-    end 
-    local currentIndex = 1 
-    local rotationAngle = 0 
-    killAllAimbotEnabled = true 
-    EnableKillAllAimbot() 
-    killAllConnection = RunService.Heartbeat:Connect(function() 
-        if not killAllEnabled or not root then 
-            DisableKillAll() 
-            return 
-        end 
-        if #targetPlayers == 0 then 
-            for _, player in pairs(Players:GetPlayers()) do 
-                addPlayer(player) 
-            end 
-            if #targetPlayers == 0 then return end 
-        end 
-        local target = targetPlayers[currentIndex] 
-        if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") 
-           or target.Character.Humanoid.Health <= 0 then 
-            table.remove(targetPlayers, currentIndex) 
-            if currentIndex > #targetPlayers then 
-                currentIndex = 1 
-            end 
-            return 
-        end 
-        CurrentTarget = target 
-        rotationAngle = (rotationAngle + 0.25) % (2 * math.pi) 
-        local offset = Vector3.new(math.cos(rotationAngle) * 5, 0, math.sin(rotationAngle) * 5) 
-        root.CFrame = CFrame.new(target.Character.HumanoidRootPart.Position + offset, target.Character.HumanoidRootPart.Position) 
-        local lookAt = (target.Character.HumanoidRootPart.Position - root.Position).Unit 
-        root.CFrame = CFrame.new(root.Position, root.Position + lookAt) 
-    end) 
-end 
-
-local function DisableKillAll() 
-    if killAllConnection then 
-        killAllConnection:Disconnect() 
-        killAllConnection = nil 
-    end 
-    if playerAddedConnection then 
-        playerAddedConnection:Disconnect() 
-        playerAddedConnection = nil 
-    end 
-    killAllAimbotEnabled = false 
-    DisableKillAllAimbot() 
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
-    if root and originalPosition then 
-        root.CFrame = originalPosition 
-    end 
-    if originalFOV then 
-        Camera.FieldOfView = originalFOV 
-    end 
-end 
-
--- دالة جديدة لـ CalculateHitChance (للـ stats)
-local function CalculateHitChance(target)
-    if not target then return 0 end
-    local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(target) or target.Character[TargetPart]
-    local distance = (Camera.CFrame.Position - targetPart.Position).Magnitude
-    return math.clamp(100 - (distance / BulletSpeed * (100 - AimAccuracy) / 100), 0, 100)
-end
-
--- مراقبة الكيلز للـ stats و Auto-Switch
-local killMonitorConnection = nil
-local function EnableKillMonitor()
-    if killMonitorConnection then return end
-    killMonitorConnection = RunService.Heartbeat:Connect(function()
-        if CurrentTarget and CurrentTarget.Character and CurrentTarget.Character.Humanoid then
-            if CurrentTarget.Character.Humanoid.Health <= 0 then
-                if EnableStats then
-                    Stats.Kills = Stats.Kills + 1
-                    Rayfield:Notify({ Title = "Stats", Content = "Kills: " .. Stats.Kills .. " | Misses: " .. Stats.Misses, Duration = 3 })
-                end
-                if AutoSwitchOnKill then
-                    CurrentTarget = GetBestTarget()
-                end
+        local function getAsset(path)
+            if getcustom then
+                return getcustomasset(string.format("images_stuff/%s", path))
+            else
+                return "rbxassetid://0"
             end
         end
-    end)
-end
 
-local function DisableKillMonitor()
-    if killMonitorConnection then killMonitorConnection:Disconnect(); killMonitorConnection = nil end
-end
+        downloadSound = LPH_NO_VIRTUALIZE(function(SoundName, SoundUrl)
+            local SoundPath = string.format("images_stuff/%s", SoundName)
+            if not isfile(SoundPath) then
+                writefile(SoundPath, game:HttpGet(SoundUrl))
+            end
+            return SoundPath
+        end)
 
-RunService.RenderStepped:Connect(function() 
-    if AimbotEnabled or SilentAim then 
-        CurrentTarget = StickToTarget and CurrentTarget and IsValidTarget(CurrentTarget) and CurrentTarget or GetBestTarget() 
-        if SilentAim and not CurrentTarget and not hasNotifiedNoTarget then 
-            Rayfield:Notify({ Title = "Silent Aim", Content = "No valid target found in FOV!", Duration = 2, Image = 4483362458 }) 
-            hasNotifiedNoTarget = true 
-        elseif CurrentTarget then 
-            hasNotifiedNoTarget = false 
-        end 
-    end 
-    UpdateFOV() 
-    UpdateFOVCircle()
-    
-    -- Triggerbot Logic
-    if TriggerbotEnabled and CurrentTarget and Mouse.Target and Mouse.Target:IsDescendantOf(CurrentTarget.Character) then
-        wait(TriggerDelay / 1000)
-        -- افترض أن لديك دالة fire، أو استخدم mouse1press إذا متاح
-        -- mouse1press()  -- uncomment إذا كان exploit يدعم
-        if EnableStats then
-            if math.random(100) > CalculateHitChance(CurrentTarget) then
-                Stats.Misses = Stats.Misses + 1
+        local Psalms = {
+            Tech = {
+                Enabled = false,
+                rediction = false,
+                AutoPredMode = "PingBased",
+                APMODE = "Calculate",
+                
+                RealPart = "HumanoidRootPart",
+                SelectedPart = "HumanoidRootPart",
+                AirPart = "RightFoot",
+                
+                HorizontalPrediction = 0.1,
+                VerticalPrediction = 0.1,
+                HorizontalPrediction2 = 0.1,
+                VerticalPrediction2 = 0.1,
+                
+                jumpoffset = 0,
+                jumpoffset2 = -0.3,
+                jumpoffset3 = 0.270,
+                
+                ShootDelay = 0.22,
+                NoGroundShot = false,
+                AutoAir = false,
+                
+                TracerEnabled = true,
+                LookAt = false,
+                
+                Camera = false,
+                CamPrediction1 = 0.1,
+                CamPrediction2 = 0.1,
+                SilentMode = false, 
+                smoothness = 0.9,
+                speedvalue = 1,
+                MacroSpeed = 0.2,
+                AntiCurve = false,
+                ResolverEnabled = false,
+                
+                easingStyle = "Sine",
+                easingDirection = "Out",
+                isTargetPlrMode = true,
+                shootDelay = 0.114,
+                lastShootTime = 0,
+                TriggerPot = true, 
+                
+                JumpBreak = false,
+                network = false,
+                UseVertical = false,
+                DotC = Color3.fromRGB(0, 0, 0),
+                WallCheck = false,
+                FriendCheck = false, 
+                KOCheck = false, 
+                SeatedCheck = false, 
+                TeamCheck = false,
+                UnlockOnKO = false,
+                CamWallCheck = false, 
+                CAMKo = false,
+                bool_at_tp = false, 
+                MacroDance = "YungBlud",
+                MacroDanceDelay = 0.300,
+            }
+        }
+
+        Psalms.Tech.SelectedPart = Psalms.Tech.RealPart
+
+        local Sleeping = false
+
+        local TargetAimbot = {
+            Enabled = true,
+            Keybind = Enum.KeyCode.Q,
+            Autoselect = false,
+            Prediction = 0.145, 
+            RealPrediction = 0.145, 
+            Resolver = false, 
+            ResolverType = "Recalculate", 
+            JumpOffset = 0.06, 
+            RealJumpOffset = 0.09, 
+            HitParts = {"HumanoidRootPart"}, 
+            RealHitPart = "HumanoidRootPart", 
+            KoCheck = false, 
+            LookAt = false,
+            CSync = {
+                Enabled = false,
+                Type = "Orbit",
+                Distance = 10,
+                Height = 2,
+                Speed = 10,
+                RandomAmount = 10,
+                Color = Color3.fromRGB(255, 255, 255),
+                Saved = nil,
+                Visualize = false,
+            },
+            ViewAt = false,
+            Tracer = false,
+            Highlight = true,
+            HighlightColor1 = Color3.fromRGB(255, 255, 255),
+            HighlightColor2 = Color3.fromRGB(255, 255, 255),
+            Stats = false, 
+            UseFov = false,
+            HitEffect = false,
+            HitEffectType = "Coom",
+            HitEffectColor = Color3.fromRGB(255, 255, 255),
+            HitSounds = false,
+            HitSound = "Bameware",
+            HitChams = false,
+            HitChamsMaterial = Enum.Material.Neon,
+            HitChamsDuration = 2,
+            HitChamsColor = Color3.fromRGB(255, 0, 0),
+            HitChamColorEnabled = false,
+            HitChamsTransparency = 0,
+            HitChamsAcc = false, 
+            SkeleColor = Color3.fromRGB(155, 0, 155)
+        }
+
+        local Highlight = false
+
+        local function toggleAimViewer()
+            local players = game:GetService("Players")
+            local player = players.LocalPlayer
+            player.CharacterAdded:Connect(function()
+                local gui = player.PlayerGui:WaitForChild("gui")
+                local aimViewerFrame = gui.Settings.ScrollingFrame.aimviewer
+                aimViewerFrame.Visible = true
+            end)
+
+            local gui = player.PlayerGui:WaitForChild("gui")
+            local aimViewerFrame = gui.Settings.ScrollingFrame.aimviewer
+            aimViewerFrame.Visible = true
+        end
+
+        local UserInputService, Players, ReplicatedStorage, RunService, Workspace, Stats = 
+            cloneref(game:GetService("UserInputService")), cloneref(game:GetService("Players")), cloneref(game:GetService("ReplicatedStorage")), 
+            cloneref(game:GetService("RunService")), cloneref(game:GetService("Workspace")), cloneref(game:GetService("Stats"))
+
+        local CoreGui, StarterGui, SoundService, HttpService = 
+            cloneref(game:GetService("CoreGui")), cloneref(game:GetService("StarterGui")), cloneref(game:GetService("SoundService")), cloneref(game:GetService("HttpService"))
+
+        local LocalPlayer = cloneref(Players.LocalPlayer)
+        local Camera = cloneref(Workspace.CurrentCamera)
+
+        local TargBindEnabled, TargetPlr, TargResolvePos = true, nil, nil
+        local TargHighlight = Instance.new("Highlight")
+
+        local AvatarEditorService = game:GetService("AvatarEditorService")
+        TargHighlight.Parent = CoreGui
+        TargHighlight.FillColor = TargetAimbot.HighlightColor1
+        TargHighlight.OutlineColor = TargetAimbot.HighlightColor2
+        TargHighlight.FillTransparency = 0.5
+        TargHighlight.OutlineTransparency = 0
+        TargHighlight.Enabled = false
+
+        local AChams = false
+        local updateBreatheEffect = LPH_NO_VIRTUALIZE(function() 
+            if AChams then
+                local breathe_effect = math.atan(math.sin(tick() * 2)) * 2 / math.pi
+                TargHighlight.FillTransparency = 100 * breathe_effect * 0.01
+                TargHighlight.OutlineTransparency = 100 * breathe_effect * 0.01
+            end
+        end) 
+
+        local HitEffectModule = {
+            Locals = {
+                Type = {
+                    ["Nova"] = nil,
+                    ["Crescent Slash"] = nil,
+                    ["Coom"] = nil,
+                    ["Cosmic Explosion"] = nil,
+                    ["Slash"] = nil,
+                    ["Atomic Slash"] = nil,
+                    ["AuraBurst"] = nil,
+                    ["Thunder"] = nil, 
+                },
+            },
+            Functions = {},
+            Settings = {HitEffect = {Color = TargetAimbot.HitEffectColor}}
+        }
+
+        local sounds = {
+            BlackPencil = "https://github.com/Shatapmatehabibi/Hitsounds/raw/main/bananapencil.mp3.mp3",
+            UWU = "https://github.com/CongoOhioDog/SoundS/blob/main/Uwu.mp3?raw=true",
+            Plooh = "https://github.com/CongoOhioDog/SoundS/blob/main/plooh.mp3?raw=true",
+            Hrntai = "https://github.com/CongoOhioDog/SoundS/blob/main/Hrntai.wav?raw=true",
+            Henta01 = "https://github.com/CongoOhioDog/SoundS/blob/main/henta01.wav?raw=true",
+            Bruh = "https://github.com/CongoOhioDog/SoundS/blob/main/psalms%20bruh%20sample.mp3?raw=true",
+            BoneBreakage = "https://github.com/CongoOhioDog/SoundS/blob/main/psalms%20bone%20breakage.mp3?raw=true",
+            Fein = "https://github.com/CongoOhioDog/SoundS/blob/main/psalms%20highly%20defined%20fein.mp3?raw=true",
+            Unicorn = "https://github.com/CongoOhioDog/SoundS/blob/main/shiny%20unicorn%20for%20dh%20_%20psalms.mp3?raw=true",
+            Kitty = "https://github.com/CongoOhioDog/SoundS/blob/main/Kitty.mp3?raw=true",
+            Bird = "https://github.com/CongoOhioDog/SoundS/blob/main/bird%20chirping%20for%20DH%20_%20psalms%20audio.mp3?raw=true",
+            BirthdayCake = "https://github.com/CongoOhioDog/SoundS/blob/main/Birthday%20cake%20for%20dh%20_%20psalms.mp3?raw=true", 
+            KenCarson =  "https://github.com/CongoOhioDog/SoundS/blob/main/ken_carson_-_jennifer_s_body_offici(2).mp3?raw=true"
+        }
+
+        for name, url in pairs(sounds) do
+            _G[name .. "Path"] = downloadSound(name .. ".mp3", url)
+        end
+
+        local hitsounds = {
+            ["RIFK7"]          = "rbxassetid://9102080552",
+            ["Bubble"]         = "rbxassetid://9102092728",
+            ["Minecraft"]      = "rbxassetid://5869422451",
+            ["Cod"]            = "rbxassetid://160432334",
+            ["Bameware"]       = "rbxassetid://6565367558",
+            ["Neverlose"]      = "rbxassetid://6565370984",
+            ["Gamesense"]      = "rbxassetid://4817809188",
+            ["Rust"]           = "rbxassetid://6565371338",
+            ["BlackPencil"]    = getAsset("BlackPencil.mp3"),
+            ["UWU"]            = getAsset("Uwu.mp3"),
+            ["Plooh"]          = getAsset("plooh.mp3"),
+            ["Moan"]           = getAsset("Hrntai.mp3"),
+            ["Hentai"]         = getAsset("Henta01.mp3"),
+            ["Bruh"]           = getAsset("Bruh.mp3"),
+            ["BoneBreakage"]   = getAsset("BoneBreakage.mp3"),
+            ["Fein"]           = getAsset("Fein.mp3"),
+            ["Unicorn"]        = getAsset("Unicorn.mp3"),
+            ["Kitty"]          = getAsset("Kitty.mp3"),
+            ["Bird"]           = getAsset("Bird.mp3"),
+            ["BirthdayCake"]   = getAsset("BirthdayCake.mp3"),
+            ["KenCarson"]      = getAsset("KenCarson.mp3")
+        }
+
+        local HitChamsFolder = Instance.new("Folder")
+        HitChamsFolder.Name = "HitChamsFolder"
+        HitChamsFolder.Parent = Workspace
+
+        -- Crescent Slash Effect
+        do
+            local Attachment = Instance.new("Attachment")
+            Attachment.Name = "Attachment"
+            HitEffectModule.Locals.Type["Crescent Slash"] = Attachment
+
+            local Glow = Instance.new("ParticleEmitter")
+            Glow.Name = "Glow"
+            Glow.Lifetime = NumberRange.new(0.16, 0.16)
+            Glow.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.1421725, 0.6182796), NumberSequenceKeypoint.new(1, 1)})
+            Glow.Color = ColorSequence.new(Color3.fromRGB(91, 177, 252))
+            Glow.Speed = NumberRange.new(0, 0)
+            Glow.Brightness = 5
+            Glow.Size = NumberSequence.new(9.1873131, 16.5032349)
+            Glow.Enabled = false
+            Glow.ZOffset = -0.0565939
+            Glow.Rate = 50
+            Glow.Texture = "rbxassetid://8708637750"
+            Glow.Parent = Attachment
+
+            local Gradient1 = Instance.new("ParticleEmitter")
+            Gradient1.Name = "Gradient1"
+            Gradient1.Lifetime = NumberRange.new(0.3, 0.3)
+            Gradient1.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.15, 0.3), NumberSequenceKeypoint.new(1, 1)})
+            Gradient1.Color = ColorSequence.new(Color3.fromRGB(115, 201, 255))
+            Gradient1.Speed = NumberRange.new(0, 0)
+            Gradient1.Brightness = 6
+            Gradient1.Size = NumberSequence.new(0, 11.6261358)
+            Gradient1.Enabled = false
+            Gradient1.ZOffset = 0.9187313
+            Gradient1.Rate = 50
+            Gradient1.Texture = "rbxassetid://8196169974"
+            Gradient1.Parent = Attachment
+
+            local Shards = Instance.new("ParticleEmitter")
+            Shards.Name = "Shards"
+            Shards.Lifetime = NumberRange.new(0.19, 0.7)
+            Shards.SpreadAngle = Vector2.new(-90, 90)
+            Shards.Color = ColorSequence.new(Color3.fromRGB(108, 184, 255))
+            Shards.Drag = 10
+            Shards.VelocitySpread = -90
+            Shards.Squash = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5705521, 0.4125001), NumberSequenceKeypoint.new(1, -0.9375)})
+            Shards.Speed = NumberRange.new(97.7530136, 146.9970093)
+            Shards.Brightness = 4
+            Shards.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.284774, 1.2389833, 0.1534118), NumberSequenceKeypoint.new(1, 0)})
+            Shards.Enabled = false
+            Shards.Acceleration = Vector3.new(0, -56.961341857910156, 0)
+            Shards.ZOffset = 0.5705321
+            Shards.Rate = 50
+            Shards.Texture = "rbxassetid://8030734851"
+            Shards.Rotation = NumberRange.new(90, 90)
+            Shards.Orientation = Enum.ParticleOrientation.VelocityParallel
+            Shards.Parent = Attachment
+
+            -- باقي الـ particles لـ Crescent Slash (كامل من الأصلي)
+            local ShardsDark = Instance.new("ParticleEmitter")
+            ShardsDark.Name = "ShardsDark"
+            ShardsDark.Lifetime = NumberRange.new(0.19, 0.35)
+            ShardsDark.SpreadAngle = Vector2.new(-90, 90)
+            ShardsDark.Color = ColorSequence.new(Color3.fromRGB(108, 184, 255))
+            ShardsDark.Drag = 10
+            ShardsDark.VelocitySpread = -90
+            ShardsDark.Squash = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5705521, 0.4125001), NumberSequenceKeypoint.new(1, -0.9375)})
+            ShardsDark.Speed = NumberRange.new(97.7530136, 146.9970093)
+            ShardsDark.Brightness = 4
+            ShardsDark.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.290774, 0.6734411, 0.1534118), NumberSequenceKeypoint.new(1, 0)})
+            ShardsDark.Enabled = false
+            ShardsDark.ZOffset = 0.5705321
+            ShardsDark.Rate = 50
+            ShardsDark.Texture = "rbxassetid://8030734851"
+            ShardsDark.Rotation = NumberRange.new(90, 90)
+            ShardsDark.Orientation = Enum.ParticleOrientation.VelocityParallel
+            ShardsDark.Parent = Attachment
+
+            local Specs = Instance.new("ParticleEmitter")
+            Specs.Name = "Specs"
+            Specs.Lifetime = NumberRange.new(0.33, 1.4)
+            Specs.SpreadAngle = Vector2.new(360, -1000)
+            Specs.Color = ColorSequence.new(Color3.fromRGB(98, 174, 255))
+            Specs.Drag = 10
+            Specs.VelocitySpread = 360
+            Specs.Speed = NumberRange.new(36.7492523, 146.9970093)
+            Specs.Brightness = 7
+            Specs.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.200774, 2.0311937, 0.4363973), NumberSequenceKeypoint.new(1, 0)})
+            Specs.Enabled = false
+            Specs.Acceleration = Vector3.new(0, 36.74925231933594, 0)
+            Specs.Rate = 50
+            Specs.Texture = "rbxassetid://8030760338"
+            Specs.EmissionDirection = Enum.NormalId.Right
+            Specs.Parent = Attachment
+
+            local Specs1 = Instance.new("ParticleEmitter")
+            Specs1.Name = "Specs"
+            Specs1.Lifetime = NumberRange.new(0.33, 1.75)
+            Specs1.SpreadAngle = Vector2.new(90, -90)
+            Specs1.Color = ColorSequence.new(Color3.fromRGB(106, 171, 255))
+            Specs1.Drag = 9
+            Specs1.VelocitySpread = 90
+            Specs1.Speed = NumberRange.new(42.2616425, 73.4985046)
+            Specs1.Brightness = 6
+            Specs1.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.210774, 0.3978962, 0.1855686), NumberSequenceKeypoint.new(1, 0)})
+            Specs1.Enabled = false
+            Specs1.Acceleration = Vector3.new(0, -20.21208953857422, 0)
+            Specs1.ZOffset = 0.5144895
+            Specs1.Rate = 50
+            Specs1.Texture = "rbxassetid://8030760338"
+            Specs1.Parent = Attachment
+
+            local Specs2 = Instance.new("ParticleEmitter")
+            Specs2.Name = "Specs"
+            Specs2.Lifetime = NumberRange.new(0.19, 1.2)
+            Specs2.SpreadAngle = Vector2.new(360, -1000)
+            Specs2.Color = ColorSequence.new(Color3.fromRGB(98, 174, 255))
+            Specs2.Drag = 10
+            Specs2.VelocitySpread = 360
+            Specs2.Speed = NumberRange.new(36.7492523, 146.9970093)
+            Specs2.Brightness = 7
+            Specs2.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.200774, 2.0311937, 0.4363973), NumberSequenceKeypoint.new(1, 0)})
+            Specs2.Enabled = false
+            Specs2.Acceleration = Vector3.new(0, 36.74925231933594, 0)
+            Specs2.Rate = 50
+            Specs2.Texture = "rbxassetid://8030760338"
+            Specs2.EmissionDirection = Enum.NormalId.Right
+            Specs2.Parent = Attachment
+
+            local Specs21 = Instance.new("ParticleEmitter")
+            Specs21.Name = "Specs2"
+            Specs21.Lifetime = NumberRange.new(0.19, 1.35)
+            Specs21.SpreadAngle = Vector2.new(90, -90)
+            Specs21.Color = ColorSequence.new(Color3.fromRGB(106, 171, 255))
+            Specs21.Drag = 12
+            Specs21.VelocitySpread = 90
+            Specs21.Speed = NumberRange.new(42.2616425, 73.4985046)
+            Specs21.Brightness = 6
+            Specs21.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.216774, 0.5721694, 0.1855686), NumberSequenceKeypoint.new(1, 0)})
+            Specs21.Enabled = false
+            Specs21.Acceleration = Vector3.new(0, -20.21208953857422, 0)
+            Specs21.ZOffset = 0.5144895
+            Specs21.Rate = 50
+            Specs21.Texture = "rbxassetid://8030760338"
+            Specs21.Parent = Attachment
+
+            local ddddddddddddddddddd = Instance.new("ParticleEmitter")
+            ddddddddddddddddddd.Name = "ddddddddddddddddddd"
+            ddddddddddddddddddd.Lifetime = NumberRange.new(0.19, 0.37)
+            ddddddddddddddddddd.SpreadAngle = Vector2.new(90, -90)
+            ddddddddddddddddddd.LockedToPart = true
+            ddddddddddddddddddd.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.6429392, 0), NumberSequenceKeypoint.new(1, 0)})
+            ddddddddddddddddddd.LightEmission = 1
+            ddddddddddddddddddd.Color = ColorSequence.new(Color3.fromRGB(90, 184, 255), Color3.fromRGB(165, 251, 255))
+            ddddddddddddddddddd.Drag = 6
+            ddddddddddddddddddd.TimeScale = 0.7
+            ddddddddddddddddddd.VelocitySpread = 90
+            ddddddddddddddddddd.Speed = NumberRange.new(81.5833435, 110.2477646)
+            ddddddddddddddddddd.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.410774, 0.6711507, 0.3356177), NumberSequenceKeypoint.new(1, 0)})
+            ddddddddddddddddddd.Enabled = false
+            ddddddddddddddddddd.Acceleration = Vector3.new(0, -81.58334350585938, 0)
+            ddddddddddddddddddd.ZOffset = 0.8345273
+            ddddddddddddddddddd.Rate = 50
+            ddddddddddddddddddd.Texture = "rbxassetid://1053546634"
+            ddddddddddddddddddd.RotSpeed = NumberRange.new(-444, 166)
+            ddddddddddddddddddd.Rotation = NumberRange.new(-360, 360)
+            ddddddddddddddddddd.Parent = Attachment
+
+            local large_shard = Instance.new("ParticleEmitter")
+            large_shard.Name = "large_shard"
+            large_shard.Lifetime = NumberRange.new(0.19, 0.28)
+            large_shard.SpreadAngle = Vector2.new(-90, 90)
+            large_shard.Color = ColorSequence.new(Color3.fromRGB(108, 184, 255))
+            large_shard.Drag = 10
+            large_shard.VelocitySpread = -90
+            large_shard.Squash = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5705521, 0.4125001), NumberSequenceKeypoint.new(1, -0.9375)})
+            large_shard.Speed = NumberRange.new(97.7530136, 146.9970093)
+            large_shard.Brightness = 4
+            large_shard.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.260774, 3.515605, 0.1534118), NumberSequenceKeypoint.new(1, 0)})
+            large_shard.Enabled = false
+            large_shard.ZOffset = 0.5705321
+            large_shard.Rate = 50
+            large_shard.Texture = "rbxassetid://8030734851"
+            large_shard.Rotation = NumberRange.new(90, 90)
+            large_shard.Orientation = Enum.ParticleOrientation.VelocityParallel
+            large_shard.Parent = Attachment
+
+            local out_Specs = Instance.new("ParticleEmitter")
+            out_Specs.Name = "out_Specs"
+            out_Specs.Lifetime = NumberRange.new(0.19, 1)
+            out_Specs.SpreadAngle = Vector2.new(44, -1000)
+            out_Specs.Color = ColorSequence.new(Color3.fromRGB(98, 174, 255))
+            out_Specs.Drag = 10
+            out_Specs.VelocitySpread = 44
+            out_Specs.Speed = NumberRange.new(36.7492523, 146.9970093)
+            out_Specs.Brightness = 7
+            out_Specs.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.244774, 0.5469525, 0.1433053), NumberSequenceKeypoint.new(1, 0)})
+            out_Specs.Enabled = false
+            out_Specs.Acceleration = Vector3.new(0, -3.215559720993042, 0)
+            out_Specs.Rate = 50
+            out_Specs.Texture = "rbxassetid://8030760338"
+            out_Specs.EmissionDirection = Enum.NormalId.Right
+            out_Specs.Parent = Attachment
+
+            local Effect = Instance.new("ParticleEmitter")
+            Effect.Name = "Effect"
+            Effect.Lifetime = NumberRange.new(0.4, 0.7)
+            Effect.FlipbookLayout = Enum.ParticleFlipbookLayout.Grid4x4
+            Effect.SpreadAngle = Vector2.new(360, -360)
+            Effect.LockedToPart = true
+            Effect.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.1070999, 0.19375), NumberSequenceKeypoint.new(0.7761194, 0.88125), NumberSequenceKeypoint.new(1, 1)})
+            Effect.LightEmission = 1
+            Effect.Color = ColorSequence.new(Color3.fromRGB(92, 161, 252))
+            Effect.Drag = 1
+            Effect.VelocitySpread = 360
+            Effect.Speed = NumberRange.new(0.0036749, 0.0036749)
+            Effect.Brightness = 2.0999999
+            Effect.Size = NumberSequence.new(6.9680691, 9.9213123)
+            Effect.Enabled = false
+            Effect.ZOffset = 0.4777403
+            Effect.Rate = 50
+            Effect.Texture = "rbxassetid://9484012464"
+            Effect.RotSpeed = NumberRange.new(-150, -150)
+            Effect.FlipbookMode = Enum.ParticleFlipbookMode.OneShot
+            Effect.Rotation = NumberRange.new(50, 50)
+            Effect.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+            Effect.Parent = Attachment
+
+            local Crescents = Instance.new("ParticleEmitter")
+            Crescents.Name = "Crescents"
+            Crescents.Lifetime = NumberRange.new(0.19, 0.38)
+            Crescents.SpreadAngle = Vector2.new(-360, 360)
+            Crescents.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.1932907, 0), NumberSequenceKeypoint.new(0.778754, 0), NumberSequenceKeypoint.new(1, 1)})
+            Crescents.LightEmission = 1
+            Crescents.Color = ColorSequence.new(Color3.fromRGB(92, 161, 252))
+            Crescents.VelocitySpread = -360
+            Crescents.Speed = NumberRange.new(0.0826858, 0.0826858)
+            Crescents.Brightness = 20
+            Crescents.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.398774, 8.8026266, 2.2834616), NumberSequenceKeypoint.new(1, 11.477972, 1.860431)})
+            Crescents.Enabled = false
+            Crescents.ZOffset = 0.4542207
+            Crescents.Rate = 50
+            Crescents.Texture = "rbxassetid://12509373457"
+            Crescents.RotSpeed = NumberRange.new(800, 1000)
+            Crescents.Rotation = NumberRange.new(-360, 360)
+            Crescents.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+            Crescents.Parent = Attachment
+        end
+
+        -- Cosmic Explosion Effect
+        do
+            local Attachment = Instance.new("Attachment")
+            Attachment.Name = "Attachment"
+            HitEffectModule.Locals.Type["Cosmic Explosion"] = Attachment
+
+            local Glow = Instance.new("ParticleEmitter")
+            Glow.Name = "Glow"
+            Glow.Lifetime = NumberRange.new(0.16, 0.16)
+            Glow.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.1421725, 0.6182796), NumberSequenceKeypoint.new(1, 1)})
+            Glow.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+            Glow.Speed = NumberRange.new(0, 0)
+            Glow.Brightness = 5
+            Glow.Size = NumberSequence.new(9.1873131, 16.5032349)
+            Glow.Enabled = false
+            Glow.ZOffset = -0.0565939
+            Glow.Rate = 50
+            Glow.Texture = "rbxassetid://8708637750"
+            Glow.Parent = Attachment
+
+            local Effect = Instance.new("ParticleEmitter")
+            Effect.Name = "Effect"
+            Effect.Lifetime = NumberRange.new(0.4, 0.7)
+            Effect.FlipbookLayout = Enum.ParticleFlipbookLayout.Grid4x4
+            Effect.SpreadAngle = Vector2.new(360, -360)
+            Effect.LockedToPart = true
+            Effect.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.1070999, 0.19375), NumberSequenceKeypoint.new(0.7761194, 0.88125), NumberSequenceKeypoint.new(1, 1)})
+            Effect.LightEmission = 1
+            Effect.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+            Effect.Drag = 1
+            Effect.VelocitySpread = 360
+            Effect.Speed = NumberRange.new(0.0036749, 0.0036749)
+            Effect.Brightness = 2.0999999
+            Effect.Size = NumberSequence.new(6.9680691, 9.9213123)
+            Effect.Enabled = false
+            Effect.ZOffset = 0.4777403
+            Effect.Rate = 50
+            Effect.Texture = "rbxassetid://9484012464"
+            Effect.RotSpeed = NumberRange.new(-150, -150)
+            Effect.FlipbookMode = Enum.ParticleFlipbookMode.OneShot
+            Effect.Rotation = NumberRange.new(50, 50)
+            Effect.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+            Effect.Parent = Attachment
+
+            local Gradient1 = Instance.new("ParticleEmitter")
+            Gradient1.Name = "Gradient1"
+            Gradient1.Lifetime = NumberRange.new(0.3, 0.3)
+            Gradient1.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.15, 0.3), NumberSequenceKeypoint.new(1, 1)})
+            Gradient1.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+            Gradient1.Speed = NumberRange.new(0, 0)
+            Gradient1.Brightness = 6
+            Gradient1.Size = NumberSequence.new(0, 11.6261358)
+            Gradient1.Enabled = false
+            Gradient1.ZOffset = 0.9187313
+            Gradient1.Rate = 50
+            Gradient1.Texture = "rbxassetid://8196169974"
+            Gradient1.Parent = Attachment
+
+            local Shards = Instance.new("ParticleEmitter")
+            Shards.Name = "Shards"
+            Shards.Lifetime = NumberRange.new(0.19, 0.7)
+            Shards.SpreadAngle = Vector2.new(-90, 90)
+            Shards.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+            Shards.Drag = 10
+            Shards.VelocitySpread = -90
+            Shards.Squash = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5705521, 0.4125001), NumberSequenceKeypoint.new(1, -0.9375)})
+            Shards.Speed = NumberRange.new(97.7530136, 146.9970093)
+            Shards.Brightness = 4
+            Shards.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.284774, 1.2389833, 0.1534118), NumberSequenceKeypoint.new(1, 0)})
+            Shards.Enabled = false
+            Shards.Acceleration = Vector3.new(0, -56.961341857910156, 0)
+            Shards.ZOffset = 0.5705321
+            Shards.Rate = 50
+            Shards.Texture = "rbxassetid://8030734851"
+            Shards.Rotation = NumberRange.new(90, 90)
+            Shards.Orientation = Enum.ParticleOrientation.VelocityParallel
+            Shards.Parent = Attachment
+
+            local Crescents = Instance.new("ParticleEmitter")
+            Crescents.Name = "Crescents"
+            Crescents.Lifetime = NumberRange.new(0.19, 0.38)
+            Crescents.SpreadAngle = Vector2.new(-360, 360)
+            Crescents.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.1932907, 0), NumberSequenceKeypoint.new(0.778754, 0), NumberSequenceKeypoint.new(1, 1)})
+            Crescents.LightEmission = 10
+            Crescents.Color = ColorSequence.new(Color3.fromRGB(160, 96, 255))
+            Crescents.VelocitySpread = -360
+            Crescents.Speed = NumberRange.new(0.0826858, 0.0826858)
+            Crescents.Brightness = 4
+            Crescents.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.398774, 8.8026266, 2.2834616), NumberSequenceKeypoint.new(1, 11.477972, 1.860431)})
+            Crescents.Enabled = false
+            Crescents.ZOffset = 0.4542207
+            Crescents.Rate = 50
+            Crescents.Texture = "rbxassetid://12509373457"
+            Crescents.RotSpeed = NumberRange.new(800, 1000)
+            Crescents.Rotation = NumberRange.new(-360, 360)
+            Crescents.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+            Crescents.Parent = Attachment
+
+            local ParticleEmitter2 = Instance.new("ParticleEmitter")
+            ParticleEmitter2.Name = "ParticleEmitter2"
+            ParticleEmitter2.FlipbookFramerate = NumberRange.new(20, 20)
+            ParticleEmitter2.Lifetime = NumberRange.new(0.19, 0.38)
+            ParticleEmitter2.FlipbookLayout = Enum.ParticleFlipbookLayout.Grid4x4
+            ParticleEmitter2.SpreadAngle = Vector2.new(360, 360)
+            ParticleEmitter2.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.209842, 0.5), NumberSequenceKeypoint.new(0.503842, 0.263333), NumberSequenceKeypoint.new(0.799842, 0.5), NumberSequenceKeypoint.new(1, 1)})
+            ParticleEmitter2.LightEmission = 1
+            ParticleEmitter2.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+            ParticleEmitter2.VelocitySpread = 360
+            ParticleEmitter2.Speed = NumberRange.new(0.0161231, 0.0161231)
+            ParticleEmitter2.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 4.3125), NumberSequenceKeypoint.new(0.3985056, 7.9375), NumberSequenceKeypoint.new(1, 10)})
+            ParticleEmitter2.Enabled = false
+            ParticleEmitter2.ZOffset = 0.15
+            ParticleEmitter2.Rate = 100
+            ParticleEmitter2.Texture = "http://www.roblox.com/asset/?id=12394566430"
+            ParticleEmitter2.FlipbookMode = Enum.ParticleFlipbookMode.OneShot
+            ParticleEmitter2.Rotation = NumberRange.new(39, 999)
+            ParticleEmitter2.Orientation = Enum.ParticleOrientation.VelocityParallel
+            ParticleEmitter2.Parent = Attachment
+        end
+
+        -- Coom Effect
+        do
+            local Attachment = Instance.new("Attachment")
+            HitEffectModule.Locals.Type["Coom"] = Attachment
+
+            local Foam = Instance.new("ParticleEmitter")
+            Foam.Name = "Foam"
+            Foam.LightInfluence = 0.5
+            Foam.Lifetime = NumberRange.new(1, 1)
+            Foam.SpreadAngle = Vector2.new(360, -360)
+            Foam.VelocitySpread = 360
+            Foam.Squash = NumberSequence.new(1)
+            Foam.Speed = NumberRange.new(20, 20)
+            Foam.Brightness = 2.5
+            Foam.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.1016692, 0.6508875, 0.6508875), NumberSequenceKeypoint.new(0.6494689, 1.4201183, 0.4127519), NumberSequenceKeypoint.new(1, 0)})
+            Foam.Enabled = false
+            Foam.Acceleration = Vector3.new(0, -66.04029846191406, 0)
+            Foam.Rate = 100
+            Foam.Texture = "rbxassetid://8297030850"
+            Foam.Rotation = NumberRange.new(-90, -90)
+            Foam.Orientation = Enum.ParticleOrientation.VelocityParallel
+            Foam.Parent = Attachment
+        end
+
+        -- Slash Effect
+        do
+            local Attachment = Instance.new("Attachment")
+            HitEffectModule.Locals.Type["Slash"] = Attachment
+
+            local Crescents = Instance.new("ParticleEmitter")
+            Crescents.Name = "Crescents"
+            Crescents.Lifetime = NumberRange.new(0.19, 0.38)
+            Crescents.SpreadAngle = Vector2.new(-360, 360)
+            Crescents.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.1932907, 0), NumberSequenceKeypoint.new(0.778754, 0), NumberSequenceKeypoint.new(1, 1)})
+            Crescents.LightEmission = 10
+            Crescents.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(160, 96, 255)), ColorSequenceKeypoint.new(0.3160622, Color3.fromRGB(160, 96, 255)), ColorSequenceKeypoint.new(0.5146805, Color3.fromRGB(154, 82, 255)), ColorSequenceKeypoint.new(1, Color3.fromRGB(160, 96, 255))})
+            Crescents.VelocitySpread = -360
+            Crescents.Speed = NumberRange.new(0.0826858, 0.0826858)
+            Crescents.Brightness = 4
+            Crescents.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.398774, 8.8026266, 2.2834616), NumberSequenceKeypoint.new(1, 11.477972, 1.860431)})
+            Crescents.Enabled = false
+            Crescents.ZOffset = 0.4542207
+            Crescents.Rate = 50
+            Crescents.Texture = "rbxassetid://12509373457"
+            Crescents.RotSpeed = NumberRange.new(800, 1000)
+            Crescents.Rotation = NumberRange.new(-360, 360)
+            Crescents.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+            Crescents.Parent = Attachment
+        end
+
+        -- Atomic Slash Effect
+        do
+            local Attachment = Instance.new("Attachment")
+            HitEffectModule.Locals.Type["Atomic Slash"] = Attachment
+
+            local Crescents = Instance.new("ParticleEmitter")
+            Crescents.Name = "Crescents"
+            Crescents.Lifetime = NumberRange.new(0.19, 0.38)
+            Crescents.SpreadAngle = Vector2.new(-360, 360)
+            Crescents.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.1932907, 0), NumberSequenceKeypoint.new(0.778754, 0), NumberSequenceKeypoint.new(1, 1)})
+            Crescents.LightEmission = 10
+            Crescents.Color = ColorSequence.new(Color3.fromRGB(160, 96, 255))
+            Crescents.VelocitySpread = -360
+            Crescents.Speed = NumberRange.new(0.0826858, 0.0826858)
+            Crescents.Brightness = 4
+            Crescents.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.398774, 8.8026266, 2.2834616), NumberSequenceKeypoint.new(1, 11.477972, 1.860431)})
+            Crescents.Enabled = false
+            Crescents.ZOffset = 0.4542207
+            Crescents.Rate = 50
+            Crescents.Texture = "rbxassetid://12509373457"
+            Crescents.RotSpeed = NumberRange.new(800, 1000)
+            Crescents.Rotation = NumberRange.new(-360, 360)
+            Crescents.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+            Crescents.Parent = Attachment
+
+            local Glow = Instance.new("ParticleEmitter")
+            Glow.Name = "Glow"
+            Glow.Lifetime = NumberRange.new(0.16, 0.16)
+            Glow.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.1421725, 0.6182796), NumberSequenceKeypoint.new(1, 1)})
+            Glow.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+            Glow.Speed = NumberRange.new(0, 0)
+            Glow.Brightness = 5
+            Glow.Size = NumberSequence.new(9.1873131, 16.5032349)
+            Glow.Enabled = false
+            Glow.ZOffset = -0.0565939
+            Glow.Rate = 50
+            Glow.Texture = "rbxassetid://8708637750"
+            Glow.Parent = Attachment
+
+            local Effect = Instance.new("ParticleEmitter")
+            Effect.Name = "Effect"
+            Effect.Lifetime = NumberRange.new(0.4, 0.7)
+            Effect.FlipbookLayout = Enum.ParticleFlipbookLayout.Grid4x4
+            Effect.SpreadAngle = Vector2.new(360, -360)
+            Effect.LockedToPart = true
+            Effect.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.1070999, 0.19375), NumberSequenceKeypoint.new(0.7761194, 0.88125), NumberSequenceKeypoint.new(1, 1)})
+            Effect.LightEmission = 1
+            Effect.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+            Effect.Drag = 1
+            Effect.VelocitySpread = 360
+            Effect.Speed = NumberRange.new(0.0036749, 0.0036749)
+            Effect.Brightness = 2.0999999
+            Effect.Size = NumberSequence.new(6.9680691, 9.9213123)
+            Effect.Enabled = false
+            Effect.ZOffset = 0.4777403
+            Effect.Rate = 50
+            Effect.Texture = "rbxassetid://9484012464"
+            Effect.RotSpeed = NumberRange.new(-150, -150)
+            Effect.FlipbookMode = Enum.ParticleFlipbookMode.OneShot
+            Effect.Rotation = NumberRange.new(50, 50)
+            Effect.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+            Effect.Parent = Attachment
+
+            local Gradient1 = Instance.new("ParticleEmitter")
+            Gradient1.Name = "Gradient1"
+            Gradient1.Lifetime = NumberRange.new(0.3, 0.3)
+            Gradient1.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.15, 0.3), NumberSequenceKeypoint.new(1, 1)})
+            Gradient1.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+            Gradient1.Speed = NumberRange.new(0, 0)
+            Gradient1.Brightness = 6
+            Gradient1.Size = NumberSequence.new(0, 11.6261358)
+            Gradient1.Enabled = false
+            Gradient1.ZOffset = 0.9187313
+            Gradient1.Rate = 50
+            Gradient1.Texture = "rbxassetid://8196169974"
+            Gradient1.Parent = Attachment
+
+            local Shards = Instance.new("ParticleEmitter")
+            Shards.Name = "Shards"
+            Shards.Lifetime = NumberRange.new(0.19, 0.7)
+            Shards.SpreadAngle = Vector2.new(-90, 90)
+            Shards.Color = ColorSequence.new(Color3.fromRGB(179, 145, 253))
+            Shards.Drag = 10
+            Shards.VelocitySpread = -90
+            Shards.Squash = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5705521, 0.4125001), NumberSequenceKeypoint.new(1, -0.9375)})
+            Shards.Speed = NumberRange.new(97.7530136, 146.9970093)
+            Shards.Brightness = 4
+            Shards.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.284774, 1.2389833, 0.1534118), NumberSequenceKeypoint.new(1, 0)})
+            Shards.Enabled = false
+            Shards.Acceleration = Vector3.new(0, -56.961341857910156, 0)
+            Shards.ZOffset = 0.5705321
+            Shards.Rate = 50
+            Shards.Texture = "rbxassetid://8030734851"
+            Shards.Rotation = NumberRange.new(90, 90)
+            Shards.Orientation = Enum.ParticleOrientation.VelocityParallel
+            Shards.Parent = Attachment
+        end
+
+        -- Aura Burst Effect
+        do
+            local attachment = Instance.new("Attachment")
+            attachment.Name = "Attachment"
+            HitEffectModule.Locals.Type["AuraBurst"] = attachment
+
+            local useparticle2 = Instance.new('ParticleEmitter')
+            useparticle2.Name = "useparticle2"
+            useparticle2.Acceleration = Vector3.new(0, 10, 0)
+            useparticle2.Brightness = 10
+            useparticle2.Color = ColorSequence.new(Color3.new(0, 1, 0.333333), Color3.new(0, 0, 1))
+            useparticle2.Drag = 3
+            useparticle2.Enabled = false
+            useparticle2.Lifetime = NumberRange.new(0.3, 10)
+            useparticle2.LightEmission = 1
+            useparticle2.Rate = 50
+            useparticle2.RotSpeed = NumberRange.new(-150, 150)
+            useparticle2.Rotation = NumberRange.new(-360, 360)
+            useparticle2.Size = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.19467, 0.819203),
+                NumberSequenceKeypoint.new(1, 0)
+            })
+            useparticle2.Speed = NumberRange.new(4.49742, 34.4802)
+            useparticle2.SpreadAngle = Vector2.new(360, 360)
+            useparticle2.Texture = "rbxassetid://16171528032"
+            useparticle2.Parent = attachment
+
+            local useparticle = Instance.new('ParticleEmitter')
+            useparticle.Name = "useparticle"
+            useparticle.Acceleration = Vector3.new(0, 10, 0)
+            useparticle.Brightness = 10
+            useparticle.Color = ColorSequence.new(Color3.new(0, 1, 0.403922), Color3.new(0.12549, 0, 1))
+            useparticle.Drag = 3
+            useparticle.Enabled = false
+            useparticle.Lifetime = NumberRange.new(0.3, 10)
+            useparticle.LightEmission = 1
+            useparticle.Rate = 50
+            useparticle.RotSpeed = NumberRange.new(-150, 150)
+            useparticle.Rotation = NumberRange.new(-360, 360)
+            useparticle.Size = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.19467, 0.819203),
+                NumberSequenceKeypoint.new(1, 0)
+            })
+            useparticle.Speed = NumberRange.new(4.49742, 34.4802)
+            useparticle.SpreadAngle = Vector2.new(360, 360)
+            useparticle.Texture = "rbxassetid://16171528032"
+            useparticle.Parent = attachment
+
+            local circles2 = Instance.new('ParticleEmitter')
+            circles2.Name = "circles2"
+            circles2.Acceleration = Vector3.new(0, 0, 0.001)
+            circles2.Brightness = 10
+            circles2.Color = ColorSequence.new(Color3.new(0, 1, 0.541176), Color3.new(0.0784314, 0, 1))
+            circles2.Enabled = false
+            circles2.Lifetime = NumberRange.new(0.9, 0.9)
+            circles2.LightInfluence = 0.35
+            circles2.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+            circles2.Rate = 4
+            circles2.RotSpeed = NumberRange.new(150, 150)
+            circles2.Size = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.20394, 8.79781),
+                NumberSequenceKeypoint.new(1, 10)
+            })
+            circles2.Speed = NumberRange.new(0.01, 0.01)
+            circles2.SpreadAngle = Vector2.new(360, 360)
+            circles2.Texture = "http://www.roblox.com/asset/?id=6835970470"
+            circles2.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.840125, 0.83125),
+                NumberSequenceKeypoint.new(1, 1)
+            })
+            circles2.Parent = attachment
+
+            local circles = Instance.new('ParticleEmitter')
+            circles.Name = "circles"
+            circles.Acceleration = Vector3.new(0, 0, 0.001)
+            circles.Brightness = 10
+            circles.Color = ColorSequence.new(Color3.new(0, 1, 0.45098), Color3.new(0.133333, 0, 1))
+            circles.Enabled = false
+            circles.Lifetime = NumberRange.new(0.9, 0.9)
+            circles.LightInfluence = 0.35
+            circles.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+            circles.Rate = 4
+            circles.RotSpeed = NumberRange.new(150, 150)
+            circles.Size = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.20394, 8.79781),
+                NumberSequenceKeypoint.new(1, 10)
+            })
+            circles.Speed = NumberRange.new(0.01, 0.01)
+            circles.SpreadAngle = Vector2.new(360, 360)
+            circles.Texture = "http://www.roblox.com/asset/?id=6835970470"
+            circles.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.840125, 0.83125),
+                NumberSequenceKeypoint.new(1, 1)
+            })
+            circles.Parent = attachment
+        end
+
+        -- Thunder Effect
+        do
+            local attachment = Instance.new("Attachment")
+            attachment.Name = "Attachment"
+            HitEffectModule.Locals.Type["Thunder"] = attachment
+
+            local ELECTRIC2 = Instance.new('ParticleEmitter')
+            ELECTRIC2.Parent = attachment
+            ELECTRIC2.Name = "ELECTRIC"
+            ELECTRIC2.Brightness = 3
+            ELECTRIC2.Color = ColorSequence.new(Color3.new(0, 0.52549, 0.780392), Color3.new(1, 0, 1))
+            ELECTRIC2.FlipbookLayout = Enum.ParticleFlipbookLayout.Grid8x8
+            ELECTRIC2.FlipbookMode = Enum.ParticleFlipbookMode.OneShot
+            ELECTRIC2.Lifetime = NumberRange.new(1, 3)
+            ELECTRIC2.LightEmission = 1
+            ELECTRIC2.Orientation = Enum.ParticleOrientation.FacingCameraWorldUp
+            ELECTRIC2.Rate = 5
+            ELECTRIC2.Size = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 19),
+                NumberSequenceKeypoint.new(1, 0)
+            })
+            ELECTRIC2.Speed = NumberRange.new(0, 0)
+            ELECTRIC2.SpreadAngle = Vector2.new(-360, 360)
+            ELECTRIC2.Texture = "rbxassetid://10547286472"
+            ELECTRIC2.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.25, 1),
+                NumberSequenceKeypoint.new(1, 1)
+            })
+
+            local ParticleEmitter = Instance.new('ParticleEmitter') 
+            ParticleEmitter.Color = ColorSequence.new(
+                Color3.fromRGB(0, 0, 255),
+                Color3.fromRGB(0, 0, 255),
+                Color3.fromRGB(0, 0, 255),
+                Color3.fromRGB(0, 0, 139)
+            )
+            ParticleEmitter.Drag = 5
+            ParticleEmitter.Lifetime = NumberRange.new(0.4, 0.4)
+            ParticleEmitter.LightEmission = 0.5
+            ParticleEmitter.Rate = 5
+            ParticleEmitter.Parent = attachment
+            ParticleEmitter.RotSpeed = NumberRange.new(200, 250)
+            ParticleEmitter.Rotation = NumberRange.new(-360, 360)
+            ParticleEmitter.Size = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 7),
+                NumberSequenceKeypoint.new(1, 0)
+            })
+            ParticleEmitter.Speed = NumberRange.new(0, 0)
+            ParticleEmitter.Texture = "http://www.roblox.com/asset/?id=467188845"
+            ParticleEmitter.Transparency = NumberSequence.new(0, 0.43125, 0, 0.299656, 0.04375, 0, 0.874618, 0, 0, 1, 0, 0)
+            ParticleEmitter.ZOffset = 1
+        end
+
+        -- Nova Effect
+        do
+            local part = Instance.new("Part")
+            part.Parent = ReplicatedStorage
+            local attachment = Instance.new("Attachment")
+            attachment.Name = "Attachment"
+            attachment.Parent = part
+            HitEffectModule.Locals.Type["Nova"] = attachment
+
+            local function createParticleEmitter(acceleration)
+                local emitter = Instance.new("ParticleEmitter")
+                emitter.Name = "ParticleEmitter"
+                emitter.Acceleration = acceleration
+                emitter.Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
+                    ColorSequenceKeypoint.new(0.495, HitEffectModule.Settings.HitEffect.Color),
+                    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
+                })
+                emitter.Lifetime = NumberRange.new(0.5, 0.5)
+                emitter.LightEmission = 1
+                emitter.LockedToPart = true
+                emitter.Rate = 1
+                emitter.Rotation = NumberRange.new(0, 360)
+                emitter.Size = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0, 1),
+                    NumberSequenceKeypoint.new(1, 10),
+                    NumberSequenceKeypoint.new(1, 1)
+                })
+                emitter.Speed = NumberRange.new(0, 0)
+                emitter.Texture = "rbxassetid://1084991215"
+                emitter.Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0, 0),
+                    NumberSequenceKeypoint.new(0, 0.1),
+                    NumberSequenceKeypoint.new(0.534, 0.25),
+                    NumberSequenceKeypoint.new(1, 0.5),
+                    NumberSequenceKeypoint.new(1, 0)
+                })
+                emitter.ZOffset = 1
+                emitter.Parent = attachment
+                return emitter
+            end
+
+            createParticleEmitter(Vector3.new(0, 0, 1))
+            local perpendicularEmitter = createParticleEmitter(Vector3.new(0, 1, -0.001))
+            perpendicularEmitter.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+        end
+
+        HitEffectModule.Functions.Effect = function(character, color)
+            if not TargetAimbot.HitEffect and character then return end
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            if not humanoidRootPart then return end
+
+            local effectAttachment = HitEffectModule.Locals.Type[TargetAimbot.HitEffectType]:Clone()
+            effectAttachment.Parent = humanoidRootPart
+
+            for _, emitter in pairs(effectAttachment:GetChildren()) do
+                if emitter:IsA("ParticleEmitter") then
+                    emitter.Color = ColorSequence.new({
+                        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
+                        ColorSequenceKeypoint.new(0.495, color),
+                        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
+                    })
+                    emitter:Emit()
+                end
+            end
+
+            task.delay(2, function()
+                effectAttachment:Destroy()
+            end)
+        end
+
+        local PlayHitSound = LPH_NO_VIRTUALIZE(function() 
+            if TargetAimbot.HitSounds and hitsounds[TargetAimbot.HitSound] then
+                local sound = Instance.new("Sound")
+                sound.SoundId = hitsounds[TargetAimbot.HitSound]
+                sound.Parent = SoundService
+                sound:Play()
+                sound.Ended:Connect(function()
+                    sound:Destroy()
+                end)
+            end
+        end) 
+
+        local TweenService = game:GetService("TweenService")
+
+        local HitChams = LPH_NO_VIRTUALIZE(function(Player)
+            if not TargetAimbot.HitChams then return end
+
+            if Player and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+                Player.Character.Archivable = true
+                local Cloned = Player.Character:Clone()
+                Cloned.Name = "Player Clone"
+
+                local BodyParts = {
+                    "Head", "UpperTorso", "LowerTorso",
+                    "LeftUpperArm", "LeftLowerArm", "LeftHand",
+                    "RightUpperArm", "RightLowerArm", "RightHand",
+                    "LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
+                    "RightUpperLeg", "RightLowerLeg", "RightFoot"
+                }
+
+                for _, Part in ipairs(Cloned:GetChildren()) do
+                    if Part:IsA("BasePart") then
+                        local PartValid = false
+                        for _, validPart in ipairs(BodyParts) do
+                            if Part.Name == validPart then
+                                PartValid = true
+                                break
+                            end
+                        end
+                        
+                        if not PartValid then
+                            Part:Destroy()
+                        end
+                    elseif Part:IsA("Accessory") or Part:IsA("Tool") or Part.Name == "face" or Part:IsA("Shirt") or Part:IsA("Pants") or Part:IsA("Hat") then
+                        Part:Destroy()
+                    end
+                end
+
+                if Cloned:FindFirstChild("Humanoid") then
+                    Cloned.Humanoid:Destroy()
+                end
+
+                for _, BodyPart in ipairs(Cloned:GetChildren()) do
+                    if BodyPart:IsA("BasePart") then
+                        BodyPart.CanCollide = false
+                        BodyPart.Anchored = true
+                        BodyPart.Transparency = TargetAimbot.HitChamsTransparency
+                        BodyPart.Color = TargetAimbot.HitChamsColor
+                        BodyPart.Material = TargetAimbot.HitChamsMaterial
+                    end
+                end
+
+                if Cloned:FindFirstChild("Head") then
+                    local Head = Cloned.Head
+                    Head.Transparency = TargetAimbot.HitChamsTransparency
+                    Head.Color = TargetAimbot.HitChamsColor
+                    Head.Material = TargetAimbot.HitChamsMaterial
+
+                    if Head:FindFirstChild("face") then
+                        Head.face:Destroy()
+                    end
+                end
+
+                Cloned.Parent = game.Workspace
+
+                local tweenInfo = TweenInfo.new(
+                    TargetAimbot.HitChamsDuration,
+                    Enum.EasingStyle.Sine,
+                    Enum.EasingDirection.InOut,
+                    0,
+                    true
+                )
+
+                for _, BodyPart in ipairs(Cloned:GetChildren()) do
+                    if BodyPart:IsA("BasePart") then
+                        local tween = TweenService:Create(BodyPart, tweenInfo, { Transparency = 1 })
+                        tween:Play()
+                    end
+                end
+
+                task.delay(TargetAimbot.HitChamsDuration, function()
+                    if Cloned and Cloned.Parent then
+                        Cloned:Destroy()
+                    end
+                end)
+            end
+        end) 
+
+        local Client = Players.LocalPlayer
+        local Mouse = Client:GetMouse()
+
+        local HitChamsSkeleton = LPH_NO_VIRTUALIZE(function(Player)
+            if not TargetAimbot.HitChamsAcc then return end
+
+            if Player and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+                -- كود الهيكل العظمي للـ hit chams (مختصر، يمكن توسيع من الأصلي)
+                -- استخدم Highlight أو Beam للـ skeleton lines
+                local skeleton = Instance.new("Highlight")
+                skeleton.Parent = Player.Character
+                skeleton.Color = TargetAimbot.SkeleColor
+                skeleton.FillTransparency = 1
+                skeleton.OutlineTransparency = 0
+                task.delay(TargetAimbot.HitChamsDuration, function()
+                    if skeleton then
+                        skeleton:Destroy()
+                    end
+                end)
+            end
+        end)
+
+        -- Universal Aimbot Hook - يعمل في جميع المابات
+        local UniversalHook = nil
+        local remotes = {}
+        local function SetupUniversalAimbot()
+            -- البحث عن remotes شائعة
+            for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+                if obj:IsA("RemoteEvent") and (string.find(obj.Name:lower(), "shoot") or string.find(obj.Name:lower(), "fire") or string.find(obj.Name:lower(), "gun") or string.find(obj.Name:lower(), "main") or string.find(obj.Name:lower(), "remote")) then
+                    table.insert(remotes, obj)
+                end
+            end
+
+            if #remotes == 0 then
+                warn("تحذير: لم يتم العثور على remotes مناسبة للـ Aimbot. تأكد من اللعبة.")
+                return
+            end
+
+            UniversalHook = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                local args = {...}
+
+                if method == "FireServer" and table.find(remotes, self) and Psalms.Tech.Enabled and TargetAimbot.Enabled and TargetPlr and TargetPlr.Character then
+                    local targetPos = TargetPlr.Character[Psalms.Tech.SelectedPart or "HumanoidRootPart"].Position
+                    -- إضافة prediction و jump offset
+                    local velocity = TargetPlr.Character.HumanoidRootPart.Velocity
+                    targetPos = targetPos + (velocity * Psalms.Tech.Prediction) + Vector3.new(0, Psalms.Tech.JumpOffset, 0)
+
+                    -- استبدال position في args (شائع في args[2] أو args[3])
+                    for i, arg in ipairs(args) do
+                        if typeof(arg) == "Vector3" then
+                            args[i] = targetPos
+                            break
+                        end
+                    end
+
+                    -- تشغيل التأثيرات
+                    PlayHitSound()
+                    HitEffectModule.Functions.Effect(TargetPlr.Character, TargetAimbot.HitEffectColor)
+                    HitChams(TargetPlr)
+                    HitChamsSkeleton(TargetPlr)
+                end
+
+                return UniversalHook(self, ...)
+            end))
+
+            Library:Notification("تم تفعيل الـ Aimbot العام لجميع المابات", 3)
+        end
+
+        -- تشغيل الـ hook بعد التحميل
+        task.spawn(function()
+            task.wait(2)
+            SetupUniversalAimbot()
+        end)
+
+        -- إعداد الـ UI بالعربية
+        local Window = Library:Window({Name = "Psalms.Tech - واجهة عربية", LoadingTitle = "جاري التحميل..."})
+
+        -- تبويب التقنية الرئيسية (Tech)
+        local Tab1 = Window:Tab({Name = "التقنية الرئيسية"})
+        local TechSection = Tab1:Section({Name = "إعدادات الـ Aimbot", Side = "Left"})
+
+        TechSection:Toggle({
+            Name = "تفعيل الـ Aimbot",
+            Flag = "AimbotEnabled",
+            Default = Psalms.Tech.Enabled,
+            Callback = function(a)
+                Psalms.Tech.Enabled = a
+            end
+        })
+
+        TechSection:Toggle({
+            Name = "وضع الصامت (Silent Mode)",
+            Flag = "SilentMode",
+            Default = Psalms.Tech.SilentMode,
+            Callback = function(a)
+                Psalms.Tech.SilentMode = a
+            end
+        })
+
+        TechSection:Slider({
+            Name = "التنبؤ الأفقي",
+            Flag = "HorizontalPrediction",
+            Min = 0,
+            Max = 1,
+            Default = Psalms.Tech.HorizontalPrediction,
+            Decimals = 0.01,
+            Callback = function(a)
+                Psalms.Tech.HorizontalPrediction = a
+            end
+        })
+
+        TechSection:Slider({
+            Name = "التنبؤ الرأسي",
+            Flag = "VerticalPrediction",
+            Min = 0,
+            Max = 1,
+            Default = Psalms.Tech.VerticalPrediction,
+            Decimals = 0.01,
+            Callback = function(a)
+                Psalms.Tech.VerticalPrediction = a
+            end
+        })
+
+        TechSection:Toggle({
+            Name = "التحقق من الجدران (Wall Check)",
+            Flag = "WallCheck",
+            Default = Psalms.Tech.WallCheck,
+            Callback = function(a)
+                Psalms.Tech.WallCheck = a
+            end
+        })
+
+        TechSection:Toggle({
+            Name = "التحقق من الأصدقاء (Friend Check)",
+            Flag = "FriendCheck",
+            Default = Psalms.Tech.FriendCheck,
+            Callback = function(a)
+                Psalms.Tech.FriendCheck = a
+            end
+        })
+
+        TechSection:Toggle({
+            Name = "التحقق من الـ KO",
+            Flag = "KOCheck",
+            Default = Psalms.Tech.KOCheck,
+            Callback = function(a)
+                Psalms.Tech.KOCheck = a
+            end
+        })
+
+        TechSection:Toggle({
+            Name = "كسر التنبؤ بالقفز (Jump Break)",
+            Flag = "JumpBreak",
+            Default = Psalms.Tech.JumpBreak,
+            Callback = function(a)
+                Psalms.Tech.JumpBreak = a
+            end
+        })
+
+        TechSection:Toggle({
+            Name = "مضاد الشبكة (Anti Network)",
+            Flag = "Network",
+            Default = Psalms.Tech.network,
+            Callback = function(a)
+                Psalms.Tech.network = a
+            end
+        })
+
+        -- تبويب الهدف (Target)
+        local Tab2 = Window:Tab({Name = "الهدف والتصويب"})
+        local TargetSection = Tab2:Section({Name = "إعدادات الهدف", Side = "Left"})
+
+        TargetSection:Toggle({
+            Name = "تفعيل الهدف",
+            Flag = "TargetEnabled",
+            Default = TargetAimbot.Enabled,
+            Callback = function(a)
+                TargetAimbot.Enabled = a
+            end
+        })
+
+        TargetSection:Keybind({
+            Name = "مفتاح الهدف",
+            Flag = "TargetKeybind",
+            Default = TargetAimbot.Keybind,
+            Callback = function(key)
+                TargetAimbot.Keybind = key
+            end
+        })
+
+        TargetSection:List({
+            Name = "نوع الـ Resolver",
+            Flag = "ResolverType",
+            Options = {"Recalculate", "PingBased"},
+            Default = TargetAimbot.ResolverType,
+            Callback = function(a)
+                TargetAimbot.ResolverType = a
+            end
+        })
+
+        TargetSection:Slider({
+            Name = "التنبؤ",
+            Flag = "Prediction",
+            Min = 0,
+            Max = 1,
+            Default = TargetAimbot.Prediction,
+            Decimals = 0.01,
+            Callback = function(a)
+                TargetAimbot.Prediction = a
+            end
+        })
+
+        TargetSection:Slider({
+            Name = "إزاحة القفز",
+            Flag = "JumpOffset",
+            Min = 0,
+            Max = 1,
+            Default = TargetAimbot.JumpOffset,
+            Decimals = 0.01,
+            Callback = function(a)
+                TargetAimbot.JumpOffset = a
+            end
+        })
+
+        TargetSection:List({
+            Name = "أجزاء الضرب",
+            Flag = "HitParts",
+            Options = {"HumanoidRootPart", "Head", "RightFoot"},
+            Default = TargetAimbot.RealHitPart,
+            Callback = function(a)
+                TargetAimbot.RealHitPart = a
+                Psalms.Tech.SelectedPart = a
+            end
+        })
+
+        TargetSection:Toggle({
+            Name = "التحقق من الـ KO",
+            Flag = "KoCheck",
+            Default = TargetAimbot.KoCheck,
+            Callback = function(a)
+                TargetAimbot.KoCheck = a
+            end
+        })
+
+        TargetSection:Toggle({
+            Name = "النظر إلى الهدف (LookAt)",
+            Flag = "LookAt",
+            Default = TargetAimbot.LookAt,
+            Callback = function(a)
+                TargetAimbot.LookAt = a
+            end
+        })
+
+        TargetSection:Toggle({
+            Name = "المتابعة البصرية (ViewAt)",
+            Flag = "ViewAt",
+            Default = TargetAimbot.ViewAt,
+            Callback = function(a)
+                TargetAimbot.ViewAt = a
+            end
+        })
+
+        TargetSection:Toggle({
+            Name = "الخط الممتد (Tracer)",
+            Flag = "Tracer",
+            Default = TargetAimbot.Tracer,
+            Callback = function(a)
+                TargetAimbot.Tracer = a
+            end
+        })
+
+        TargetSection:Toggle({
+            Name = "التسليط الضوئي (Highlight)",
+            Flag = "Highlight",
+            Default = TargetAimbot.Highlight,
+            Callback = function(a)
+                TargetAimbot.Highlight = a
+                TargHighlight.Enabled = a
+            end
+        })
+
+        TargetSection:Colorpicker({
+            Name = "لون التسليط 1",
+            Flag = "HighlightColor1",
+            Default = TargetAimbot.HighlightColor1,
+            Callback = function(a)
+                TargetAimbot.HighlightColor1 = a
+                TargHighlight.FillColor = a
+            end
+        })
+
+        TargetSection:Colorpicker({
+            Name = "لون التسليط 2",
+            Flag = "HighlightColor2",
+            Default = TargetAimbot.HighlightColor2,
+            Callback = function(a)
+                TargetAimbot.HighlightColor2 = a
+                TargHighlight.OutlineColor = a
+            end
+        })
+
+        TargetSection:Toggle({
+            Name = "إحصائيات الهدف",
+            Flag = "Stats",
+            Default = TargetAimbot.Stats,
+            Callback = function(a)
+                TargetAimbot.Stats = a
+            end
+        })
+
+        TargetSection:Toggle({
+            Name = "استخدام FOV",
+            Flag = "UseFov",
+            Default = TargetAimbot.UseFov,
+            Callback = function(a)
+                TargetAimbot.UseFov = a
+            end
+        })
+
+        -- قسم كشف الضربات (Hit Detection)
+        local HitSection = Tab2:Section({Name = "كشف الضربات", Side = "Right"})
+
+        HitSection:Toggle({
+            Name = "تأثيرات الضربة",
+            Flag = "HitEffect",
+            Default = TargetAimbot.HitEffect,
+            Callback = function(a)
+                TargetAimbot.HitEffect = a
+            end
+        })
+
+        HitSection:List({
+            Name = "نوع التأثير",
+            Flag = "HitEffectType",
+            Options = {"Nova", "Crescent Slash", "Coom", "Cosmic Explosion", "Slash", "Atomic Slash", "AuraBurst", "Thunder"},
+            Default = TargetAimbot.HitEffectType,
+            Callback = function(a)
+                TargetAimbot.HitEffectType = a
+            end
+        })
+
+        HitSection:Colorpicker({
+            Name = "لون التأثير",
+            Flag = "HitEffectColor",
+            Default = TargetAimbot.HitEffectColor,
+            Callback = function(a)
+                TargetAimbot.HitEffectColor = a
+                HitEffectModule.Settings.HitEffect.Color = a
+            end
+        })
+
+        HitSection:Toggle({
+            Name = "أصوات الضربة",
+            Flag = "HitSounds",
+            Default = TargetAimbot.HitSounds,
+            Callback = function(a)
+                TargetAimbot.HitSounds = a
+            end
+        })
+
+        HitSection:List({
+            Name = "نوع الصوت",
+            Flag = "HitSound",
+            Options = {"RIFK7", "Bubble", "Minecraft", "Cod", "Bameware", "Neverlose", "Gamesense", "Rust", "BlackPencil", "UWU", "Plooh", "Moan", "Hentai", "Bruh", "BoneBreakage", "Fein", "Unicorn", "Kitty", "Bird", "BirthdayCake", "KenCarson"},
+            Default = TargetAimbot.HitSound,
+            Callback = function(a)
+                TargetAimbot.HitSound = a
+            end
+        })
+
+        HitSection:Toggle({
+            Name = "تشام الضربة (Hit Chams)",
+            Flag = "HitChams",
+            Default = TargetAimbot.HitChams,
+            Callback = function(a)
+                TargetAimbot.HitChams = a
+            end
+        })
+
+        HitSection:Colorpicker({
+            Name = "لون التشام",
+            Flag = "HitChamsColor",
+            Default = TargetAimbot.HitChamsColor,
+            Callback = function(a)
+                TargetAimbot.HitChamsColor = a
+            end
+        })
+
+        HitSection:Slider({
+            Name = "مدة التشام",
+            Flag = "HitChamsDuration",
+            Min = 0,
+            Max = 10,
+            Default = TargetAimbot.HitChamsDuration,
+            Decimals = 0.1,
+            Callback = function(a)
+                TargetAimbot.HitChamsDuration = a
+            end
+        })
+
+        HitSection:Slider({
+            Name = "الشفافية",
+            Flag = "HitChamsTransparency",
+            Min = 0,
+            Max = 1,
+            Default = TargetAimbot.HitChamsTransparency,
+            Decimals = 0.01,
+            Callback = function(a)
+                TargetAimbot.HitChamsTransparency = a
+            end
+        })
+
+        HitSection:List({
+            Name = "مادة التشام",
+            Flag = "HitChamsMaterial",
+            Options = {"Neon", "SmoothPlastic", "ForceField"},
+            Default = TargetAimbot.HitChamsMaterial.Name,
+            Callback = function(a)
+                TargetAimbot.HitChamsMaterial = Enum.Material[a]
+            end
+        })
+
+        HitSection:Toggle({
+            Name = "هيكل عظمي الضربة",
+            Flag = "HitSkele",
+            Default = TargetAimbot.HitChamsAcc,
+            Callback = function(a)
+                TargetAimbot.HitChamsAcc = a
+            end
+        })
+
+        HitSection:Colorpicker({
+            Name = "لون الهيكل العظمي",
+            Flag = "SkeleColor",
+            Default = TargetAimbot.SkeleColor,
+            Callback = function(a)
+                TargetAimbot.SkeleColor = a
+            end
+        })
+
+        -- تبويب كسر التنبؤ (Prediction Breaker)
+        local Tab3 = Window:Tab({Name = "كسر التنبؤ"})
+        local BreakerSection = Tab3:Section({Name = "مضاد التصويب", Side = "Left"})
+
+        BreakerSection:Toggle({
+            Name = "تنبؤ بالقفز",
+            Flag = "JumpPredAnti",
+            Default = Psalms.Tech.JumpBreak,
+            Callback = function(a)
+                Psalms.Tech.JumpBreak = a
+            end
+        })
+
+        BreakerSection:Toggle({
+            Name = "مضاد التصويب (Anti Lock)",
+            Flag = "AntiLock",
+            Default = Desync, -- افتراضي من الأصلي
+            Callback = function(a)
+                Desync = a
+            end
+        })
+
+        BreakerSection:Toggle({
+            Name = "مضاد الشبكة",
+            Flag = "NetworkDesync",
+            Default = desyncsleep,
+            Callback = function(a)
+                desyncsleep = a
+            end
+        })
+
+        BreakerSection:List({
+            Name = "نوع مضاد التصويب",
+            Flag = "AntiLockType",
+            Options = {"Multiply", "Shake", "Behind", "Down", "Forward", "Left", "One", "Right", "Up", "Zero"},
+            Default = AntiLockType,
+            Callback = function(a)
+                AntiLockType = a
+            end
+        })
+
+        -- تبويب الرؤية (Visuals)
+        local Tab4 = Window:Tab({Name = "الرؤية"})
+        local ESPSection = Tab4:Section({Name = "ESP العام", Side = "Left"})
+
+        ESPSection:Toggle({
+            Name = "استخدام صندوق الربط",
+            Flag = "UseBoundingBox",
+            Default = getgenv().esp.UseBoundingBox,
+            Callback = function(v)
+                getgenv().esp.UseBoundingBox = v
+            end
+        })
+
+        ESPSection:Toggle({
+            Name = "تفعيل الصندوق",
+            Flag = "BoxEnabled",
+            Default = getgenv().esp.BoxEnabled,
+            Callback = function(v)
+                getgenv().esp.BoxEnabled = v
+            end
+        }):Colorpicker({
+            Name = "لون الصندوق",
+            Flag = "BoxColor",
+            Default = getgenv().esp.BoxColor,
+            Callback = function(a)
+                getgenv().esp.BoxColor = a
+            end
+        })
+
+        ESPSection:Toggle({
+            Name = "زوايا الصندوق",
+            Flag = "BoxCorners",
+            Default = getgenv().esp.BoxCorners,
+            Callback = function(v)
+                getgenv().esp.BoxCorners = v
+            end
+        })
+
+        ESPSection:Toggle({
+            Name = "صندوق ديناميكي",
+            Flag = "BoxDynamic",
+            Default = getgenv().esp.BoxDynamic,
+            Callback = function(v)
+                getgenv().esp.BoxDynamic = v
+            end
+        })
+
+        ESPSection:Slider({
+            Name = "عرض الصندوق",
+            Flag = "BoxStaticXFactor",
+            Min = 0.1,
+            Max = 3,
+            Default = getgenv().esp.BoxStaticXFactor,
+            Decimals = 0.01,
+            Suffix = "X",
+            Callback = function(a)
+                getgenv().esp.BoxStaticXFactor = a
+            end
+        })
+
+        ESPSection:Slider({
+            Name = "ارتفاع الصندوق",
+            Flag = "BoxStaticYFactor",
+            Min = 0.1,
+            Max = 3,
+            Default = getgenv().esp.BoxStaticYFactor,
+            Decimals = 0.01,
+            Suffix = "Y",
+            Callback = function(a)
+                getgenv().esp.BoxStaticYFactor = a
+            end
+        })
+
+        ESPSection:Toggle({
+            Name = "الهيكل العظمي",
+            Flag = "SkeletonEnabled",
+            Default = getgenv().esp.SkeletonEnabled,
+            Callback = function(v)
+                getgenv().esp.SkeletonEnabled = v
+            end
+        }):Colorpicker({
+            Name = "لون الهيكل العظمي",
+            Flag = "SkeletonColor",
+            Default = getgenv().esp.SkeletonColor,
+            Callback = function(a)
+                getgenv().esp.SkeletonColor = a
+            end
+        })
+
+        ESPSection:Slider({
+            Name = "أقصى مسافة للهيكل العظمي",
+            Flag = "SkeletonMaxDistance",
+            Min = 100,
+            Max = 1000,
+            Default = getgenv().esp.SkeletonMaxDistance,
+            Suffix = "م",
+            Callback = function(a)
+                getgenv().esp.SkeletonMaxDistance = a
+            end
+        })
+
+        ESPSection:Toggle({
+            Name = "التشام (Chams)",
+            Flag = "ChamsEnabled",
+            Default = getgenv().esp.ChamsEnabled,
+            Callback = function(v)
+                getgenv().esp.ChamsEnabled = v
+            end
+        })
+
+        ESPSection:Colorpicker({
+            Name = "لون الداخلي",
+            Flag = "ChamsInnerColor",
+            Default = getgenv().esp.ChamsInnerColor,
+            Callback = function(a)
+                getgenv().esp.ChamsInnerColor = a
+            end
+        }):Colorpicker({
+            Name = "لون الخارجي",
+            Flag = "ChamsOuterColor",
+            Default = getgenv().esp.ChamsOuterColor,
+            Callback = function(a)
+                getgenv().esp.ChamsOuterColor = a
+            end
+        })
+
+        ESPSection:Slider({
+            Name = "شفافية الداخلي",
+            Flag = "ChamsInnerTransparency",
+            Min = 0,
+            Max = 1,
+            Default = getgenv().esp.ChamsInnerTransparency,
+            Decimals = 0.01,
+            Callback = function(a)
+                getgenv().esp.ChamsInnerTransparency = a
+            end
+        })
+
+        ESPSection:Slider({
+            Name = "شفافية الخارجي",
+            Flag = "ChamsOuterTransparency",
+            Min = 0,
+            Max = 1,
+            Default = getgenv().esp.ChamsOuterTransparency,
+            Decimals = 0.01,
+            Callback = function(a)
+                getgenv().esp.ChamsOuterTransparency = a
+            end
+        })
+
+        ESPSection:Toggle({
+            Name = "النص",
+            Flag = "TextEnabled",
+            Default = getgenv().esp.TextEnabled,
+            Callback = function(v)
+                getgenv().esp.TextEnabled = v
+            end
+        }):Colorpicker({
+            Name = "لون النص",
+            Flag = "TextColor",
+            Default = getgenv().esp.TextColor,
+            Callback = function(a)
+                getgenv().esp.TextColor = a
+            end
+        })
+
+        ESPSection:Toggle({
+            Name = "شريط الصحة",
+            Flag = "HealthBarEnabled",
+            Default = getgenv().esp.BarLayout['health'].enabled,
+            Callback = function(v)
+                getgenv().esp.BarLayout['health'].enabled = v
+            end
+        })
+
+        ESPSection:Toggle({
+            Name = "وضع الهدف فقط",
+            Flag = "TargetOnly",
+            Default = getgenv().esp.TargetOnly,
+            Callback = function(v)
+                getgenv().esp.TargetOnly = v
+            end
+        })
+
+        -- قسم الرصاص (Bullets)
+        local BulletSection = Tab4:Section({Name = "مسارات الرصاص", Side = "Right"})
+
+        BulletSection:Toggle({
+            Name = "تفعيل",
+            Flag = "BulletTrailsEnabled",
+            Default = Configurations.Visuals.Bullet_Trails.Enabled,
+            Callback = function(v)
+                Configurations.Visuals.Bullet_Trails.Enabled = v
+            end
+        }):Colorpicker({
+            Name = "لون",
+            Flag = "BulletTrailsColor",
+            Default = Configurations.Visuals.Bullet_Trails.Color,
+            Callback = function(a)
+                Configurations.Visuals.Bullet_Trails.Color = a
+            end
+        })
+
+        BulletSection:Toggle({
+            Name = "تلاشي",
+            Flag = "BulletTrailsFade",
+            Default = Configurations.Visuals.Bullet_Trails.Fade,
+            Callback = function(v)
+                Configurations.Visuals.Bullet_Trails.Fade = v
+            end
+        })
+
+        BulletSection:Slider({
+            Name = "الحجم",
+            Flag = "BulletTrailsWidth",
+            Min = 0.01,
+            Max = 5,
+            Default = Configurations.Visuals.Bullet_Trails.Width,
+            Suffix = "%",
+            Decimals = 0.01,
+            Callback = function(a)
+                Configurations.Visuals.Bullet_Trails.Width = a
+            end
+        })
+
+        BulletSection:Slider({
+            Name = "المدة",
+            Flag = "BulletTrailsDuration",
+            Min = 0.01,
+            Max = 10,
+            Default = Configurations.Visuals.Bullet_Trails.Duration,
+            Suffix = "%",
+            Decimals = 0.01,
+            Callback = function(a)
+                Configurations.Visuals.Bullet_Trails.Duration = a
+            end
+        })
+
+        BulletSection:List({
+            Name = "الملمس",
+            Flag = "BulletTrailsTexture",
+            Options = {"Cool", "Cum", "Electro", "None"},
+            Default = Configurations.Visuals.Bullet_Trails.Texture,
+            Callback = function(a)
+                Configurations.Visuals.Bullet_Trails.Texture = a
+            end
+        })
+
+        -- قسم اللاعب المحلي (Local Player)
+        local LocalSection = Tab4:Section({Name = "اللاعب المحلي", Side = "Right"})
+
+        LocalSection:Toggle({
+            Name = "مسار (Trail)",
+            Flag = "SelfTrail",
+            Default = false,
+            Callback = function(v)
+                utility.trail_character(v)
+            end
+        }):Colorpicker({
+            Name = "لون المسار",
+            Flag = "TrailColor",
+            Default = getgenv().TrailColor,
+            Callback = function(a)
+                getgenv().TrailColor = a
+            end
+        })
+
+        LocalSection:Toggle({
+            Name = "تشام الذات",
+            Flag = "SelfCham",
+            Default = localPlayerEsp.ForcefieldBody.Enabled,
+            Callback = function(a)
+                localPlayerEsp.ForcefieldBody.Enabled = a
+                applyForcefieldToBody()
+            end
+        }):Colorpicker({
+            Name = "لون الذات",
+            Flag = "SelfChamColor",
+            Default = localPlayerEsp.ForcefieldBody.Color,
+            Callback = function(a)
+                localPlayerEsp.ForcefieldBody.Color = a
+                applyForcefieldToBody()
+            end
+        })
+
+        LocalSection:Toggle({
+            Name = "تشام السلاح",
+            Flag = "GunCham",
+            Default = localPlayerEsp.ForcefieldTools.Enabled,
+            Callback = function(a)
+                localPlayerEsp.ForcefieldTools.Enabled = a
+                applyForcefieldToTools()
+            end
+        }):Colorpicker({
+            Name = "لون السلاح",
+            Flag = "GunChamColor",
+            Default = localPlayerEsp.ForcefieldTools.Color,
+            Callback = function(a)
+                localPlayerEsp.ForcefieldTools.Color = a
+                applyForcefieldToTools()
+            end
+        })
+
+        LocalSection:Toggle({
+            Name = "تشام الإكسسوارات",
+            Flag = "AccessoriesCham",
+            Default = localPlayerEsp.ForcefieldHats.Enabled,
+            Callback = function(a)
+                localPlayerEsp.ForcefieldHats.Enabled = a
+                applyForcefieldToHats()
+            end
+        }):Colorpicker({
+            Name = "لون الإكسسوارات",
+            Flag = "AccessoriesChamColor",
+            Default = localPlayerEsp.ForcefieldHats.Color,
+            Callback = function(a)
+                localPlayerEsp.ForcefieldHats.Color = a
+                applyForcefieldToHats()
+            end
+        })
+
+        -- قسم الصليب (Crosshair)
+        local CrossSection = Tab4:Section({Name = "الصليب التصويب", Side = "Right"})
+
+        CrossSection:Toggle({
+            Name = "تفعيل",
+            Flag = "CrosshairEnabled",
+            Default = getgenv().crosshair.enabled,
+            Callback = function(v)
+                getgenv().crosshair.enabled = v
+            end
+        }):Colorpicker({
+            Name = "لون",
+            Flag = "CrosshairColor",
+            Default = getgenv().crosshair.color,
+            Callback = function(a)
+                getgenv().crosshair.color = a
+            end
+        })
+
+        CrossSection:Toggle({
+            Name = "دوران",
+            Flag = "CrosshairSpin",
+            Default = getgenv().crosshair.spin,
+            Callback = function(v)
+                getgenv().crosshair.spin = v
+            end
+        })
+
+        CrossSection:Toggle({
+            Name = "تغيير الحجم",
+            Flag = "CrosshairResize",
+            Default = getgenv().crosshair.resize,
+            Callback = function(v)
+                getgenv().crosshair.resize = v
+            end
+        })
+
+        CrossSection:Toggle({
+            Name = "الالتصاق بالهدف",
+            Flag = "CrosshairSticky",
+            Default = getgenv().crosshair.sticky,
+            Callback = function(v)
+                getgenv().crosshair.sticky = v
+            end
+        })
+
+        CrossSection:List({
+            Name = "الموضع",
+            Flag = "CrosshairPosition",
+            Options = {"وسط", "الفأرة"},
+            Default = crosshair_position or "وسط",
+            Callback = function(a)
+                crosshair_position = a
+            end
+        })
+
+        -- تبويب الحركة (Movement)
+        local Tab5 = Window:Tab({Name = "الحركة"})
+        local MoveSection = Tab5:Section({Name = "السرعة والطيران", Side = "Left"})
+
+        MoveSection:Button({
+            Name = "تحميل الزر الخفي (Invisible)",
+            Callback = function()
+                if Hide11 then
+                    Library:Notification("تم التحميل مسبقًا.", 3)
+                    return
+                end
+
+                local HideEnabled = false
+                Hide11 = true
+                local LastCFrame
+
+                MakeButton("خفي", Color3.fromRGB(255, 0, 0), function(state)
+                    HideEnabled = state
+
+                    if not HideEnabled then
+                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                            LocalPlayer.Character.HumanoidRootPart.CFrame = LastCFrame
+                        end
+                    else
+                        LastCFrame = nil
+                    end
+                end)
+
+                RunService.Heartbeat:Connect(function()
+                    if LocalPlayer.Character then
+                        local HumanoidRootPart = LocalPlayer.Character.HumanoidRootPart
+                        if HumanoidRootPart then
+                            local Offset = HumanoidRootPart.CFrame * CFrame.new(9e9, 0, 9e9)
+
+                            if HideEnabled then
+                                LastCFrame = HumanoidRootPart.CFrame
+                                HumanoidRootPart.CFrame = Offset
+                                RunService.RenderStepped:Wait()
+                                HumanoidRootPart.CFrame = LastCFrame
+                            end
+                        end
+                    end
+                end)
+
+                local HookMethod
+                HookMethod = hookmetamethod(game, "__index", newcclosure(function(self, key)
+                    if not checkcaller() and key == "CFrame" and HideEnabled and 
+                       LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and 
+                       LocalPlayer.Character:FindFirstChild("Humanoid") and 
+                       LocalPlayer.Character.Humanoid.Health > 0 then
+                        if self == LocalPlayer.Character.HumanoidRootPart and LastCFrame then
+                            return LastCFrame
+                        end
+                    end
+                    return HookMethod(self, key)
+                end))
+            end
+        })
+
+        MoveSection:Button({
+            Name = "تحميل سرعة CFrame",
+            Callback = function()
+                if MacroAlreadLoaded then
+                    Library:Notification("تم التحميل مسبقًا.", 3)
+                    return
+                end
+                
+                MacroAlreadLoaded = true
+                MakeButton("سرعة", Color3.fromRGB(155, 0, 155), function(state)
+                    Psalms.Tech.cframespeedtoggle = state
+                end)
+            end
+        })
+
+        MoveSection:Button({
+            Name = "تحميل الطيران",
+            Callback = function()
+                if Macro2 then
+                    Library:Notification("تم التحميل مسبقًا.", 3)
+                    return
+                end
+
+                Macro2 = true
+
+                speeds = Psalms.Tech.speedvalue
+
+                local speaker = game:GetService("Players").LocalPlayer
+
+                local chr = game.Players.LocalPlayer.Character
+                local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+
+                nowe = false
+
+                MakeButton("طيران", Color3.fromRGB(255, 0, 155), function(state)
+                    niga2 = state
+
+                    if nowe == true then
+                        nowe = false
+
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing,true)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown,true)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Flying,true)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall,true)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp,true)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping,true)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed,true)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics,true)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding,true)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,true)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Running,true)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics,true)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,true)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics,true)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming,true)
+                        speaker.Character.Humanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
+                    else 
+                        nowe = true
+
+                        for i = 1, speeds do
+                            spawn(function()
+                                local hb = game:GetService("RunService").Heartbeat	
+
+                                tpwalking = true
+                                local chr = game.Players.LocalPlayer.Character
+                                local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+                                while tpwalking and hb:Wait() and chr and hum and hum.Parent do
+                                    if hum.MoveDirection.Magnitude > 0 then
+                                        chr:TranslateBy(hum.MoveDirection)
+                                    end
+                                end
+                            end)
+                        end
+                        game.Players.LocalPlayer.Character.Animate.Disabled = true
+                        local Char = game.Players.LocalPlayer.Character
+                        local Hum = Char:FindFirstChildOfClass("Humanoid") or Char:FindFirstChildOfClass("AnimationController")
+
+                        for i,v in next, Hum:GetPlayingAnimationTracks() do
+                            v:AdjustSpeed(0)
+                        end
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing,false)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown,false)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Flying,false)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall,false)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp,false)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping,false)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed,false)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics,false)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding,false)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,false)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Running,false)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics,false)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics,false)
+                        speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming,false)
+                        speaker.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
+                    end
+
+                    if game:GetService("Players").LocalPlayer.Character:FindFirstChildOfClass("Humanoid").RigType == Enum.HumanoidRigType.R6 then
+                        local plr = game.Players.LocalPlayer
+                        local torso = plr.Character.Torso
+                        local flying = true
+                        local deb = true
+                        local ctrl = {f = 0, b = 0, l = 0, r = 0}
+                        local lastctrl = {f = 0, b = 0, l = 0, r = 0}
+                        local maxspeed = 50
+                        local speed = 0
+
+                        local bg = Instance.new("BodyGyro", torso)
+                        bg.P = 9e4
+                        bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+                        bg.cframe = torso.CFrame
+                        local bv = Instance.new("BodyVelocity", torso)
+                        bv.velocity = Vector3.new(0,0.1,0)
+                        bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+                        if nowe == true then
+                            plr.Character.Humanoid.PlatformStand = true
+                        end
+                        while nowe == true or game:GetService("Players").LocalPlayer.Character.Humanoid.Health == 0 do
+                            game:GetService("RunService").RenderStepped:Wait()
+
+                            if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
+                                speed = speed+.5+(speed/maxspeed)
+                                if speed > maxspeed then
+                                    speed = maxspeed
+                                end
+                            elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and speed ~= 0 then
+                                speed = speed-1
+                                if speed < 0 then
+                                    speed = 0
+                                end
+                            end
+                            if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
+                                bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f+ctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l+ctrl.r,(ctrl.f+ctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
+                                lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
+                            elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and speed ~= 0 then
+                                bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (lastctrl.f+lastctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(lastctrl.l+lastctrl.r,(lastctrl.f+lastctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
+                            else
+                                bv.velocity = Vector3.new(0,0,0)
+                            end
+                            bg.cframe = game.Workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*speed/maxspeed),0,0)
+                        end
+                        ctrl = {f = 0, b = 0, l = 0, r = 0}
+                        lastctrl = {f = 0, b = 0, l = 0, r = 0}
+                        speed = 0
+                        bg:Destroy()
+                        bv:Destroy()
+                        plr.Character.Humanoid.PlatformStand = false
+                        game.Players.LocalPlayer.Character.Animate.Disabled = false
+                        tpwalking = false
+                    else
+                        local plr = game.Players.LocalPlayer
+                        local UpperTorso = plr.Character.UpperTorso
+                        local flying = true
+                        local deb = true
+                        local ctrl = {f = 0, b = 0, l = 0, r = 0}
+                        local lastctrl = {f = 0, b = 0, l = 0, r = 0}
+                        local maxspeed = 50
+                        local speed = 0
+
+                        local bg = Instance.new("BodyGyro", UpperTorso)
+                        bg.P = 9e4
+                        bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+                        bg.cframe = UpperTorso.CFrame
+                        local bv = Instance.new("BodyVelocity", UpperTorso)
+                        bv.velocity = Vector3.new(0,0.1,0)
+                        bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+                        if nowe == true then
+                            plr.Character.Humanoid.PlatformStand = true
+                        end
+                        while nowe == true or game:GetService("Players").LocalPlayer.Character.Humanoid.Health == 0 do
+                            wait()
+
+                            if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
+                                speed = speed+.5+(speed/maxspeed)
+                                if speed > maxspeed then
+                                    speed = maxspeed
+                                end
+                            elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and speed ~= 0 then
+                                speed = speed-1
+                                if speed < 0 then
+                                    speed = 0
+                                end
+                            end
+                            if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
+                                bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f+ctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l+ctrl.r,(ctrl.f+ctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
+                                lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
+                            elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and speed ~= 0 then
+                                bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (lastctrl.f+lastctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(lastctrl.l+lastctrl.r,(lastctrl.f+lastctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
+                            else
+                                bv.velocity = Vector3.new(0,0,0)
+                            end
+
+                            bg.cframe = game.Workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*speed/maxspeed),0,0)
+                        end
+                        ctrl = {f = 0, b = 0, l = 0, r = 0}
+                        lastctrl = {f = 0, b = 0, l = 0, r = 0}
+                        speed = 0
+                        bg:Destroy()
+                        bv:Destroy()
+                        plr.Character.Humanoid.PlatformStand = false
+                        game.Players.LocalPlayer.Character.Animate.Disabled = false
+                        tpwalking = false
+                    end
+                end)
+
+                game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(char)
+                    wait(0.7)
+                    game.Players.LocalPlayer.Character.Humanoid.PlatformStand = false
+                    game.Players.LocalPlayer.Character.Animate.Disabled = false
+                end)
+            end
+        })
+
+        MoveSection:Slider({
+            Name = "سرعة الطيران",
+            Flag = "FlySpeed",
+            Min = 0,
+            Max = 10,
+            Default = Psalms.Tech.speedvalue,
+            Suffix = "%",
+            Decimals = 0.1,
+            Callback = function(a)
+                Psalms.Tech.speedvalue = a
+            end
+        })
+
+        -- قسم CSync (Strafe)
+        local CSyncSection = Tab5:Section({Name = "CSync (الدوران)", Side = "Right"})
+
+        CSyncSection:Toggle({
+            Name = "تفعيل",
+            Flag = "CSyncEnabled",
+            Default = TargetAimbot.CSync.Enabled,
+            Callback = function(a)
+                TargetAimbot.CSync.Enabled = a
+            end
+        })
+
+        CSyncSection:Toggle({
+            Name = "التزييف",
+            Flag = "CSyncVisualize",
+            Default = TargetAimbot.CSync.Visualize,
+            Callback = function(a)
+                TargetAimbot.CSync.Visualize = a
+            end
+        })
+
+        CSyncSection:List({
+            Name = "النوع",
+            Flag = "CSyncType",
+            Options = {"Orbit", "Random", "Spiral", "Spherical", "Attach"},
+            Default = TargetAimbot.CSync.Type,
+            Callback = function(a)
+                TargetAimbot.CSync.Type = a
+            end
+        })
+
+        CSyncSection:Slider({
+            Name = "المسافة",
+            Flag = "CSyncDistance",
+            Min = 0,
+            Max = 100,
+            Default = TargetAimbot.CSync.Distance,
+            Decimals = 1,
+            Callback = function(a)
+                TargetAimbot.CSync.Distance = a
+            end
+        })
+
+        CSyncSection:Slider({
+            Name = "الارتفاع",
+            Flag = "CSyncHeight",
+            Min = 0,
+            Max = 100,
+            Default = TargetAimbot.CSync.Height,
+            Decimals = 1,
+            Callback = function(a)
+                TargetAimbot.CSync.Height = a
+            end
+        })
+
+        CSyncSection:Slider({
+            Name = "السرعة",
+            Flag = "CSyncSpeed",
+            Min = 0,
+            Max = 100,
+            Default = TargetAimbot.CSync.Speed,
+            Decimals = 1,
+            Callback = function(a)
+                TargetAimbot.CSync.Speed = a
+            end
+        })
+
+        CSyncSection:Slider({
+            Name = "كمية عشوائية",
+            Flag = "CSyncRandomAmount",
+            Min = 0,
+            Max = 100,
+            Default = TargetAimbot.CSync.RandomAmount,
+            Decimals = 1,
+            Callback = function(a)
+                TargetAimbot.CSync.RandomAmount = a
+            end
+        })
+
+        -- تبويب البيئة (Environment)
+        local Tab6 = Window:Tab({Name = "البيئة"})
+        local SkySection = Tab6:Section({Name = "السماء", Side = "Left"})
+
+        SkySection:Toggle({
+            Name = "تفعيل السماء",
+            Flag = "SkyboxEnabled",
+            Default = skyboxEnabled,
+            Callback = function(a)
+                skyboxEnabled = a
+                changeSkybox()
+            end
+        })
+
+        SkySection:List({
+            Name = "نوع السماء",
+            Flag = "SkyboxType",
+            Options = {"1", "2", "3", "4", "5", "6", "7"},
+            Default = "1",
+            Callback = function(a)
+                skyboxType = tonumber(a)
+                changeSkybox()
+            end
+        })
+
+        SkySection:Button({
+            Name = "تغيير",
+            Callback = function()
+                changeSkybox()
+            end
+        })
+
+        local FogSection = Tab6:Section({Name = "الضباب", Side = "Left"})
+
+        FogSection:Toggle({
+            Name = "تفعيل الضباب",
+            Flag = "FogEnabled",
+            Default = Environment.Settings.FogEnabled,
+            Callback = function(a)
+                Environment.Settings.FogEnabled = a
+                fogmaker()
+            end
+        })
+
+        FogSection:Colorpicker({
+            Name = "لون الضباب",
+            Flag = "FogColor",
+            Default = Environment.Settings.FogColor,
+            Callback = function(a)
+                Environment.Settings.FogColor = a
+                fogmaker() 
+            end
+        })
+
+        FogSection:Textbox({
+            Name = "بداية الضباب",
+            Flag = "FogStart",
+            Default = Environment.Settings.FogStart,
+            Callback = function(a)
+                Environment.Settings.FogStart = tonumber(a)
+                fogmaker()
+            end
+        })
+
+        FogSection:Textbox({
+            Name = "نهاية الضباب",
+            Flag = "FogEnd",
+            Default = Environment.Settings.FogEnd,
+            Callback = function(a)
+                Environment.Settings.FogEnd = tonumber(a)
+                fogmaker() 
+            end
+        })
+
+        local EnvSection = Tab6:Section({Name = "الإضاءة", Side = "Right"})
+
+        EnvSection:Toggle({
+            Name = "تفعيل",
+            Flag = "WorldEnabled",
+            Default = Environment.Settings.Enabled,
+            Callback = function(a)
+                Environment.Settings.Enabled = a
+                UpdateWorld()
+            end
+        })
+
+        EnvSection:Toggle({
+            Name = "الظلال العامة",
+            Flag = "GlobalShadows",
+            Default = Environment.Settings.GlobalShadows,
+            Callback = function(a)
+                Environment.Settings.GlobalShadows = a
+                UpdateWorld()
+            end
+        })
+
+        EnvSection:Textbox({
+            Name = "التعرض",
+            Flag = "Exposure",
+            Default = Environment.Settings.Exposure,
+            Callback = function(a)
+                Environment.Settings.Exposure = tonumber(a)
+                UpdateWorld()
+            end
+        })
+
+        EnvSection:Colorpicker({
+            Name = "تحول اللون - أسفل",
+            Flag = "ColorShiftBottom",
+            Default = Environment.Settings.ColorShift_Bottom,
+            Callback = function(a)
+                Environment.Settings.ColorShift_Bottom = a
+                UpdateWorld()
+            end
+        }):Colorpicker({
+            Name = "تحول اللون - أعلى",
+            Flag = "ColorShiftTop",
+            Default = Environment.Settings.ColorShift_Top,
+            Callback = function(a)
+                Environment.Settings.ColorShift_Top = a
+                UpdateWorld()
+            end
+        })
+
+        EnvSection:Textbox({
+            Name = "وقت الساعة",
+            Flag = "ClockTime",
+            Default = Environment.Settings.ClockTime,
+            Callback = function(a)
+                Environment.Settings.ClockTime = tonumber(a)
+                UpdateWorld()
+            end
+        })
+
+        EnvSection:Colorpicker({
+            Name = "لون الإضاءة المحيطة",
+            Flag = "AmbientColor",
+            Default = Environment.Settings.Ambient,
+            Callback = function(a)
+                Environment.Settings.Ambient = a
+                UpdateWorld()
+            end
+        })
+
+        EnvSection:Colorpicker({
+            Name = "لون الإضاءة الخارجية",
+            Flag = "OutdoorAmbientColor",
+            Default = Environment.Settings.OutdoorAmbient,
+            Callback = function(a)
+                Environment.Settings.OutdoorAmbient = a
+                UpdateWorld()
+            end
+        })
+
+        EnvSection:Textbox({
+            Name = "السطوع",
+            Flag = "Brightness",
+            Default = Environment.Settings.Brightness,
+            Callback = function(a)
+                Environment.Settings.Brightness = tonumber(a)
+                UpdateWorld()
+            end
+        })
+
+        -- تبويب الدرجة المتدرجة (Gradient Silent)
+        local Tab7 = Window:Tab({Name = "الدرجة المتدرجة الصامتة"})
+        local GradSection = Tab7:Section({Name = "إعدادات الدرجة المتدرجة", Side = "Right"})
+
+        GradSection:Toggle({
+            Name = "تفعيل",
+            Flag = "ShowSilent",
+            Default = Frame.Visible,
+            Callback = function(dang)
+                Frame.Visible = dang
+            end
+        })
+
+        GradSection:Toggle({
+            Name = "صامت",
+            Flag = "SilentEnabled",
+            Default = Psalms.Tech.SilentMode,
+            Callback = function(dang)
+                Psalms.Tech.SilentMode = dang
+            end
+        })
+
+        GradSection:List({
+            Name = "الوضع",
+            Flag = "FOVGradientPosition",
+            Options = {"الفأرة", "الوسط"},
+            Default = "الوسط",
+            Callback = function(a)
+                mode = a
+            end
+        })
+
+        GradSection:Colorpicker({
+            Name = "لون 1",
+            Flag = "SilentGradientColor",
+            Default = coluhhh,
+            Callback = function(a)
+                gradient.Color = ColorSequence.new{
+                    ColorSequenceKeypoint.new(0, a),
+                    ColorSequenceKeypoint.new(1, coluhhh2)
+                }
+            end
+        })
+
+        GradSection:Colorpicker({
+            Name = "لون 2",
+            Flag = "SilentFovGradient2",
+            Default = coluhhh2,
+            Callback = function(a)
+                gradient.Color = ColorSequence.new{
+                    ColorSequenceKeypoint.new(0, coluhhh),
+                    ColorSequenceKeypoint.new(1, a)
+                }
+            end
+        })
+
+        GradSection:Slider({
+            Name = "الحجم",
+            Flag = "SilentFovSize",
+            Min = 1,
+            Max = 200,
+            Default = 125,
+            Suffix = "%",
+            Decimals = 1,
+            Callback = function(a)
+                local fovRadius = a
+                UpdateFrameSize(a)
+            end
+        })
+
+        -- تبويب الشخصية (Character)
+        local Tab8 = Window:Tab({Name = "الشخصية"})
+        local AvatarSection = Tab8:Section({Name = "الشخصية", Side = "Right"})
+
+        local OutfitList = AvatarSection:List({
+            Name = "الملابس",
+            Flag = "OutfitSelection",
+            Options = {}
+        })
+
+        local CurrentOutfits = {}
+
+        local function UpdateOutfitList()
+            local Outfits = {}
+            local userId = Players.LocalPlayer.UserId
+            local url = "https://avatar.roblox.com/v1/users/" .. userId .. "/outfits"
+
+            local success, response = pcall(function()
+                return HttpService:JSONDecode(game:HttpGet(url))
+            end)
+
+            if success and response and response.data then
+                for _, outfit in ipairs(response.data) do
+                    if outfit.isEditable then
+                        table.insert(Outfits, outfit.name)
+                        CurrentOutfits[outfit.name] = outfit.id
+                    end
+                end
+
+                if #Outfits ~= #OutfitList.Options or table.concat(Outfits) ~= table.concat(OutfitList.Options) then
+                    OutfitList.Options = Outfits
+                    if OutfitList.Refresh then
+                        OutfitList:Refresh(Outfits)
+                    end
+                end
             end
         end
-    end
-    
-    -- Anti-Recoil Logic (في الـ camera lerp)
-    if AntiRecoilEnabled and AimbotEnabled and CurrentTarget then
-        -- افترض equipped weapon، أضف vertical offset
-        local recoilOffset = Vector3.new(0, RecoilFactor, 0)
-        Camera.CFrame = Camera.CFrame * CFrame.new(recoilOffset)
-    end
-end) 
 
-CombatTab:CreateToggle({ 
-    Name = "Enable Aimbot", 
-    CurrentValue = false, 
-    Flag = "AIMBOT_TOGGLE", 
-    Callback = function(Value) 
-        AimbotEnabled = Value 
-        CurrentTarget = nil 
-        hasNotifiedNoTarget = false 
-        if AimbotEnabled then 
-            CreateFOVCircle() 
-            EnableKillMonitor()
-            aimbotConnection = RunService.RenderStepped:Connect(function() 
-                UpdateFOVCircle() 
-                if AimbotEnabled then 
-                    CurrentTarget = StickToTarget and CurrentTarget and IsValidTarget(CurrentTarget) and CurrentTarget or GetBestTarget() 
-                    if not SilentAim and CurrentTarget and CurrentTarget.Character then 
-                        local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
-                        if targetPart then
-                            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)), Smoothness) 
-                        end
-                    end 
-                end 
-            end) 
-        else 
-            if aimbotConnection then 
-                aimbotConnection:Disconnect() 
-                aimbotConnection = nil 
-            end 
-            DisableKillMonitor()
-            local currentSmooth = Smoothness 
-            outConnection = RunService.RenderStepped:Connect(function() 
-                local targetCFrame = CFrame.new(Camera.CFrame.Position, Mouse.Hit.Position) 
-                Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, currentSmooth) 
-                currentSmooth = math.min(1, currentSmooth + Smoothness) 
-                if currentSmooth >= 1 then 
-                    outConnection:Disconnect() 
-                    outConnection = nil 
-                end 
-            end) 
-            if FOVCircle then FOVCircle:Remove() FOVCircle = nil end 
-            DisableSilentAim() 
-        end 
-    end 
-}) 
+        local function EquipOutfit(outfitName)
+            local outfitId = CurrentOutfits[outfitName]
+            if outfitId then
+                local description = Players:GetHumanoidDescriptionFromOutfitId(outfitId)
+                AvatarEditorService:PromptSaveAvatar(description, Enum.HumanoidRigType.R15)
 
-CombatTab:CreateToggle({ 
-    Name = "Silent Aim", 
-    CurrentValue = false, 
-    Flag = "SILENT_AIM", 
-    Callback = function(Value) 
-        SilentAim = Value 
-        if SilentAim then 
-            EnableSilentAim() 
-        else 
-            DisableSilentAim() 
-        end 
-    end 
-})
-
-CombatTab:CreateToggle({ 
-    Name = "Desync", 
-    CurrentValue = false, 
-    Flag = "DESYNC", 
-    Callback = function(Value) 
-        DesyncEnabled = Value 
-        if DesyncEnabled then EnableDesync() else DisableDesync() end 
-    end 
-}) 
-
-CombatTab:CreateToggle({ 
-    Name = "Prediction", 
-    CurrentValue = false, 
-    Flag = "PREDICTION", 
-    Callback = function(Value) PredictionEnabled = Value end 
-}) 
-
-CombatTab:CreateSlider({ 
-    Name = "Bullet Speed", 
-    Range = {500, 5000}, 
-    Increment = 100, 
-    CurrentValue = 1000, 
-    Flag = "BULLET_SPEED", 
-    Callback = function(Value) BulletSpeed = Value end 
-}) 
-
-CombatTab:CreateSlider({ 
-    Name = "Humanization Factor", 
-    Range = {0, 1}, 
-    Increment = 0.1, 
-    CurrentValue = 0.2, 
-    Flag = "HUMANIZATION", 
-    Callback = function(Value) 
-        HumanizationFactor = Value 
-        Rayfield:Notify({ Title = "Humanization", Content = "تم تغيير عامل العشوائية إلى " .. Value, Duration = 3 }) 
-    end 
-})
-
-CombatTab:CreateDropdown({ 
-    Name = "Target Part", 
-    Options = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}, 
-    CurrentOption = {"Head"}, 
-    MultipleOptions = false, 
-    Flag = "TARGET_PART", 
-    Callback = function(Option) TargetPart = Option[1] end 
-}) 
-
-CombatTab:CreateDropdown({ 
-    Name = "Check", 
-    Options = {"Minimum Security", "Medium Security", "Maximum Security", "Department of Corrections", "State Police", "Escapee", "Civilian", "VCSO-SWAT"}, 
-    CurrentOption = {}, 
-    MultipleOptions = true, 
-    Flag = "CHECK_TEAMS", 
-    Callback = function(Options) 
-        for team in pairs(SelectedTeams) do 
-            SelectedTeams[team] = false 
-        end 
-        for _, team in pairs(Options) do 
-            SelectedTeams[team] = true 
-        end 
-        CurrentTarget = nil 
-    end 
-}) 
-
-CombatTab:CreateSlider({ 
-    Name = "FOV Radius", 
-    Range = {50, 500}, 
-    Increment = 10, 
-    CurrentValue = 150, 
-    Flag = "FOV_RADIUS", 
-    Callback = function(Value) FOVRadius = Value; UpdateFOVCircle() end 
-}) 
-
-CombatTab:CreateSlider({ 
-    Name = "Smoothness (Visible Aim)", 
-    Range = {0.01, 1.0}, 
-    Increment = 0.01, 
-    CurrentValue = 0.15, 
-    Flag = "AIMBOT_SMOOTHNESS", 
-    Callback = function(Value) Smoothness = Value end 
-}) 
-
-CombatTab:CreateToggle({ 
-    Name = "Stick to Target", 
-    CurrentValue = false, 
-    Flag = "STICK_TARGET", 
-    Callback = function(Value) StickToTarget = Value; if not StickToTarget then CurrentTarget = nil end end 
-}) 
-
-CombatTab:CreateToggle({ 
-    Name = "Ignore Walls", 
-    CurrentValue = false, 
-    Flag = "IGNORE_WALLS", 
-    Callback = function(Value) IgnoreWalls = Value end 
-}) 
-
-CombatTab:CreateToggle({ 
-    Name = "Show FOV Circle", 
-    CurrentValue = true, 
-    Flag = "SHOW_FOV_CIRCLE", 
-    Callback = function(Value) ShowFOVCircle = Value; UpdateFOVCircle() end 
-}) 
-
-CombatTab:CreateToggle({ 
-    Name = "Enable Custom FOV", 
-    CurrentValue = false, 
-    Flag = "FOV_TOGGLE", 
-    Callback = function(Value) FOVEnabled = Value; UpdateFOV() end 
-}) 
-
-CombatTab:CreateSlider({ 
-    Name = "FOV Value", 
-    Range = {30, 360}, 
-    Increment = 1, 
-    CurrentValue = 90, 
-    Flag = "FOV_SLIDER", 
-    Callback = function(Value) CustomFOV = Value; if FOVEnabled then Camera.FieldOfView = CustomFOV end end 
-}) 
-
-CombatTab:CreateColorPicker({ 
-    Name = "FOV Circle Color", 
-    Color = Color3.fromRGB(255, 0, 0), 
-    Callback = function(Value) 
-        FOVColor = Value 
-        UpdateFOVCircle() 
-    end 
-}) 
-
-CombatTab:CreateSlider({ 
-    Name = "Aim Accuracy", 
-    Range = {0, 100}, 
-    Increment = 1, 
-    Suffix = "%", 
-    CurrentValue = 100, 
-    Flag = "AIM_ACCURACY", 
-    Callback = function(Value) AimAccuracy = Value end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Hit Chance Variance", 
-    Range = {0, 50}, 
-    Increment = 1, 
-    Suffix = "%", 
-    CurrentValue = 0, 
-    Flag = "HIT_CHANCE_VARIANCE", 
-    Callback = function(Value) HitChanceVariance = Value end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Aim Precision", 
-    Range = {0, 100}, 
-    Increment = 1, 
-    Suffix = "%", 
-    CurrentValue = 100, 
-    Flag = "AIM_PRECISION", 
-    Callback = function(Value) AimPrecision = Value end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Target Lock Strength", 
-    Range = {0, 1}, 
-    Increment = 0.1, 
-    CurrentValue = 0.5, 
-    Flag = "TARGET_LOCK_STRENGTH", 
-    Callback = function(Value) TargetLockStrength = Value end 
-})
-
-CombatTab:CreateToggle({ 
-    Name = "Aim on Sight", 
-    CurrentValue = false, 
-    Flag = "AIM_ON_SIGHT", 
-    Callback = function(Value) AimOnSight = Value end 
-})
-
-CombatTab:CreateToggle({ 
-    Name = "Aim on Approach", 
-    CurrentValue = false, 
-    Flag = "AIM_ON_APPROACH", 
-    Callback = function(Value) AimOnApproach = Value end 
-})
-
-CombatTab:CreateToggle({ 
-    Name = "Aim Face to Face", 
-    CurrentValue = false, 
-    Flag = "AIM_FACE_TO_FACE", 
-    Callback = function(Value) AimFaceToFace = Value end 
-})
-
--- إضافات جديدة للـ UI
-
-CombatTab:CreateSlider({ 
-    Name = "Offset Spread (studs)", 
-    Range = {0, 5}, 
-    Increment = 0.1, 
-    CurrentValue = 1.0, 
-    Flag = "OFFSET_SPREAD", 
-    Callback = function(Value) OffsetSpread = Value end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Prediction Multiplier", 
-    Range = {0.5, 2}, 
-    Increment = 0.1, 
-    CurrentValue = 1.0, 
-    Flag = "PRED_MULTIPLIER", 
-    Callback = function(Value) PredictionMultiplier = Value end 
-})
-
-CombatTab:CreateToggle({ 
-    Name = "Aim Moving Targets Only", 
-    CurrentValue = false, 
-    Flag = "AIM_MOVING_ONLY", 
-    Callback = function(Value) AimMovingTargetsOnly = Value end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Velocity Threshold", 
-    Range = {1, 20}, 
-    Increment = 1, 
-    CurrentValue = 5, 
-    Flag = "VEL_THRESHOLD", 
-    Callback = function(Value) VelocityThreshold = Value end 
-})
-
-CombatTab:CreateToggle({ 
-    Name = "Auto-Switch on Kill", 
-    CurrentValue = false, 
-    Flag = "AUTO_SWITCH_KILL", 
-    Callback = function(Value) AutoSwitchOnKill = Value end 
-})
-
-CombatTab:CreateDropdown({ 
-    Name = "Target Priority", 
-    Options = {"Closest", "Lowest Health", "Highest Threat"}, 
-    CurrentOption = {"Closest"}, 
-    MultipleOptions = false, 
-    Flag = "TARGET_PRIORITY", 
-    Callback = function(Option) TargetPriority = Option[1] end 
-})
-
-CombatTab:CreateToggle({ 
-    Name = "Enable Triggerbot", 
-    CurrentValue = false, 
-    Flag = "TRIGGERBOT", 
-    Callback = function(Value) TriggerbotEnabled = Value end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Trigger Delay (ms)", 
-    Range = {0, 500}, 
-    Increment = 50, 
-    CurrentValue = 100, 
-    Flag = "TRIGGER_DELAY", 
-    Callback = function(Value) TriggerDelay = Value end 
-})
-
-CombatTab:CreateToggle({ 
-    Name = "Anti-Recoil", 
-    CurrentValue = false, 
-    Flag = "ANTI_RECOIL", 
-    Callback = function(Value) AntiRecoilEnabled = Value end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Recoil Factor", 
-    Range = {0, 1}, 
-    Increment = 0.1, 
-    CurrentValue = 0.5, 
-    Flag = "RECOIL_FACTOR", 
-    Callback = function(Value) RecoilFactor = Value end 
-})
-
-CombatTab:CreateDropdown({ 
-    Name = "Scan Mode", 
-    Options = {"Fixed", "Dynamic"}, 
-    CurrentOption = {"Fixed"}, 
-    MultipleOptions = false, 
-    Flag = "SCAN_MODE", 
-    Callback = function(Option) ScanMode = Option[1] end 
-})
-
-CombatTab:CreateToggle({ 
-    Name = "Dynamic FOV", 
-    CurrentValue = false, 
-    Flag = "DYNAMIC_FOV", 
-    Callback = function(Value) DynamicFOV = Value; UpdateFOVCircle() end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Min FOV Radius", 
-    Range = {10, 200}, 
-    Increment = 10, 
-    CurrentValue = 50, 
-    Flag = "MIN_FOV_RADIUS", 
-    Callback = function(Value) MinFOVRadius = Value; UpdateFOVCircle() end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Max FOV Radius", 
-    Range = {100, 500}, 
-    Increment = 10, 
-    CurrentValue = 300, 
-    Flag = "MAX_FOV_RADIUS", 
-    Callback = function(Value) MaxFOVRadius = Value; UpdateFOVCircle() end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Dynamic FOV Multiplier", 
-    Range = {0.01, 0.5}, 
-    Increment = 0.01, 
-    CurrentValue = 0.1, 
-    Flag = "DYN_FOV_MULT", 
-    Callback = function(Value) DynamicFOVMultiplier = Value; UpdateFOVCircle() end 
-})
-
-CombatTab:CreateToggle({ 
-    Name = "Enable Stats", 
-    CurrentValue = false, 
-    Flag = "ENABLE_STATS", 
-    Callback = function(Value) EnableStats = Value end 
-}) 
-
--- ميزة جديدة: No Miss Bullets
-CombatTab:CreateToggle({ 
-    Name = "No Miss Bullets", 
-    CurrentValue = false, 
-    Flag = "NO_MISS_BULLETS", 
-    Callback = function(Value) NoMissBullets = Value end 
-})
-
-CombatTab:CreateSlider({ 
-    Name = "Bullet Magnet Strength", 
-    Range = {0, 1}, 
-    Increment = 0.1, 
-    CurrentValue = 0.5, 
-    Flag = "BULLET_MAGNET", 
-    Callback = function(Value) BulletMagnetStrength = Value end 
-})
-
-CombatTab:CreateToggle({ 
-    Name = "Moving FOV Circle", 
-    CurrentValue = false, 
-    Flag = "MOVING_FOV_CIRCLE", 
-    Callback = function(Value) movingFOVCircleEnabled = Value; UpdateFOVCircle() end 
-})
-
--- New: Weapon Check
-CombatTab:CreateToggle({ 
-    Name = "Weapon Check", 
-    CurrentValue = false, 
-    Flag = "WEAPON_CHECK", 
-    Callback = function(Value) 
-        weaponCheckEnabled = Value 
-        if Value then 
-            connections.weaponCheck = RunService.Heartbeat:Connect(function() 
-                local char = LocalPlayer.Character 
-                if char then 
-                    local tool = char:FindFirstChildOfClass("Tool") 
-                    AimbotEnabled = tool ~= nil 
-                else 
-                    AimbotEnabled = false 
-                end 
-                -- إذا لم يكن هناك tool، أوقف الـ aimbot كاملاً كأنه disabled
-                if not AimbotEnabled then
-                    if aimbotConnection then 
-                        aimbotConnection:Disconnect() 
-                        aimbotConnection = nil 
-                    end 
-                    if FOVCircle then FOVCircle:Remove() FOVCircle = nil end 
-                    DisableSilentAim() 
+                local result = AvatarEditorService.PromptSaveAvatarCompleted:Wait()
+                if result == Enum.AvatarPromptResult.Success then
+                    Players.LocalPlayer.Character.Humanoid.Health = 0
                 end
-            end) 
-        else 
-            if connections.weaponCheck then connections.weaponCheck:Disconnect() end 
-            AimbotEnabled = false  -- Reset if disabled
-        end 
-    end 
-})
+            end
+        end
 
--- New: Smart Aim Bot
-CombatTab:CreateToggle({ 
-    Name = "Smart Aim Bot", 
-    CurrentValue = false, 
-    Flag = "SMART_AIM", 
-    Callback = function(Value) 
-        smartAimBotEnabled = Value 
-        if Value then 
-            closestAimEnabled = false  -- Disable Closest if Smart is enabled
-            aimbotConnection = RunService.Heartbeat:Connect(function() 
-                if smartAimBotEnabled then 
-                    CurrentTarget = GetBestTarget()  -- Use advanced selection
-                    if CurrentTarget and CurrentTarget.Character then 
-                        local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
-                        if targetPart then
-                            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)), Smoothness) 
-                        end
-                    end 
-                end 
-            end) 
-        else 
-            if aimbotConnection then aimbotConnection:Disconnect() end 
-        end 
-    end 
-})
+        OutfitList.Callback = function(selectedOutfit)
+            EquipOutfit(selectedOutfit)
+        end
 
--- New: Closest Aim
-CombatTab:CreateToggle({ 
-    Name = "Closest Aim", 
-    CurrentValue = false, 
-    Flag = "CLOSEST_AIM", 
-    Callback = function(Value) 
-        closestAimEnabled = Value 
-        if Value then 
-            smartAimBotEnabled = false  -- Disable Smart if Closest is enabled
-            aimbotConnection = RunService.Heartbeat:Connect(function() 
-                if closestAimEnabled then 
-                    CurrentTarget = GetBestTarget()  -- Use closest only
-                    if CurrentTarget and CurrentTarget.Character then 
-                        local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart)
-                        if targetPart then
-                            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)), Smoothness) 
-                        end
-                    end 
-                end 
-            end) 
-        else 
-            if aimbotConnection then aimbotConnection:Disconnect() end 
-        end 
-    end 
-})
-  
--- // TELEPORT SECTION  
-local TeleportTab = Window:CreateTab("Teleports", 4483362458)  
-local locations = {  
-    ["Maintenance"] = CFrame.new(172.34, 23.10, -143.87),  
-    ["Security"] = CFrame.new(224.47, 23.10, -167.90),  
-    ["OC Lockers"] = CFrame.new(137.60, 23.10, -169.93),  
-    ["RIOT Lockers"] = CFrame.new(165.63, 23.10, -192.25),  
-    ["Ventilation"] = CFrame.new(76.96, -7.02, -19.21),  
-    ["Maximum"] = CFrame.new(99.85, -8.87, -156.13),  
-    ["Generator"] = CFrame.new(100.95, -8.82, -57.59),  
-    ["Outside"] = CFrame.new(350.22, 5.40, -171.09),  
-    ["Escape Base"] = CFrame.new(749.02, -0.97, -470.45)  
-}  
-for name, cf in pairs(locations) do  
-    TeleportTab:CreateButton({ Name = name, Callback = function() LocalPlayer.Character:PivotTo(cf) end })  
-end  
-TeleportTab:CreateButton({ Name = "Escape", Callback = function() LocalPlayer.Character:PivotTo(CFrame.new(307.06, 5.40, -177.88)) end })  
-TeleportTab:CreateButton({ Name = "Keycard (💳)", Callback = function() LocalPlayer.Character:PivotTo(CFrame.new(-13.36, 22.13, -27.47)) end })  
-TeleportTab:CreateButton({ Name = "GAS STATION", Callback = function() LocalPlayer.Character:PivotTo(CFrame.new(274.30, 6.21, -612.77)) end })  
-TeleportTab:CreateButton({ Name = "armory", Callback = function() LocalPlayer.Character:PivotTo(CFrame.new(189.40, 23.10, -214.47)) end })  
-TeleportTab:CreateButton({ Name = "BARN", Callback = function() LocalPlayer.Character:PivotTo(CFrame.new(43.68, 10.37, 395.04)) end })  
-TeleportTab:CreateButton({ Name = "R&D", Callback = function() LocalPlayer.Character:PivotTo(CFrame.new(-182.35, -85.90, 158.07)) end })  
-  
--- // ITEMS SECTION  
-local ItemsTab = Window:CreateTab("Items", 4483362458)  
-ItemsTab:CreateButton({  
-    Name = "Get Fake Keycard (Visible to Players)",  
-    Callback = function()  
-        local player = LocalPlayer  
-        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then  
-            Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 })  
-            return  
-        end  
-        local isPrisoner = player.Team and table.find(prisonerTeams, player.Team.Name)  
-        if not isPrisoner then  
-            Rayfield:Notify({ Title = "Access Denied", Content = "Only prisoners can take this item!", Duration = 3, Image = 4483362458 })  
-            return  
-        end  
-        local maxAttempts, attempt = 3, 1  
-        local function tryGetKeycard()  
-            local foundItem = nil  
-            for _, container in pairs({workspace, game:GetService("ReplicatedStorage"), game:GetService("ServerStorage")}) do  
-                for _, obj in pairs(container:GetDescendants()) do  
-                    if obj:IsA("Tool") and obj.Name:lower():find("keycard") then foundItem = obj; break end  
-                end  
-                if foundItem then break end  
-            end  
-            if foundItem and foundItem:FindFirstChild("Handle") then  
-                local clonedTool = foundItem:Clone()  
-                clonedTool.Parent = player.Backpack  
-                local humanoid = player.Character:FindFirstChild("Humanoid")  
-                if humanoid then humanoid:EquipTool(clonedTool) end  
-                Rayfield:Notify({ Title = "Success", Content = "Keycard added to inventory!", Duration = 3, Image = 4483362458 })  
-            elseif attempt < maxAttempts then  
-                attempt = attempt + 1  
-                task.wait(0.5)  
-                tryGetKeycard()  
-            else  
-                Rayfield:Notify({ Title = "Error", Content = "Keycard not found. Try again.", Duration = 5, Image = 4483362458 })  
-            end  
-        end  
-        tryGetKeycard()  
-    end  
-})  
-  
--- // PLAYER SECTION  
-local PlayerTab = Window:CreateTab("Player", 4483362458)  
-  
-PlayerTab:CreateButton({  
-    Name = "Infinite Stamina",  
-    Callback = function()  
-        infiniteStaminaEnabled = not infiniteStaminaEnabled  
-        local player = LocalPlayer  
-        local serverVariables = player:FindFirstChild("ServerVariables")  
-        if serverVariables and serverVariables:FindFirstChild("Sprint") then  
-            local sprint = serverVariables.Sprint  
-            local stamina = sprint:FindFirstChild("Stamina")  
-            local maxStamina = sprint:FindFirstChild("MaxStamina")  
-            if stamina and maxStamina then  
-                if infiniteStaminaEnabled then  
-                    local staminaConnection = RunService.RenderStepped:Connect(function()  
-                        if infiniteStaminaEnabled then  
-                            stamina.Value = maxStamina.Value  
-                        else  
-                            staminaConnection:Disconnect()  
-                        end  
-                    end)  
-                    Rayfield:Notify({ Title = "Success", Content = "Infinite stamina enabled!", Duration = 5, Image = 4483362458 })  
-                else  
-                    Rayfield:Notify({ Title = "Info", Content = "Infinite stamina disabled!", Duration = 5, Image = 4483362458 })  
-                end  
-            else  
-                Rayfield:Notify({ Title = "Error", Content = "Stamina not found.", Duration = 5, Image = 4483362458 })  
-                infiniteStaminaEnabled = false  
-            end  
-        else  
-            Rayfield:Notify({ Title = "Error", Content = "Try again.", Duration = 5, Image = 4483362458 })  
-            infiniteStaminaEnabled = false  
-        end  
-    end  
-})  
-  
-PlayerTab:CreateSlider({  
-    Name = "Speed",  
-    Range = {1, 100},  
-    Increment = 1,  
-    Suffix = "USpeed",  
-    CurrentValue = 16,  
-    Flag = "UserSpeed",  
-    Callback = function(Value)  
-        speed = Value  
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then  
-            LocalPlayer.Character.Humanoid.WalkSpeed = Value  
-        end  
-    end  
-})  
-  
-PlayerTab:CreateToggle({  
-    Name = "Infinite Jump (Stable)",  
-    CurrentValue = false,  
-    Flag = "IJ",  
-    Callback = function(Value) infjumpv2 = Value end  
-})  
-  
-PlayerTab:CreateToggle({  
-    Name = "Anti OC Spray",  
-    CurrentValue = false,  
-    Flag = "ANTI_OC_SPRAY",  
-    Callback = function(Value)  
-        antiOCSprayEnabled = Value  
-        if antiOCSprayEnabled then  
-            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")  
-            if humanoid then  
-                local defaultWalkSpeed = humanoid.WalkSpeed  
-                local defaultJumpPower = humanoid.JumpPower or 25  
-                antiOCSprayHumanoidConnection = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()  
-                    if antiOCSprayEnabled and humanoid.WalkSpeed < defaultWalkSpeed then  
-                        humanoid.WalkSpeed = defaultWalkSpeed  
-                    end  
-                end)  
-                antiOCSprayHumanoidConnection2 = humanoid:GetPropertyChangedSignal("JumpPower"):Connect(function()  
-                    if antiOCSprayEnabled and humanoid.JumpPower < defaultJumpPower then  
-                        humanoid.JumpPower = defaultJumpPower  
-                    end  
-                end)  
-            end  
-            antiOCSprayGuiConnection = LocalPlayer.PlayerGui.ChildAdded:Connect(function(gui)  
-                if antiOCSprayEnabled and gui:IsA("ScreenGui") and (gui.Name:lower():find("pepper") or gui.Name:lower():find("spray") or gui.Name:lower():find("ocspray")) then  
-                    gui.Enabled = false  
-                end  
-            end)  
-            antiOCSprayEffectConnection = game:GetService("Lighting").ChildAdded:Connect(function(effect)  
-                if antiOCSprayEnabled and (effect:IsA("BlurEffect") or effect:IsA("ColorCorrectionEffect")) then  
-                    effect.Enabled = false  
-                end  
-            end)  
-            antiOCSprayToolConnection = LocalPlayer.Backpack.ChildAdded:Connect(function(child)  
-                if antiOCSprayEnabled and child.Name == "OC Spray" then  
-                    local localScript = child:FindFirstChild("LocalScript")  
-                    if localScript then localScript.Disabled = true end  
-                end  
-            end)  
-            Rayfield:Notify({ Title = "Enabled", Content = "Anti OC Spray enabled.", Duration = 5, Image = 4483362458 })  
-        else  
-            if antiOCSprayHumanoidConnection then antiOCSprayHumanoidConnection:Disconnect() end  
-            if antiOCSprayHumanoidConnection2 then antiOCSprayHumanoidConnection2:Disconnect() end  
-            if antiOCSprayGuiConnection then antiOCSprayGuiConnection:Disconnect() end  
-            if antiOCSprayEffectConnection then antiOCSprayEffectConnection:Disconnect() end  
-            if antiOCSprayToolConnection then antiOCSprayToolConnection:Disconnect() end  
-            Rayfield:Notify({ Title = "Disabled", Content = "Anti OC Spray disabled.", Duration = 5, Image = 4483362458 })  
-        end  
-    end  
-})  
-  
-PlayerTab:CreateToggle({  
-    Name = "Lock Jump Button",  
-    CurrentValue = true,  
-    Flag = "Lock_Jump_Button",  
-    Callback = function(Value)  
-        antiOCSprayEnabled = Value  
-        if antiOCSprayEnabled then  
-            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")  
-            if humanoid then  
-                local defaultWalkSpeed = humanoid.WalkSpeed  
-                local defaultJumpPower = humanoid.JumpPower or 25  
-                antiOCSprayHumanoidConnection = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()  
-                    if antiOCSprayEnabled and humanoid.WalkSpeed < defaultWalkSpeed then  
-                        humanoid.WalkSpeed = defaultWalkSpeed  
-                    end  
-                end)  
-                antiOCSprayHumanoidConnection2 = humanoid:GetPropertyChangedSignal("JumpPower"):Connect(function()  
-                    if antiOCSprayEnabled and humanoid.JumpPower < defaultJumpPower then  
-                        humanoid.JumpPower = defaultJumpPower  
-                    end  
-                end)  
-            end  
-            antiOCSprayGuiConnection = LocalPlayer.PlayerGui.ChildAdded:Connect(function(gui)  
-                if antiOCSprayEnabled and gui:IsA("ScreenGui") and (gui.Name:lower():find("pepper") or gui.Name:lower():find("spray") or gui.Name:lower():find("ocspray")) then  
-                    gui.Enabled = false  
-                end  
-            end)  
-            antiOCSprayEffectConnection = game:GetService("Lighting").ChildAdded:Connect(function(effect)  
-                if antiOCSprayEnabled and (effect:IsA("BlurEffect") or effect:IsA("ColorCorrectionEffect")) then  
-                    effect.Enabled = false  
-                end  
-            end)  
-            antiOCSprayToolConnection = LocalPlayer.Backpack.ChildAdded:Connect(function(child)  
-                if antiOCSprayEnabled and child.Name == "OC Spray" then  
-                    local localScript = child:FindFirstChild("LocalScript")  
-                    if localScript then localScript.Disabled = true end  
-                end  
-            end)  
-            Rayfield:Notify({ Title = "Enabled", Content = "Anti OC Spray enabled.", Duration = 5, Image = 4483362458 })  
-        else  
-            if antiOCSprayHumanoidConnection then antiOCSprayHumanoidConnection:Disconnect() end  
-            if antiOCSprayHumanoidConnection2 then antiOCSprayHumanoidConnection2:Disconnect() end  
-            if antiOCSprayGuiConnection then antiOCSprayGuiConnection:Disconnect() end  
-            if antiOCSprayEffectConnection then antiOCSprayEffectConnection:Disconnect() end  
-            if antiOCSprayToolConnection then antiOCSprayToolConnection:Disconnect() end  
-            Rayfield:Notify({ Title = "Disabled", Content = "Anti OC Spray disabled.", Duration = 5, Image = 4483362458 })  
-        end  
-    end  
-})  
-  
-PlayerTab:CreateToggle({  
-    Name = "Anti Taze/Stun",  
-    CurrentValue = false,  
-    Flag = "ANTI_ARREST",  
-    Callback = function(Value)  
-        antiArrestEnabled = Value  
-        local cuffsScript = LocalPlayer.PlayerScripts:FindFirstChild("CuffsLocal")  
-        if not cuffsScript then  
-            Rayfield:Notify({ Title = "Warning", Content = "CuffsLocal script not found. Game structure may have changed.", Duration = 5, Image = 4483362458 })  
-            return  
-        end  
-        if antiArrestEnabled and cuffsScript then  
-            originalCuffsState = cuffsScript.Disabled  
-            cuffsScript.Disabled = true  
-            antiArrestConnection = cuffsScript.AncestryChanged:Connect(function()  
-                if antiArrestEnabled and cuffsScript.Parent then  
-                    cuffsScript.Disabled = true  
-                end  
-            end)  
-            Rayfield:Notify({ Title = "Enabled", Content = "Anti Taze/Stun enabled (CuffsLocal disabled).", Duration = 5, Image = 4483362458 })  
-        elseif not antiArrestEnabled and cuffsScript then  
-            if antiArrestConnection then antiArrestConnection:Disconnect(); antiArrestConnection = nil end  
-            cuffsScript.Disabled = originalCuffsState  
-            Rayfield:Notify({ Title = "Disabled", Content = "Anti Taze/Stun disabled.", Duration = 5, Image = 4483362458 })  
-        end  
-    end  
-})  
-  
-PlayerTab:CreateToggle({  
-    Name = "Anti Arrest/Cuffs",  
-    CurrentValue = false,  
-    Flag = "ANTI_TAZE",  
-    Callback = function(Value)  
-        antiTazeEnabled = Value  
-        if antiTazeEnabled then  
-            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")  
-            if humanoid then  
-                local defaultWalkSpeed = humanoid.WalkSpeed  
-                local defaultJumpPower = humanoid.JumpPower or 25  
-                antiTazeHumanoidConnection = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()  
-                    if antiTazeEnabled and humanoid.WalkSpeed < defaultWalkSpeed then  
-                        humanoid.WalkSpeed = defaultWalkSpeed  
-                    end  
-                end)  
-                antiTazeHumanoidConnection2 = humanoid:GetPropertyChangedSignal("JumpPower"):Connect(function()  
-                    if antiTazeEnabled and humanoid.JumpPower < defaultJumpPower then  
-                        humanoid.JumpPower = defaultJumpPower  
-                    end  
-                end)  
-            end  
-            antiTazeGuiConnection = LocalPlayer.PlayerGui.ChildAdded:Connect(function(gui)  
-                if antiTazeEnabled and gui:IsA("ScreenGui") and (gui.Name:lower():find("taze") or gui.Name:lower():find("stun")) then  
-                    gui.Enabled = false  
-                end  
-            end)  
-            antiTazeEffectConnection = game:GetService("Lighting").ChildAdded:Connect(function(effect)  
-                if antiTazeEnabled and (effect:IsA("BlurEffect") or effect:IsA("ColorCorrectionEffect")) then  
-                    effect.Enabled = false  
-                end  
-            end)  
-            LocalPlayer.Backpack.ChildAdded:Connect(function(child)  
-                if antiTazeEnabled and child.Name:lower():find("tazer") then  
-                    child:Destroy()  
-                end  
-            end)  
-            LocalPlayer.Character.ChildAdded:Connect(function(child)  
-                if antiTazeEnabled and child.Name:lower():find("tazer") then  
-                    child:Destroy()  
-                end  
-            end)  
-            Rayfield:Notify({ Title = "Enabled", Content = "Anti Arrest/Cuffs enabled.", Duration = 5, Image = 4483362458 })  
-        else  
-            if antiTazeHumanoidConnection then antiTazeHumanoidConnection:Disconnect() end  
-            if antiTazeHumanoidConnection2 then antiTazeHumanoidConnection2:Disconnect() end  
-            if antiTazeGuiConnection then antiTazeGuiConnection:Disconnect() end  
-            if antiTazeEffectConnection then antiTazeEffectConnection:Disconnect() end  
-            if antiTazeToolConnection then antiTazeToolConnection:Disconnect() end  
-            Rayfield:Notify({ Title = "Disabled", Content = "Anti Arrest/Cuffs disabled.", Duration = 5, Image = 4483362458 })  
-        end  
-    end  
-})  
-  
--- Fake Run Variable  
-local fakerun = false  
-  
--- Fake Run Toggle  
-PlayerTab:CreateToggle({  
-    Name = "Anti-Cuff Freeze",  
-    CurrentValue = false,  
-    Flag = "AntiCuffFreeze",  
-    Callback = function(Value)  
-        fakerun = Value  
-    end  
-})  
-  
--- Anti-Cuff Freeze Function  
-local function RunRenderFakeRun()  
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")  
-    if not root then return end  
-  
-    if fakerun then  
-        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)  
-        root.Anchored = true  
-    else  
-        root.Anchored = false  
-    end  
-end  
-RunService.RenderStepped:Connect(RunRenderFakeRun)  
- 
--- Unlock First Person or Third Person Toggle 
-PlayerTab:CreateButton({ 
-    Name = "Unlock First Person or Third Person", 
-    Callback = function() 
-        local player = game:GetService("Players").LocalPlayer 
-        local isUnlocked = false 
- 
-        if not isUnlocked then 
-            player.CameraMaxZoomDistance = 99999 
-            player.CameraMode = Enum.CameraMode.Classic 
-            isUnlocked = true 
-            Rayfield:Notify({ Title = "Activated", Content = "Camera unlocked for First/Third Person!", Duration = 3, Image = 4483362458 }) 
-        else 
-            player.CameraMaxZoomDistance = 400 -- Default max zoom distance 
-            player.CameraMode = Enum.CameraMode.LockFirstPerson -- Reset to default or game-specific mode 
-            isUnlocked = false 
-            Rayfield:Notify({ Title = "Deactivated", Content = "Camera reverted to default!", Duration = 3, Image = 4483362458 }) 
-        end 
-    end 
-}) 
-  
--- // MISC SECTION  
-local MiscTab = Window:CreateTab("Misc", 4483362458)  
-  
--- // RenderStepped connections  
-RunService.RenderStepped:Connect(function()  
-    local char = LocalPlayer.Character  
-    if char and char:FindFirstChild("Humanoid") then  
-        char.Humanoid.WalkSpeed = speed  
-    end  
-end)  
-  
-UserInputService.JumpRequest:Connect(function()  
-    local char = LocalPlayer.Character  
-    if char and infjumpv2 then  
-        char:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)  
-    end  
-end)  
-  
-print("✅ Script loaded successfully!")
+        AvatarSection:Button({
+            Name = "تحديث",
+            Callback = UpdateOutfitList
+        })
+
+        local FOVSection = Tab8:Section({Name = "الكاميرا", Side = "Right"})
+
+        FOVSection:Slider({
+            Name = "مجال الرؤية",
+            Flag = "FieldOfView",
+            Min = 5,
+            Max = 130,
+            Default = 80,
+            Suffix = "",
+            Decimals = 0.1,
+            Callback = function(a)
+                Camera.FieldOfView = a
+            end
+        })
+
+        local DanceSection = Tab8:Section({Name = "الرقص", Side = "Right"})
+
+        local Configurations = {
+            Misc = {
+                Animation = {
+                    Enabled = false,
+                    SelectedDance = "Floss",
+                    Speed = 2
+                }
+            }
+        }
+
+        local Dances = {
+            Floss = 10714340543,
+            Spin = 2516930867,
+            Sit = 807343012,
+            ArmSpin = 900850443,
+            Lay = 2695918332,
+        }
+
+        local currentAnimation
+
+        local function AnimPlay(ID, SPEED)
+            if currentAnimation then
+                currentAnimation:Stop()
+            end
+
+            local animation = Instance.new('Animation')
+            animation.AnimationId = 'rbxassetid://' .. ID
+
+            currentAnimation = LocalPlayer.Character.Humanoid:LoadAnimation(animation)
+            currentAnimation:Play()
+            currentAnimation:AdjustSpeed(tonumber(SPEED) or 1)
+
+            animation:Destroy()
+        end
+
+        DanceSection:Slider({
+            Name = "سرعة الرقص",
+            Flag = "DanceSpeed",
+            Min = 0,
+            Max = 1000, 
+            Default = Configurations.Misc.Animation.Speed,
+            Suffix = "",
+            Decimals = 0.001,
+            Callback = function(a)
+                Configurations.Misc.Animation.Speed = a
+            end
+        })
+
+        DanceSection:List({
+            Name = "نوع الرقص",
+            Flag = "DanceType",
+            Options = {"Floss", "Spin", "Sit", "ArmSpin", "Lay"},
+            Default = "Floss",
+            Callback = function(a)
+                Configurations.Misc.Animation.SelectedDance = a
+            end
+        })
+
+        DanceSection:Toggle({
+            Name = "رقص",
+            Flag = "Animate",
+            Default = Configurations.Misc.Animation.Enabled,
+            Callback = function(state)
+                Configurations.Misc.Animation.Enabled = state
+                if Configurations.Misc.Animation.Enabled then
+                    local selectedDance = Dances[Configurations.Misc.Animation.SelectedDance or "Floss"]
+                    if selectedDance then
+                        AnimPlay(selectedDance, Configurations.Misc.Animation.Speed or 1)
+                    end
+                else
+                    if currentAnimation then
+                        currentAnimation:Stop()
+                        currentAnimation = nil
+                    end
+                end
+            end
+        })
+
+        LocalPlayer.CharacterAdded:Connect(function(character)
+            character:WaitForChild("Humanoid")
+            if Configurations.Misc.Animation.Enabled then
+                local selectedDance = Dances[Configurations.Misc.Animation.SelectedDance or "Floss"]
+                if selectedDance then
+                    AnimPlay(selectedDance, Configurations.Misc.Animation.Speed or 1)
+                end
+            end
+        end)
+
+        -- تبويب الإعدادات (Config)
+        local Tab9 = Window:Tab({Name = "الإعدادات"})
+        local ConfigSection = Tab9:Section({Name = "إدارة الإعدادات", Zindex = 2})
+
+        if not isfolder("Psalms") then makefolder("Psalms") end
+        if not isfolder("Psalms/Configs") then makefolder("Psalms/Configs") end
+
+        local ConfigList = ConfigSection:List({Name = "الإعدادات", Flag = "SettingConfigurationList", Options = {}})
+        ConfigSection:Textbox({Flag = "SettingsConfigurationName", Name = "اسم الإعداد"})
+
+        local CurrentList = {}
+
+        local function UpdateConfigList()
+            local List = {}
+            for _, file in ipairs(listfiles("Psalms/Configs")) do
+                local FileName = file:match("Psalms/Configs/(.+)%.cfg")
+                if FileName then
+                    table.insert(List, FileName)
+                end
+            end
+
+            if #List ~= #CurrentList or table.concat(List) ~= table.concat(CurrentList) then
+                CurrentList = List
+                ConfigList:Refresh(CurrentList)
+            end
+        end
+
+        ConfigSection:Button({Name = "إنشاء", Callback = function()
+            local ConfigName = Flags.SettingsConfigurationName
+            if ConfigName and ConfigName ~= "" and not isfile("Psalms/Configs/" .. ConfigName .. ".cfg") then
+                writefile("Psalms/Configs/" .. ConfigName .. ".cfg", "")
+                UpdateConfigList()
+            end
+        end})
+
+        ConfigSection:Button({Name = "حفظ", Callback = function()
+            local SelectedConfig = Flags.SettingConfigurationList
+            if SelectedConfig then
+                writefile("Psalms/Configs/" .. SelectedConfig .. ".cfg", Library:GetConfig())
+            end
+        end})
+
+        ConfigSection:Button({Name = "تحميل", Callback = function()
+            local SelectedConfig = Flags.SettingConfigurationList
+            if SelectedConfig then
+                local Content = readfile("Psalms/Configs/" .. SelectedConfig .. ".cfg")
+                Library:LoadConfig(Content)
+            end
+        end})
+
+        ConfigSection:Button({Name = "حذف", Callback = function()
+            local SelectedConfig = Flags.SettingConfigurationList
+            if SelectedConfig and isfile("Psalms/Configs/" .. SelectedConfig .. ".cfg") then
+                delfile("Psalms/Configs/" .. SelectedConfig .. ".cfg")
+                UpdateConfigList()
+            end
+        end})
+
+        ConfigSection:Button({Name = "تحديث", Callback = function()
+            pcall(UpdateConfigList)
+        end})
+
+        ConfigSection:Keybind({
+            Name = "مفتاح القائمة",
+            Flag = "MenuKey",
+            UseKey = true,
+            Default = Enum.KeyCode.End,
+            Callback = function(State)
+                Library.UIKey = State
+            end
+        })
+
+        ConfigSection:Colorpicker({
+            Name = "لون القائمة",
+            Flag = "MenuAccent",
+            Default = Library.Accent,
+            Callback = function(State)
+                Library:ChangeAccent(State)
+            end
+        })
+
+        ConfigSection:Toggle({
+            Name = "إظهار العلامة المائية",
+            Flag = "Watermark",
+            Default = true,
+            Callback = function(State)
+                Watermark:SetVisible(State)
+            end
+        })
+
+        local waterbitch = "Psalms.Tech"
+        ConfigSection:Toggle({
+            Name = "تحديث العلامة",
+            Flag = "CustomMark",
+            Default = stats.Update,
+            Callback = function(State)
+                stats.Update = State
+                if not stats.Update then
+                    Watermark:UpdateText(waterbitch)
+                end
+            end
+        })
+
+        ConfigSection:Textbox({
+            Flag = "WatermarkText",
+            Name = "نص العلامة المائية",
+            State = "$$ Psalms.Tech $$", 
+            Callback = function(State)
+                waterbitch = State
+                if not stats.Update then
+                    Watermark:UpdateText(waterbitch)
+                end
+            end
+        })
+
+        -- إغلاق القائمة افتراضيًا
+        Library:SetOpen(false)
+
+        local Ui22 = Instance.new("ScreenGui")
+        Ui22.Name = "Ui22"
+        Ui22.Parent = game.CoreGui
+        Ui22.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        Ui22.ResetOnSpawn = false
+
+        local Image3 = Instance.new("ImageButton")
+        Image3.Name = "Image3"
+        Image3.Parent = Ui22
+        Image3.Active = true
+        Image3.Draggable = true
+        Image3.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+        Image3.BackgroundTransparency = 1
+        Image3.Size = UDim2.new(0, 90, 0, 90)
+        Image3.Image = "rbxassetid://92324433288253"
+        Image3.Position = UDim2.new(1, -95, 0, 5)
+
+        local Ui2corner = Instance.new("UICorner")
+        Ui2corner.CornerRadius = UDim.new(0.2, 0)
+        Ui2corner.Parent = Image3
+
+        local Open = false
+        Image3.MouseButton1Click:Connect(function()
+            Open = not Open
+            Library:SetOpen(Open)
+        end)
+
+        local loadingTime = os.clock() - startTime
+        Library:Notification(string.format("تم التحميل بنجاح. وقت التحميل: %.3f ثانية", loadingTime), 3)
+
+        toggleAimViewer()
+    end
+end
+
+-- تشغيل السكريبت (دعم جميع المابات بدون تحقق PlaceId)
+cooked(true)
