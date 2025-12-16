@@ -1190,775 +1190,922 @@ function updateStickmanESP()
                 line.Visible = false 
             end 
         end 
-        local head = parts.Head 
-        if head then 
-            local headPos, headVisible = camera:WorldToViewportPoint(head.Position) 
-            if headVisible then 
-                esp.Labels.Distance.Text = string.format("%.1f", distance) .. "m" 
-                esp.Labels.Distance.Position = Vector2.new(headPos.X, headPos.Y - 25) 
-                esp.Labels.Distance.Color = teamColor 
+ 
+        -- Update distance label if enabled 
+        if espSettings.ShowDistance then 
+            local screenPos, visible = camera:WorldToViewportPoint(rootPart.Position) 
+            if visible then 
+                esp.Labels.Distance.Text = tostring(math.floor(distance)) .. " studs" 
+                esp.Labels.Distance.Position = Vector2.new(screenPos.X, screenPos.Y + 20) 
                 esp.Labels.Distance.Visible = true 
             else 
                 esp.Labels.Distance.Visible = false 
             end 
+        else 
+            esp.Labels.Distance.Visible = false 
         end 
     end 
 end 
  
-function enableStickmanESP() 
+-- // COMBAT TAB (Reworked)  
+local CombatTab = Window:CreateTab("Combat", 4483362458)  
+  
+-- Aimbot Variables (Organized) 
+local AimbotEnabled = false 
+local SilentAim = false 
+local DesyncEnabled = false 
+local PredictionEnabled = false 
+local BulletSpeed = 1000 
+local HumanizationFactor = 0.2 
+local TargetPart = "Head" 
+local SelectedTeams = { 
+    ["Minimum Security"] = false, 
+    ["Medium Security"] = false, 
+    ["Maximum Security"] = false, 
+    ["Department of Corrections"] = false, 
+    ["State Police"] = false, 
+    ["Escapee"] = false, 
+    ["Civilian"] = false, 
+    ["VCSO-SWAT"] = false, 
+    ["Dead Body"] = true 
+} 
+local FOVRadius = 150 
+local Smoothness = 0.15 
+local StickToTarget = false 
+local IgnoreWalls = false 
+local ShowFOVCircle = true 
+local FOVEnabled = false 
+local CustomFOV = 90 
+local FOVColor = Color3.fromRGB(255, 0, 0) 
+local AimAccuracy = 100 
+local HitChanceVariance = 0 
+local AimPrecision = 100 
+local TargetLockStrength = 0.5 
+local AimOnSight = false 
+local AimOnApproach = false 
+local AimFaceToFace = false 
+local OffsetSpread = 1.0 
+local PredictionMultiplier = 1.0 
+local AimMovingTargetsOnly = false 
+local VelocityThreshold = 5 
+local AutoSwitchOnKill = false 
+local TargetPriority = "Closest" 
+local TriggerbotEnabled = false 
+local TriggerDelay = 100 
+local AntiRecoilEnabled = false 
+local RecoilFactor = 0.5 
+local ScanMode = "Fixed" 
+local DynamicFOV = false 
+local MinFOVRadius = 50 
+local MaxFOVRadius = 300 
+local DynamicFOVMultiplier = 0.1 
+local EnableStats = false 
+local NoMissBullets = false 
+local BulletMagnetStrength = 0.5 
+local movingFOVCircleEnabled = false 
+local weaponCheckEnabled = false 
+local smartAimBotEnabled = false 
+local closestAimEnabled = false 
+ 
+-- Stats Variables 
+local Stats = { Kills = 0, Misses = 0 } 
+ 
+-- Connections and Globals 
+local CurrentTarget = nil 
+local hasNotifiedNoTarget = false 
+local FOVCircle = nil 
+local originalPosition = nil 
+local originalFOV = 70 -- Default Roblox FOV 
+local DefaultFOV = Camera.FieldOfView 
+local oldIndex = nil 
+local silentAimConnection = nil 
+local desyncConnection = nil 
+local killAllCameraConnection = nil 
+local killAllConnection = nil 
+local playerAddedConnection = nil 
+local killMonitorConnection = nil 
+local aimbotConnection = nil 
+local outConnection = nil 
+local killAllEnabled = false 
+local killAllAimbotEnabled = false 
+ 
+-- Helper Functions (with comments and optimizations) 
+ 
+-- Function to apply humanization to position 
+local function ApplyHumanization(pos) 
+    if HumanizationFactor > 0 then 
+        local offset = Vector3.new( 
+            math.random(-HumanizationFactor, HumanizationFactor), 
+            math.random(-HumanizationFactor, HumanizationFactor), 
+            math.random(-HumanizationFactor, HumanizationFactor) 
+        ) 
+        return pos + offset 
+    end 
+    return pos 
+end 
+ 
+-- Optimized predicted position calculation 
+local function GetPredictedPosition(targetPart) 
+    if not targetPart then return Vector3.zero end -- Error handling 
+ 
+    local basePos = targetPart.Position 
+    if PredictionEnabled then 
+        local velocity = targetPart.AssemblyLinearVelocity 
+        local distance = (Camera.CFrame.Position - targetPart.Position).Magnitude 
+        local timeToHit = (distance / BulletSpeed) * PredictionMultiplier 
+        local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 1000 
+        timeToHit = timeToHit + ping 
+        local gravity = Vector3.new(0, workspace.Gravity * timeToHit^2 / 2, 0) 
+        basePos = targetPart.Position + (velocity * timeToHit) + gravity 
+    end 
+    local spread = (100 - AimAccuracy) / 100 * OffsetSpread 
+    local offset = Vector3.new( 
+        math.random(-spread, spread), 
+        math.random(-spread, spread), 
+        math.random(-spread, spread) 
+    ) 
+    local predictedPos = basePos + offset 
+    if NoMissBullets then 
+        local diff = (targetPart.Position - predictedPos) 
+        if diff.Magnitude > 0 then 
+            local magnetOffset = diff.Unit * BulletMagnetStrength 
+            predictedPos = predictedPos + magnetOffset 
+        end 
+    end 
+    return ApplyHumanization(predictedPos) 
+end 
+ 
+-- Dynamic scan for best visible part 
+local function GetBestVisiblePart(player) 
+    local parts = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart"} 
+    for _, partName in ipairs(parts) do 
+        local part = player.Character and player.Character:FindFirstChild(partName) 
+        if part and IsVisible(player, partName) then 
+            return part 
+        end 
+    end 
+    return nil 
+end 
+ 
+-- Visibility check with partName 
+local function IsVisible(player, partName) 
+    if not player or not player.Character or not player.Character:FindFirstChild(partName) then return false end 
+    if IgnoreWalls then return true end 
+    local params = RaycastParams.new() 
+    params.FilterType = Enum.RaycastFilterType.Exclude 
+    params.FilterDescendantsInstances = {LocalPlayer.Character} 
+    local ray = workspace:Raycast(Camera.CFrame.Position, (player.Character[partName].Position - Camera.CFrame.Position).Unit * 1000, params) 
+    return ray and ray.Instance and ray.Instance:IsDescendantOf(player.Character) 
+end 
+ 
+-- Create/Update FOV circle 
+local function CreateFOVCircle() 
+    if FOVCircle then FOVCircle:Remove() end 
+    FOVCircle = Drawing.new("Circle") 
+    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
+    FOVCircle.Radius = FOVRadius 
+    FOVCircle.Color = Color3.new(math.random(), math.random(), math.random()) 
+    FOVCircle.Thickness = 2 
+    FOVCircle.Filled = false 
+    FOVCircle.Visible = (AimbotEnabled or killAllAimbotEnabled) and ShowFOVCircle 
+end 
+ 
+local function UpdateFOVCircle() 
+    if not FOVCircle then return end 
+    if movingFOVCircleEnabled then 
+        FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y) 
+    else 
+        FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
+    end 
+    local currentRadius = FOVRadius 
+    if DynamicFOV and CurrentTarget then 
+        local distance = (Camera.CFrame.Position - CurrentTarget.Character[TargetPart].Position).Magnitude 
+        currentRadius = math.clamp(MinFOVRadius + (distance * DynamicFOVMultiplier), MinFOVRadius, MaxFOVRadius) 
+    end 
+    FOVCircle.Radius = currentRadius 
+    FOVCircle.Color = FOVColor 
+    FOVCircle.Visible = (AimbotEnabled or killAllAimbotEnabled) and ShowFOVCircle 
+end 
+ 
+-- Optimized target validation 
+local function IsValidTarget(player) 
+    if player == LocalPlayer then return false end 
+    local playerTeam = player.Team and player.Team.Name or nil 
+    local anyTeamSelected = false 
+    for _, enabled in pairs(SelectedTeams) do 
+        if enabled then anyTeamSelected = true; break end 
+    end 
+    if anyTeamSelected and playerTeam then 
+        local isTargetable = false 
+        for team, enabled in pairs(SelectedTeams) do 
+            if enabled and playerTeam == team then isTargetable = true; break end 
+        end 
+        if not isTargetable then return false end 
+    end 
+    local humanoid = player.Character and player.Character:FindFirstChild("Humanoid") 
+    if SelectedTeams["Dead Body"] == false and humanoid and humanoid.Health <= 0 then return false end 
+    local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(player) or (player.Character and player.Character:FindFirstChild(TargetPart)) 
+    if not targetPart then return false end -- Error handling 
+    if AimMovingTargetsOnly then 
+        local velocity = targetPart.AssemblyLinearVelocity.Magnitude 
+        if velocity < VelocityThreshold then return false end 
+    end 
+    if AimOnSight and not IsVisible(player, targetPart.Name) then return false end 
+    if AimOnApproach then 
+        local direction = (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Unit 
+        if targetPart.AssemblyLinearVelocity:Dot(direction) > 0 then return false end 
+    end 
+    if AimFaceToFace then 
+        local myFacing = LocalPlayer.Character.HumanoidRootPart.CFrame.LookVector 
+        local targetFacing = player.Character.HumanoidRootPart.CFrame.LookVector 
+        if myFacing:Dot(targetFacing) < -0.5 then return false end 
+    end 
+    return true 
+end 
+ 
+-- Optimized best target selection with priority 
+local function GetBestTarget() 
+    local bestPlayer, bestScore = nil, math.huge 
+    local center = movingFOVCircleEnabled and Vector2.new(Mouse.X, Mouse.Y) or Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) 
     for _, player in pairs(Players:GetPlayers()) do 
-        createStickmanESP(player) 
+        if IsValidTarget(player) then 
+            local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(player) or player.Character[TargetPart] 
+            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position) 
+            if onScreen then 
+                local distance = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude 
+                if distance > FOVRadius then continue end 
+                local score = distance 
+                if TargetPriority == "Lowest Health" then 
+                    score = player.Character.Humanoid.Health 
+                elseif TargetPriority == "Highest Threat" then 
+                    score = -distance 
+                end 
+                if score < bestScore then 
+                    bestPlayer = player 
+                    bestScore = score 
+                end 
+            end 
+        end 
     end 
-    connections.playerAdded = Players.PlayerAdded:Connect(function(player) 
-        createStickmanESP(player) 
+    return bestPlayer 
+end 
+ 
+-- Update custom FOV 
+local function UpdateFOV() 
+    if FOVEnabled then 
+        Camera.FieldOfView = CustomFOV 
+    else 
+        Camera.FieldOfView = DefaultFOV 
+    end 
+end 
+ 
+-- Silent Aim hook using metatable 
+local function EnableSilentAim() 
+    if silentAimConnection then return end 
+    oldIndex = getmetatable(game).__index 
+    getmetatable(game).__index = function(self, index) 
+        if SilentAim and (AimbotEnabled or killAllAimbotEnabled) and CurrentTarget and CurrentTarget.Character then 
+            local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart) 
+            if targetPart then 
+                local predictedPos = GetPredictedPosition(targetPart) 
+                if index == "Hit" then return CFrame.new(predictedPos) end 
+                if index == "Target" then return targetPart end 
+            end 
+        end 
+        return oldIndex and oldIndex(self, index) or rawget(self, index) -- Safe fallback 
+    end 
+    silentAimConnection = true 
+end 
+ 
+local function DisableSilentAim() 
+    if oldIndex then 
+        getmetatable(game).__index = oldIndex 
+        oldIndex = nil 
+    end 
+    silentAimConnection = nil 
+end 
+ 
+-- Desync for evasion 
+local function EnableDesync() 
+    if desyncConnection then return end 
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
+    if not root then return end 
+    desyncConnection = RunService.RenderStepped:Connect(function() 
+        if DesyncEnabled and root then 
+            root.CFrame = root.CFrame * CFrame.new(0, math.random(-0.2, 0.2), 0) 
+        end 
     end) 
-    connections.playerRemoving = Players.PlayerRemoving:Connect(function(player) 
-        if espObjects[player] then 
-            for _, line in pairs(espObjects[player].Lines) do 
-                line:Remove() 
+end 
+ 
+local function DisableDesync() 
+    if desyncConnection then desyncConnection:Disconnect(); desyncConnection = nil end 
+end 
+ 
+-- Kill All Aimbot camera control 
+local function EnableKillAllAimbot() 
+    if killAllCameraConnection then return end 
+    killAllCameraConnection = RunService.RenderStepped:Connect(function() 
+        if killAllAimbotEnabled and CurrentTarget and CurrentTarget.Character then 
+            local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart) 
+            if targetPart then 
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)) 
             end 
-            for _, label in pairs(espObjects[player].Labels) do 
-                label:Remove() 
-            end 
-            espObjects[player] = nil 
         end 
     end) 
-    connections.renderUpdate = game:GetService("RunService").Heartbeat:Connect(updateStickmanESP)  -- Changed to Heartbeat 
 end 
  
-function disableStickmanESP() 
-    for _, connection in pairs(connections) do 
-        connection:Disconnect() 
-    end 
-    connections = {} 
-    for player, esp in pairs(espObjects) do 
-        for _, line in pairs(esp.Lines) do 
-            line:Remove() 
-        end 
-        for _, label in pairs(esp.Labels) do 
-            label:Remove() 
-        end 
-    end 
-    espObjects = {} 
+local function DisableKillAllAimbot() 
+    if killAllCameraConnection then killAllCameraConnection:Disconnect(); killAllCameraConnection = nil end 
 end 
  
-for _, player in pairs(Players:GetPlayers()) do 
-    if player ~= LocalPlayer then 
-        player.CharacterAdded:Connect(function() 
-            if ESPEnabled or ShowHealth or ShowInventory then task.wait(0.5) CreateESP(player) end 
-            if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end 
-            if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end 
-            if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end 
-        end) 
-        if player.Character and (ESPEnabled or ShowHealth or ShowInventory) then task.spawn(function() task.wait(0.5) CreateESP(player) end) end 
-        if player.Character and Box3DEnabled then task.spawn(function() task.wait(0.5) Create3DBox(player) end) end 
-        if player.Character and (showBox or show3DBox or showHealthNew or showName or showDist or showTool) then task.spawn(function() task.wait(0.5) createNewESP(player) end) end 
+-- Kill All logic 
+local function EnableKillAll() 
+    if killAllConnection then return end 
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
+    if not root then 
+        Rayfield:Notify({ Title = "Error", Content = "Character not found!", Duration = 3, Image = 4483362458 }) 
+        return 
+    end 
+    originalPosition = root.CFrame 
+    originalFOV = Camera.FieldOfView 
+    local targetPlayers = {} 
+    local function addPlayer(player) 
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") 
+           and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then 
+            table.insert(targetPlayers, player) 
+        end 
+    end 
+    for _, player in pairs(Players:GetPlayers()) do 
+        addPlayer(player) 
+    end 
+    playerAddedConnection = Players.PlayerAdded:Connect(function(player) 
+        if killAllEnabled then 
+            player.CharacterAdded:Wait() 
+            addPlayer(player) 
+        end 
+    end) 
+    if #targetPlayers == 0 then 
+        Rayfield:Notify({ Title = "Info", Content = "No valid targets found!", Duration = 3, Image = 4483362458 }) 
+        return 
+    end 
+    local currentIndex = 1 
+    local rotationAngle = 0 
+    killAllAimbotEnabled = true 
+    EnableKillAllAimbot() 
+    killAllConnection = RunService.Heartbeat:Connect(function() 
+        if not killAllEnabled or not root then 
+            DisableKillAll() 
+            return 
+        end 
+        if #targetPlayers == 0 then 
+            for _, player in pairs(Players:GetPlayers()) do 
+                addPlayer(player) 
+            end 
+            if #targetPlayers == 0 then return end 
+        end 
+        local target = targetPlayers[currentIndex] 
+        if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") 
+           or target.Character.Humanoid.Health <= 0 then 
+            table.remove(targetPlayers, currentIndex) 
+            if currentIndex > #targetPlayers then currentIndex = 1 end 
+            return 
+        end 
+        CurrentTarget = target 
+        rotationAngle = (rotationAngle + 0.25) % (2 * math.pi) 
+        local offset = Vector3.new(math.cos(rotationAngle) * 5, 0, math.sin(rotationAngle) * 5) 
+        root.CFrame = CFrame.new(target.Character.HumanoidRootPart.Position + offset, target.Character.HumanoidRootPart.Position) 
+        local lookAt = (target.Character.HumanoidRootPart.Position - root.Position).Unit 
+        root.CFrame = CFrame.new(root.Position, root.Position + lookAt) 
+    end) 
+end 
+ 
+local function DisableKillAll() 
+    if killAllConnection then killAllConnection:Disconnect(); killAllConnection = nil end 
+    if playerAddedConnection then playerAddedConnection:Disconnect(); playerAddedConnection = nil end 
+    killAllAimbotEnabled = false 
+    DisableKillAllAimbot() 
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
+    if root and originalPosition then root.CFrame = originalPosition end 
+    if originalFOV then Camera.FieldOfView = originalFOV end 
+end 
+ 
+-- Hit chance calculation for stats 
+local function CalculateHitChance(target) 
+    if not target then return 0 end 
+    local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(target) or target.Character[TargetPart] 
+    local distance = (Camera.CFrame.Position - targetPart.Position).Magnitude 
+    return math.clamp(100 - (distance / BulletSpeed * (100 - AimAccuracy) / 100), 0, 100) 
+end 
+ 
+-- Kill monitor for stats and auto-switch 
+local function EnableKillMonitor() 
+    if killMonitorConnection then return end 
+    killMonitorConnection = RunService.Heartbeat:Connect(function() 
+        if CurrentTarget and CurrentTarget.Character and CurrentTarget.Character.Humanoid then 
+            if CurrentTarget.Character.Humanoid.Health <= 0 then 
+                if EnableStats then 
+                    Stats.Kills = Stats.Kills + 1 
+                    Rayfield:Notify({ Title = "Stats", Content = "Kills: " .. Stats.Kills .. " | Misses: " .. Stats.Misses, Duration = 3 }) 
+                end 
+                if AutoSwitchOnKill then 
+                    CurrentTarget = GetBestTarget() 
+                end 
+            end 
+        end 
+    end) 
+end 
+ 
+local function DisableKillMonitor() 
+    if killMonitorConnection then killMonitorConnection:Disconnect(); killMonitorConnection = nil end 
+end 
+ 
+-- Centralized aimbot update logic 
+local function updateAimbot() 
+    if AimbotEnabled or SilentAim then 
+        CurrentTarget = StickToTarget and CurrentTarget and IsValidTarget(CurrentTarget) and CurrentTarget or GetBestTarget() 
+        if SilentAim and not CurrentTarget and not hasNotifiedNoTarget then 
+            Rayfield:Notify({ Title = "Silent Aim", Content = "No valid target found in FOV!", Duration = 2, Image = 4483362458 }) 
+            hasNotifiedNoTarget = true 
+        elseif CurrentTarget then 
+            hasNotifiedNoTarget = false 
+        end 
+    end 
+    UpdateFOV() 
+    UpdateFOVCircle() 
+     
+    -- Triggerbot 
+    if TriggerbotEnabled and CurrentTarget and Mouse.Target and Mouse.Target:IsDescendantOf(CurrentTarget.Character) then 
+        wait(TriggerDelay / 1000) 
+        -- mouse1press() -- Uncomment if supported 
+        if EnableStats then 
+            if math.random(100) > CalculateHitChance(CurrentTarget) then 
+                Stats.Misses = Stats.Misses + 1 
+            end 
+        end 
+    end 
+     
+    -- Anti-Recoil 
+    if AntiRecoilEnabled and AimbotEnabled and CurrentTarget then 
+        local recoilOffset = Vector3.new(0, RecoilFactor, 0) 
+        Camera.CFrame = Camera.CFrame * CFrame.new(recoilOffset) 
+    end 
+     
+    -- Visible Aim Lerp 
+    if AimbotEnabled and CurrentTarget and CurrentTarget.Character and not SilentAim then 
+        local targetPart = (ScanMode == "Dynamic") and GetBestVisiblePart(CurrentTarget) or CurrentTarget.Character:FindFirstChild(TargetPart) 
+        if targetPart then 
+            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, GetPredictedPosition(targetPart)), Smoothness) 
+        end 
     end 
 end 
  
-Players.PlayerAdded:Connect(function(player) 
-    if player ~= LocalPlayer then 
-        player.CharacterAdded:Connect(function() 
-            if ESPEnabled or ShowHealth or ShowInventory then task.wait(0.5) CreateESP(player) end 
-            if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end 
-            if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end 
-            if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end 
-        end) 
-    end 
-end) 
+-- UI Sections for better organization 
+local AimbotSection = CombatTab:CreateSection("Aimbot Basics") 
+local AdvancedAimbotSection = CombatTab:CreateSection("Advanced Aimbot") 
+local FOVSection = CombatTab:CreateSection("FOV Settings") 
+local TriggerSection = CombatTab:CreateSection("Triggerbot & Recoil") 
+local StatsSection = CombatTab:CreateSection("Stats & Extras") 
  
-Players.PlayerRemoving:Connect(function(player) 
-    RemoveESP(player) 
-    Remove3DBox(player) 
-end) 
- 
-game:GetService("RunService").Heartbeat:Connect(function() 
-    if ESPEnabled or ShowHealth or ShowInventory then 
-        for _, player in pairs(Players:GetPlayers()) do 
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then 
-                task.spawn(function() CreateESP(player) end) 
-            end 
-        end 
-    end 
-    if Box3DEnabled then 
-        for _, player in pairs(Players:GetPlayers()) do 
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then 
-                task.spawn(function() Create3DBox(player) Update3DBox(player) end) 
-            end 
-        end 
-    end 
-end) 
- 
--- Players Visuals Section (بدل الدروب داون، عناوين وتوجلات فردية) 
-VisualsTab:CreateLabel("Players Visuals")  -- نص عنوان "Players Visuals" 
- 
-VisualsTab:CreateToggle({ 
-    Name = "Enable ESP", 
+-- Aimbot Basics 
+AimbotSection:CreateToggle({ 
+    Name = "Enable Aimbot", 
     CurrentValue = false, 
+    Flag = "AIMBOT_TOGGLE", 
     Callback = function(Value) 
-        ESPEnabled = Value 
-        if ESPEnabled then 
-            for _, player in pairs(Players:GetPlayers()) do 
-                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then 
-                    task.spawn(function() CreateESP(player) end) 
-                end 
-            end 
-            UpdateESPVisibilities() 
+        AimbotEnabled = Value 
+        CurrentTarget = nil 
+        hasNotifiedNoTarget = false 
+        if AimbotEnabled then 
+            CreateFOVCircle() 
+            EnableKillMonitor() 
+            aimbotConnection = RunService.RenderStepped:Connect(updateAimbot) 
         else 
-            for _, espHolder in pairs(ESPObjects) do 
-                if espHolder.Highlight then espHolder.Highlight:Destroy() end 
-                espHolder.Highlight = nil 
-            end 
-            UpdateESPVisibilities() 
-            CleanupUnusedESP() 
-        end 
-    end 
-}) 
- 
-VisualsTab:CreateToggle({ 
-    Name = "Show Health Bar", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        ShowHealth = Value 
-        if ShowHealth then 
-            for _, player in pairs(Players:GetPlayers()) do 
-                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then 
-                    task.spawn(function() CreateESP(player) end) 
-                end 
-            end 
-            UpdateESPVisibilities() 
-        else 
-            UpdateESPVisibilities() 
-            CleanupUnusedESP() 
-        end 
-    end 
-}) 
- 
-VisualsTab:CreateToggle({ 
-    Name = "Show Inventory", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        ShowInventory = Value 
-        if ShowInventory then 
-            for _, player in pairs(Players:GetPlayers()) do 
-                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then 
-                    task.spawn(function() CreateESP(player) end) 
-                end 
-            end 
-            UpdateESPVisibilities() 
-        else 
-            UpdateESPVisibilities() 
-            CleanupUnusedESP() 
-        end 
-    end 
-}) 
- 
-VisualsTab:CreateToggle({ 
-    Name = "Enable 3D Box ESP", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        Box3DEnabled = Value 
-        if Box3DEnabled then 
-            for _, player in pairs(Players:GetPlayers()) do 
-                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then 
-                    task.spawn(function() Create3DBox(player) Update3DBox(player) end) 
-                end 
-            end 
-            local updateConnection 
-            updateConnection = game:GetService("RunService").Heartbeat:Connect(function()  -- Changed to Heartbeat 
-                if not Box3DEnabled then 
-                    updateConnection:Disconnect() 
-                    return 
-                end 
-                for _, player in pairs(Players:GetPlayers()) do 
-                    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then 
-                        Update3DBox(player) 
-                    end 
-                end 
+            if aimbotConnection then aimbotConnection:Disconnect(); aimbotConnection = nil end 
+            DisableKillMonitor() 
+            local currentSmooth = Smoothness 
+            outConnection = RunService.RenderStepped:Connect(function() 
+                local targetCFrame = CFrame.new(Camera.CFrame.Position, Mouse.Hit.Position) 
+                Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, currentSmooth) 
+                currentSmooth = math.min(1, currentSmooth + Smoothness) 
+                if currentSmooth >= 1 then outConnection:Disconnect(); outConnection = nil end 
             end) 
-            Rayfield:Notify({ Title = "3D Box ESP", Content = "تم تفعيل 3D Box ESP", Duration = 3, Image = 4483362458 }) 
-        else 
-            for player in pairs(Box3DObjects) do 
-                Remove3DBox(player) 
-            end 
-            Box3DObjects = {} 
-            Rayfield:Notify({ Title = "3D Box ESP", Content = "تم إيقاف 3D Box ESP", Duration = 3, Image = 4483362458 }) 
+            if FOVCircle then FOVCircle:Remove(); FOVCircle = nil end 
+            DisableSilentAim() 
         end 
     end 
 }) 
  
-VisualsTab:CreateToggle({ 
-    Name = "Skeleton ESP 2", 
+AimbotSection:CreateToggle({ 
+    Name = "Silent Aim", 
     CurrentValue = false, 
+    Flag = "SILENT_AIM", 
     Callback = function(Value) 
-        espSettings.Enabled = Value 
-        if espSettings.Enabled then 
-            enableStickmanESP() 
-        else 
-            disableStickmanESP() 
-        end 
+        SilentAim = Value 
+        if SilentAim then EnableSilentAim() else DisableSilentAim() end 
     end 
 }) 
  
-VisualsTab:CreateToggle({ 
-   Name = "Show 2D Box (Rectangle)", 
-   CurrentValue = false, 
-   Callback = function(state) 
-      showBox = state 
-      refreshNewESP() 
-   end, 
-}) 
- 
-VisualsTab:CreateToggle({ 
-   Name = "Show 3D Box 1", 
-   CurrentValue = false, 
-   Callback = function(state) 
-      show3DBox = state 
-      refreshNewESP() 
-   end, 
-}) 
- 
-VisualsTab:CreateToggle({ 
-   Name = "Show Health Bar 1", 
-   CurrentValue = false, 
-   Callback = function(state) 
-      showHealthNew = state 
-      refreshNewESP() 
-   end, 
-}) 
- 
-VisualsTab:CreateToggle({ 
-   Name = "Show Name", 
-   CurrentValue = false, 
-   Callback = function(state) 
-      showName = state 
-      refreshNewESP() 
-   end, 
-}) 
- 
-VisualsTab:CreateToggle({ 
-   Name = "Show Distance", 
-   CurrentValue = false, 
-   Callback = function(state) 
-      showDist = state 
-      refreshNewESP() 
-   end, 
-}) 
- 
-VisualsTab:CreateToggle({ 
-   Name = "Show Equipped Tool", 
-   CurrentValue = false, 
-   Callback = function(state) 
-      showTool = state 
-      refreshNewESP() 
-   end, 
-}) 
- 
-VisualsTab:CreateToggle({ 
-   Name = "Enable ESP (Main)", 
-   CurrentValue = false, 
-   Callback = function(state) 
-      enableMainESP = state 
-      if state then 
-         showBox = true 
-         show3DBox = true 
-         showHealthNew = true 
-         showName = true 
-         showDist = true 
-         showTool = true 
-         refreshNewESP() 
-      else 
-         showBox = false 
-         show3DBox = false 
-         showHealthNew = false 
-         showName = false 
-         showDist = false 
-         showTool = false 
-         refreshNewESP() 
-      end 
-   end, 
-}) 
- 
--- Map Visuals Section (عنوان وتوجلات فردية) 
-VisualsTab:CreateLabel("Map Visuals")  -- نص عنوان "Map Visuals" 
- 
-VisualsTab:CreateToggle({ 
-    Name = "Show Metal/Plastic", 
+AimbotSection:CreateToggle({ 
+    Name = "Desync", 
     CurrentValue = false, 
+    Flag = "DESYNC", 
     Callback = function(Value) 
-        boxEnabled = Value 
-        refreshBoxESP() 
-        print(Value and "Show Metal/Plastic enabled!" or "Show Metal/Plastic disabled!") 
+        DesyncEnabled = Value 
+        if DesyncEnabled then EnableDesync() else DisableDesync() end 
     end 
 }) 
  
-VisualsTab:CreateToggle({ 
-    Name = "Show Vents", 
+AimbotSection:CreateToggle({ 
+    Name = "Prediction", 
     CurrentValue = false, 
+    Flag = "PREDICTION", 
+    Callback = function(Value) PredictionEnabled = Value end 
+}) 
+ 
+AimbotSection:CreateSlider({ 
+    Name = "Bullet Speed", 
+    Range = {500, 5000}, 
+    Increment = 100, 
+    CurrentValue = 1000, 
+    Flag = "BULLET_SPEED", 
+    Callback = function(Value) BulletSpeed = Value end 
+}) 
+ 
+AimbotSection:CreateSlider({ 
+    Name = "Humanization Factor", 
+    Range = {0, 1}, 
+    Increment = 0.1, 
+    CurrentValue = 0.2, 
+    Flag = "HUMANIZATION", 
     Callback = function(Value) 
-        ventsEnabled = Value 
-        refreshVents() 
-        print(Value and "Vents ESP enabled!" or "Vents ESP disabled!") 
+        HumanizationFactor = Value 
+        Rayfield:Notify({ Title = "Humanization", Content = "تم تغيير عامل العشوائية إلى " .. Value, Duration = 3 }) 
     end 
 }) 
  
-VisualsTab:CreateToggle({ 
-    Name = "Show Garbage", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        garbageEnabled = Value 
-        refreshGarbage() 
-        print(Value and "Garbage ESP enabled!" or "Garbage ESP disabled!") 
+AimbotSection:CreateDropdown({ 
+    Name = "Target Part", 
+    Options = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}, 
+    CurrentOption = {"Head"}, 
+    MultipleOptions = false, 
+    Flag = "TARGET_PART", 
+    Callback = function(Option) TargetPart = Option[1] end 
+}) 
+ 
+AimbotSection:CreateDropdown({ 
+    Name = "Check", 
+    Options = {"Minimum Security", "Medium Security", "Maximum Security", "Department of Corrections", "State Police", "Escapee", "Civilian", "VCSO-SWAT"}, 
+    CurrentOption = {}, 
+    MultipleOptions = true, 
+    Flag = "CHECK_TEAMS", 
+    Callback = function(Options) 
+        for team in pairs(SelectedTeams) do SelectedTeams[team] = false end 
+        for _, team in pairs(Options) do SelectedTeams[team] = true end 
+        CurrentTarget = nil 
     end 
 }) 
  
-VisualsTab:CreateToggle({ 
-    Name = "Xray", 
-    CurrentValue = false, 
-    Callback = function(Value) 
-        xrayEnabled = Value 
-        if xrayEnabled then 
-            for _, v in pairs(workspace:GetDescendants()) do 
-                if v:IsA("BasePart") then v.LocalTransparencyModifier = 0.5 end 
-            end 
-        else 
-            for _, v in pairs(workspace:GetDescendants()) do 
-                if v:IsA("BasePart") then v.LocalTransparencyModifier = 0 end 
-            end 
-        end 
-    end 
+-- Advanced Aimbot 
+AdvancedAimbotSection:CreateSlider({ 
+    Name = "Smoothness (Visible Aim)", 
+    Range = {0.01, 1.0}, 
+    Increment = 0.01, 
+    CurrentValue = 0.15, 
+    Flag = "AIMBOT_SMOOTHNESS", 
+    Callback = function(Value) Smoothness = Value end 
 }) 
  
--- الفاصل 
-VisualsTab:CreateLabel("__________")  -- خط فاصل "____" (طولته شوية عشان يبدو أفضل) 
- 
--- Auto Refresh Toggle (كما هو، بعد الفاصل) 
-VisualsTab:CreateToggle({  
-    Name = "Auto Refresh",  
-    CurrentValue = false,  
-    Flag = "AUTO_REFRESH",  
-    Callback = function(Value)  
-        autoRefreshEnabled = Value  
-        if autoRefreshEnabled then  
-            for _, player in pairs(Players:GetPlayers()) do  
-                if player ~= LocalPlayer then  
-                    connections[player.Name .. "_CharacterAdded"] = player.CharacterAdded:Connect(function()  
-                        if ESPEnabled then task.wait(0.5) CreateESP(player) end  
-                        if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end  
-                        if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end  
-                        if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end  
-                    end)  
-                end  
-            end  
-            connections.PlayerAdded = Players.PlayerAdded:Connect(function(player)  
-                if player ~= LocalPlayer then  
-                    connections[player.Name .. "_CharacterAdded"] = player.CharacterAdded:Connect(function()  
-                        if ESPEnabled then task.wait(0.5) CreateESP(player) end  
-                        if Box3DEnabled then task.wait(0.5) Create3DBox(player) Update3DBox(player) end  
-                        if espSettings.Enabled then task.wait(0.5) createStickmanESP(player) end  
-                        if showBox or show3DBox or showHealthNew or showName or showDist or showTool then task.wait(0.5) createNewESP(player) end  
-                    end)  
-                end  
-            end)  
-            RefreshAllESP()  
-            autoRefreshConnection = RunService.Heartbeat:Connect(function()  
-                if autoRefreshEnabled then  
-                    autoRefreshEnabled = false  
-                    task.wait(5)  
-                    autoRefreshEnabled = true  
-                    RefreshAllESP()  
-                end  
-            end)  
-            Rayfield:Notify({ Title = "Activated", Content = "Auto Refresh enabled for all Visuals.", Duration = 5, Image = 4483362458 })  
-        else  
-            for key, connection in pairs(connections) do  
-                if key:find("_CharacterAdded") or key == "PlayerAdded" then  
-                    connection:Disconnect()  
-                end  
-            end  
-            if autoRefreshConnection then autoRefreshConnection:Disconnect() end  
-            Rayfield:Notify({ Title = "Deactivated", Content = "Auto Refresh disabled.", Duration = 5, Image = 4483362458 })  
-        end  
-    end  
-})  
- 
-VisualsTab:CreateToggle({ 
-    Name = "Auto Clean Stuck ESPs", 
+AdvancedAimbotSection:CreateToggle({ 
+    Name = "Stick to Target", 
     CurrentValue = false, 
+    Flag = "STICK_TARGET", 
+    Callback = function(Value) StickToTarget = Value; if not StickToTarget then CurrentTarget = nil end end 
+}) 
+ 
+AdvancedAimbotSection:CreateToggle({ 
+    Name = "Ignore Walls", 
+    CurrentValue = false, 
+    Flag = "IGNORE_WALLS", 
+    Callback = function(Value) IgnoreWalls = Value end 
+}) 
+ 
+AdvancedAimbotSection:CreateSlider({ 
+    Name = "Aim Accuracy", 
+    Range = {0, 100}, 
+    Increment = 1, 
+    Suffix = "%", 
+    CurrentValue = 100, 
+    Flag = "AIM_ACCURACY", 
+    Callback = function(Value) AimAccuracy = Value end 
+}) 
+ 
+AdvancedAimbotSection:CreateSlider({ 
+    Name = "Hit Chance Variance", 
+    Range = {0, 50}, 
+    Increment = 1, 
+    Suffix = "%", 
+    CurrentValue = 0, 
+    Flag = "HIT_CHANCE_VARIANCE", 
+    Callback = function(Value) HitChanceVariance = Value end 
+}) 
+ 
+AdvancedAimbotSection:CreateSlider({ 
+    Name = "Aim Precision", 
+    Range = {0, 100}, 
+    Increment = 1, 
+    Suffix = "%", 
+    CurrentValue = 100, 
+    Flag = "AIM_PRECISION", 
+    Callback = function(Value) AimPrecision = Value end 
+}) 
+ 
+AdvancedAimbotSection:CreateSlider({ 
+    Name = "Target Lock Strength", 
+    Range = {0, 1}, 
+    Increment = 0.1, 
+    CurrentValue = 0.5, 
+    Flag = "TARGET_LOCK_STRENGTH", 
+    Callback = function(Value) TargetLockStrength = Value end 
+}) 
+ 
+AdvancedAimbotSection:CreateToggle({ 
+    Name = "Aim on Sight", 
+    CurrentValue = false, 
+    Flag = "AIM_ON_SIGHT", 
+    Callback = function(Value) AimOnSight = Value end 
+}) 
+ 
+AdvancedAimbotSection:CreateToggle({ 
+    Name = "Aim on Approach", 
+    CurrentValue = false, 
+    Flag = "AIM_ON_APPROACH", 
+    Callback = function(Value) AimOnApproach = Value end 
+}) 
+ 
+AdvancedAimbotSection:CreateToggle({ 
+    Name = "Aim Face to Face", 
+    CurrentValue = false, 
+    Flag = "AIM_FACE_TO_FACE", 
+    Callback = function(Value) AimFaceToFace = Value end 
+}) 
+ 
+AdvancedAimbotSection:CreateSlider({ 
+    Name = "Offset Spread (studs)", 
+    Range = {0, 5}, 
+    Increment = 0.1, 
+    CurrentValue = 1.0, 
+    Flag = "OFFSET_SPREAD", 
+    Callback = function(Value) OffsetSpread = Value end 
+}) 
+ 
+AdvancedAimbotSection:CreateSlider({ 
+    Name = "Prediction Multiplier", 
+    Range = {0.5, 2}, 
+    Increment = 0.1, 
+    CurrentValue = 1.0, 
+    Flag = "PRED_MULTIPLIER", 
+    Callback = function(Value) PredictionMultiplier = Value end 
+}) 
+ 
+AdvancedAimbotSection:CreateToggle({ 
+    Name = "Aim Moving Targets Only", 
+    CurrentValue = false, 
+    Flag = "AIM_MOVING_ONLY", 
+    Callback = function(Value) AimMovingTargetsOnly = Value end 
+}) 
+ 
+AdvancedAimbotSection:CreateSlider({ 
+    Name = "Velocity Threshold", 
+    Range = {1, 20}, 
+    Increment = 1, 
+    CurrentValue = 5, 
+    Flag = "VEL_THRESHOLD", 
+    Callback = function(Value) VelocityThreshold = Value end 
+}) 
+ 
+AdvancedAimbotSection:CreateToggle({ 
+    Name = "Auto-Switch on Kill", 
+    CurrentValue = false, 
+    Flag = "AUTO_SWITCH_KILL", 
+    Callback = function(Value) AutoSwitchOnKill = Value end 
+}) 
+ 
+AdvancedAimbotSection:CreateDropdown({ 
+    Name = "Target Priority", 
+    Options = {"Closest", "Lowest Health", "Highest Threat"}, 
+    CurrentOption = {"Closest"}, 
+    MultipleOptions = false, 
+    Flag = "TARGET_PRIORITY", 
+    Callback = function(Option) TargetPriority = Option[1] end 
+}) 
+ 
+AdvancedAimbotSection:CreateDropdown({ 
+    Name = "Scan Mode", 
+    Options = {"Fixed", "Dynamic"}, 
+    CurrentOption = {"Fixed"}, 
+    MultipleOptions = false, 
+    Flag = "SCAN_MODE", 
+    Callback = function(Option) ScanMode = Option[1] end 
+}) 
+ 
+AdvancedAimbotSection:CreateToggle({ 
+    Name = "Weapon Check", 
+    CurrentValue = false, 
+    Flag = "WEAPON_CHECK", 
     Callback = function(Value) 
-        autoCleanEnabled = Value 
+        weaponCheckEnabled = Value 
         if Value then 
-            autoCleanConnection = RunService.Heartbeat:Connect(function(delta) 
-                cleanTimer = (cleanTimer or 0) + delta 
-                if cleanTimer >= 2 then 
-                    cleanStuckESPs() 
-                    cleanTimer = 0 
+            connections.weaponCheck = RunService.Heartbeat:Connect(function() 
+                local char = LocalPlayer.Character 
+                if char then 
+                    local tool = char:FindFirstChildOfClass("Tool") 
+                    AimbotEnabled = tool ~= nil 
+                else 
+                    AimbotEnabled = false 
+                end 
+                if not AimbotEnabled then 
+                    if aimbotConnection then aimbotConnection:Disconnect(); aimbotConnection = nil end 
+                    if FOVCircle then FOVCircle:Remove(); FOVCircle = nil end 
+                    DisableSilentAim() 
                 end 
             end) 
         else 
-            if autoCleanConnection then autoCleanConnection:Disconnect() end 
+            if connections.weaponCheck then connections.weaponCheck:Disconnect() end 
+            AimbotEnabled = false 
         end 
     end 
 }) 
  
--- Advanced Settings Section (بعد Auto Refresh) 
-VisualsTab:CreateLabel("Advanced Settings")  -- نص عنوان "Advanced Settings" 
- 
-VisualsTab:CreateSlider({ 
-   Name = "Health Bar Thickness", 
-   Range = {1, 10}, 
-   Increment = 1, 
-   CurrentValue = 1, 
-   Flag = "Health_Thick", 
-   Callback = function(Value) 
-      healthThickness = Value 
-   end, 
+AdvancedAimbotSection:CreateToggle({ 
+    Name = "Smart Aim Bot", 
+    CurrentValue = false, 
+    Flag = "SMART_AIM", 
+    Callback = function(Value) 
+        smartAimBotEnabled = Value 
+        if Value then 
+            closestAimEnabled = false 
+            if not aimbotConnection then aimbotConnection = RunService.RenderStepped:Connect(updateAimbot) end 
+        else 
+            if aimbotConnection and not closestAimEnabled then aimbotConnection:Disconnect(); aimbotConnection = nil end 
+        end 
+    end 
 }) 
  
-VisualsTab:CreateSlider({ 
-   Name = "Health Bar Transparency", 
-   Range = {0, 1}, 
-   Increment = 0.05, 
-   Suffix = "%", 
-   CurrentValue = 1, 
-   Flag = "Health_Trans", 
-   Callback = function(Value) 
-      healthTransparency = Value 
-   end, 
+AdvancedAimbotSection:CreateToggle({ 
+    Name = "Closest Aim", 
+    CurrentValue = false, 
+    Flag = "CLOSEST_AIM", 
+    Callback = function(Value) 
+        closestAimEnabled = Value 
+        if Value then 
+            smartAimBotEnabled = false 
+            if not aimbotConnection then aimbotConnection = RunService.RenderStepped:Connect(updateAimbot) end 
+        else 
+            if aimbotConnection and not smartAimBotEnabled then aimbotConnection:Disconnect(); aimbotConnection = nil end 
+        end 
+    end 
 }) 
  
-VisualsTab:CreateSlider({ 
-   Name = "2D Box Transparency", 
-   Range = {0, 1}, 
-   Increment = 0.05, 
-   Suffix = "%", 
-   CurrentValue = 1, 
-   Callback = function(Value) 
-      box2DTransparency = Value 
-   end, 
+-- FOV Settings 
+FOVSection:CreateSlider({ 
+    Name = "FOV Radius", 
+    Range = {50, 500}, 
+    Increment = 10, 
+    CurrentValue = 150, 
+    Flag = "FOV_RADIUS", 
+    Callback = function(Value) FOVRadius = Value; UpdateFOVCircle() end 
 }) 
  
-VisualsTab:CreateSlider({ 
-   Name = "3D Box 1 Transparency", 
-   Range = {0, 1}, 
-   Increment = 0.05, 
-   Suffix = "%", 
-   CurrentValue = 1, 
-   Flag = "3D_Box_Trans", 
-   Callback = function(Value) 
-      box3DTransparency = Value 
-   end, 
+FOVSection:CreateToggle({ 
+    Name = "Show FOV Circle", 
+    CurrentValue = true, 
+    Flag = "SHOW_FOV_CIRCLE", 
+    Callback = function(Value) ShowFOVCircle = Value; UpdateFOVCircle() end 
 }) 
  
-VisualsTab:CreateSlider({ 
-   Name = "2D Box Thickness", 
-   Range = {1, 3}, 
-   Increment = 0.1, 
-   CurrentValue = 1, 
-   Callback = function(Value) 
-      box2DThickness = Value 
-      refreshNewESP() 
-   end, 
+FOVSection:CreateToggle({ 
+    Name = "Enable Custom FOV", 
+    CurrentValue = false, 
+    Flag = "FOV_TOGGLE", 
+    Callback = function(Value) FOVEnabled = Value; UpdateFOV() end 
 }) 
  
-VisualsTab:CreateSlider({ 
-   Name = "3D Box 1 Thickness", 
-   Range = {1, 3}, 
-   Increment = 0.1, 
-   CurrentValue = 1, 
-   Callback = function(Value) 
-      box3DThickness = Value 
-      refreshNewESP() 
-   end, 
+FOVSection:CreateSlider({ 
+    Name = "FOV Value", 
+    Range = {30, 360}, 
+    Increment = 1, 
+    CurrentValue = 90, 
+    Flag = "FOV_SLIDER", 
+    Callback = function(Value) CustomFOV = Value; if FOVEnabled then Camera.FieldOfView = CustomFOV end end 
 }) 
  
-VisualsTab:CreateSlider({ 
-   Name = "Max ESP Distance (Studs)", 
-   Range = {100, 2000}, 
-   Increment = 100, 
-   Suffix = " Studs", 
-   CurrentValue = 1000, 
-   Callback = function(Value) 
-      maxDistance = Value 
-   end, 
+FOVSection:CreateColorPicker({ 
+    Name = "FOV Circle Color", 
+    Color = Color3.fromRGB(255, 0, 0), 
+    Callback = function(Value) 
+        FOVColor = Value 
+        UpdateFOVCircle() 
+    end 
 }) 
-  
--- // COMBAT TAB
-local CombatTab = Window:CreateTab("Combat", 4483362458)
-
--- ==================== متغيرات أساسية ====================
-local AimbotEnabled = false
-local SilentAim = false
-local CurrentTarget = nil
-
-local FOVRadius = 150
-local FOVColor = Color3.fromRGB(255, 0, 0)
-local ShowFOVCircle = true
-local Smoothness = 0.15
-
-local TargetPart = "Head"
-local PredictionEnabled = true
-local IgnoreWalls = false
-local StickToTarget = false
-
-local TriggerbotEnabled = false
-local TriggerDelay = 100
-
-local TargetPriority = "Closest"  -- Closest, LowestHealth, HighestThreat
-local ScanMode = "Dynamic"        -- Fixed or Dynamic
-
--- Prediction Settings
-local BulletSpeed = 2000
-local PredictionMultiplier = 1.0
-
--- FOV Circle
-local FOVCircle = nil
-
--- Silent Aim Hook
-local oldNamecall
-local silentAimActive = false
-
--- Services
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
-local Mouse = Players.LocalPlayer:GetMouse()
-local LocalPlayer = Players.LocalPlayer
-
--- ==================== دوال مساعدة ====================
-
--- إنشاء FOV Circle
-local function CreateFOVCircle()
-    if FOVCircle then FOVCircle:Remove() end
-    FOVCircle = Drawing.new("Circle")
-    FOVCircle.Thickness = 2
-    FOVCircle.Filled = false
-    FOVCircle.Color = FOVColor
-    FOVCircle.Radius = FOVRadius
-    FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)
-    FOVCircle.Visible = ShowFOVCircle and (AimbotEnabled or SilentAim)
-end
-
--- تحديث FOV Circle
-local function UpdateFOVCircle()
-    if not FOVCircle then return end
-    FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)
-    FOVCircle.Radius = FOVRadius
-    FOVCircle.Color = FOVColor
-    FOVCircle.Visible = ShowFOVCircle and (AimbotEnabled or SilentAim)
-end
-
--- فحص الرؤية
-local function IsVisible(part)
-    if IgnoreWalls then return true end
-    local params = RaycastParams.new()
-    params.FilterDescendantsInstances = {LocalPlayer.Character or workspace}
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    
-    local direction = (part.Position - Camera.CFrame.Position)
-    local result = workspace:Raycast(Camera.CFrame.Position, direction, params)
-    
-    return result == nil or result.Instance:IsDescendantOf(part.Parent)
-end
-
--- أفضل جزء مرئي (Dynamic Scan)
-local function GetBestVisiblePart(char)
-    local priority = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart"}
-    for _, name in ipairs(priority) do
-        local part = char:FindFirstChild(name)
-        if part and IsVisible(part) then
-            return part
-        end
-    end
-    return char:FindFirstChild("HumanoidRootPart")
-end
-
--- التنبؤ بالحركة (Prediction)
-local function GetPredictedPosition(part)
-    if not PredictionEnabled or not part then return part.Position end
-    
-    local velocity = part.AssemblyLinearVelocity
-    local distance = (Camera.CFrame.Position - part.Position).Magnitude
-    local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 1000
-    local timeToHit = (distance / BulletSpeed) * PredictionMultiplier + ping
-    
-    local predicted = part.Position + (velocity * timeToHit)
-    predicted += Vector3.new(0, 0.5 * workspace.Gravity * timeToHit^2, 0)  -- Gravity compensation
-    
-    return predicted
-end
-
--- اختيار أفضل هدف
-local function GetBestTarget()
-    local best = nil
-    local bestScore = math.huge
-    local center = Vector2.new(Mouse.X, Mouse.Y)
-
-    for _, player in pairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        local char = player.Character
-        if not char then continue end
-        
-        local humanoid = char:FindFirstChild("Humanoid")
-        if not humanoid or humanoid.Health <= 0 then continue end
-
-        local part = (ScanMode == "Dynamic") and GetBestVisiblePart(char) or char:FindFirstChild(TargetPart)
-        if not part or not IsVisible(part) then continue end
-
-        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-        if not onScreen then continue end
-
-        local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
-        if dist2D > FOVRadius then continue end
-
-        local score = dist2D
-        if TargetPriority == "LowestHealth" then
-            score = humanoid.Health
-        elseif TargetPriority == "HighestThreat" then
-            score = -dist2D  -- أقرب = أعلى تهديد
-        end
-
-        if score < bestScore then
-            best = player
-            bestScore = score
-        end
-    end
-    
-    return best
-end
-
--- تفعيل Silent Aim (Namecall Hook)
-local function EnableSilentAim()
-    if silentAimActive then return end
-    
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        if not silentAimActive or not SilentAim or not CurrentTarget then
-            return oldNamecall(self, ...)
-        end
-        
-        local method = getnamecallmethod()
-        if method == "FireServer" or method == "InvokeServer" then
-            local args = {...}
-            if #args >= 1 then
-                local char = CurrentTarget.Character
-                if not char then return oldNamecall(self, ...) end
-                
-                local part = (ScanMode == "Dynamic") and GetBestVisiblePart(char) or char:FindFirstChild(TargetPart)
-                if not part then return oldNamecall(self, ...) end
-                
-                local predicted = GetPredictedPosition(part)
-                
-                -- تعديل الـ args حسب معظم remotes في الألعاب مثل Valley Prison
-                if typeof(args[1]) == "Vector3" then
-                    args[1] = predicted
-                elseif typeof(args[2]) == "Vector3" then
-                    args[2] = predicted
-                elseif typeof(args[1]) == "CFrame" then
-                    args[1] = CFrame.new(predicted)
-                end
-                
-                return oldNamecall(self, unpack(args))
-            end
-        end
-        
-        return oldNamecall(self, ...)
-    end)
-    
-    silentAimActive = true
-end
-
-local function DisableSilentAim()
-    silentAimActive = false
-end
-
--- ==================== الحلقة الرئيسية ====================
-RunService.RenderStepped:Connect(function()
-    -- تحديث الهدف
-    if AimbotEnabled or SilentAim then
-        CurrentTarget = StickToTarget and (CurrentTarget and GetBestTarget()) or GetBestTarget()
-    end
-
-    -- Visible Aimbot (Camera Lerp)
-    if AimbotEnabled and CurrentTarget and not SilentAim then
-        local char = CurrentTarget.Character
-        if char then
-            local part = (ScanMode == "Dynamic") and GetBestVisiblePart(char) or char:FindFirstChild(TargetPart)
-            if part then
-                local predicted = GetPredictedPosition(part)
-                Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, predicted), Smoothness)
-            end
-        end
-    end
-
-    -- تحديث FOV Circle
-    UpdateFOVCircle()
-
-    -- Triggerbot
-    if TriggerbotEnabled and CurrentTarget then
-        local char = CurrentTarget.Character
-        if char and Mouse.Target and Mouse.Target:IsDescendantOf(char) then
-            task.wait(TriggerDelay / 1000)
-            -- دعم Synapse/Script-Ware/Krnl إلخ
-            if mouse1press then
-                mouse1press()
-                task.wait()
-                mouse1release()
-            end
-        end
-    end
-end)
-
--- ==================== عناصر الـ UI ====================
-CombatTab:CreateToggle({
-    Name = "Aimbot (Visible)",
-    CurrentValue = false,
-    Callback = function(v)
-        AimbotEnabled = v
-        if v then
-            CreateFOVCircle()
-        elseif FOVCircle then
-            FOVCircle:Remove()
-            FOVCircle = nil
-        end
-    end
-})
-
-CombatTab:CreateToggle({
-    Name = "Silent Aim",
-    CurrentValue = false,
-    Callback = function(v)
-        SilentAim = v
-        if v then
-            EnableSilentAim()
-            CreateFOVCircle()
-        else
-            DisableSilentAim()
-            if not AimbotEnabled and FOVCircle then
-                FOVCircle:Remove()
-                FOVCircle = nil
-            end
-        end
-    end
-})
-
-CombatTab:CreateToggle({Name = "Prediction", CurrentValue = true, Callback = function(v) PredictionEnabled = v end})
-CombatTab:CreateToggle({Name = "Ignore Walls", CurrentValue = false, Callback = function(v) IgnoreWalls = v end})
-CombatTab:CreateToggle({Name = "Stick to Target", CurrentValue = false, Callback = function(v) StickToTarget = v end})
-CombatTab:CreateToggle({Name = "Show FOV Circle", CurrentValue = true, Callback = function(v) ShowFOVCircle = v; UpdateFOVCircle() end})
-CombatTab:CreateToggle({Name = "Triggerbot", CurrentValue = false, Callback = function(v) TriggerbotEnabled = v end})
-
-CombatTab:CreateSlider({Name = "FOV Radius", Range = {10, 500}, Increment = 10, CurrentValue = 150, Callback = function(v) FOVRadius = v; UpdateFOVCircle() end})
-CombatTab:CreateSlider({Name = "Smoothness", Range = {0.01, 1}, Increment = 0.01, CurrentValue = 0.15, Callback = function(v) Smoothness = v end})
-CombatTab:CreateSlider({Name = "Bullet Speed", Range = {500, 5000}, Increment = 100, CurrentValue = 2000, Callback = function(v) BulletSpeed = v end})
-CombatTab:CreateSlider({Name = "Prediction Multiplier", Range = {0.5, 2}, Increment = 0.1, CurrentValue = 1.0, Callback = function(v) PredictionMultiplier = v end})
-CombatTab:CreateSlider({Name = "Trigger Delay (ms)", Range = {0, 500}, Increment = 50, CurrentValue = 100, Callback = function(v) TriggerDelay = v end})
-
-CombatTab:CreateDropdown({Name = "Target Part", Options = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}, CurrentOption = {"Head"}, Callback = function(o) TargetPart = o[1] end})
-CombatTab:CreateDropdown({Name = "Scan Mode", Options = {"Fixed", "Dynamic"}, CurrentOption = {"Dynamic"}, Callback = function(o) ScanMode = o[1] end})
-CombatTab:CreateDropdown({Name = "Target Priority", Options = {"Closest", "LowestHealth", "HighestThreat"}, CurrentOption = {"Closest"}, Callback = function(o) TargetPriority = o[1] end})
-
-CombatTab:CreateColorPicker({Name = "FOV Color", Color = Color3.fromRGB(255,0,0), Callback = function(c) FOVColor = c; UpdateFOVCircle() end})
-  
+ 
+FOVSection:CreateToggle({ 
+    Name = "Dynamic FOV", 
+    CurrentValue = false, 
+    Flag = "DYNAMIC_FOV", 
+    Callback = function(Value) DynamicFOV = Value; UpdateFOVCircle() end 
+}) 
+ 
+FOVSection:CreateSlider({ 
+    Name = "Min FOV Radius", 
+    Range = {10, 200}, 
+    Increment = 10, 
+    CurrentValue = 50, 
+    Flag = "MIN_FOV_RADIUS", 
+    Callback = function(Value) MinFOVRadius = Value; UpdateFOVCircle() end 
+}) 
+ 
+FOVSection:CreateSlider({ 
+    Name = "Max FOV Radius", 
+    Range = {100, 500}, 
+    Increment = 10, 
+    CurrentValue = 300, 
+    Flag = "MAX_FOV_RADIUS", 
+    Callback = function(Value) MaxFOVRadius = Value; UpdateFOVCircle() end 
+}) 
+ 
+FOVSection:CreateSlider({ 
+    Name = "Dynamic FOV Multiplier", 
+    Range = {0.01, 0.5}, 
+    Increment = 0.01, 
+    CurrentValue = 0.1, 
+    Flag = "DYN_FOV_MULT", 
+    Callback = function(Value) DynamicFOVMultiplier = Value; UpdateFOVCircle() end 
+}) 
+ 
+FOVSection:CreateToggle({ 
+    Name = "Moving FOV Circle", 
+    CurrentValue = false, 
+    Flag = "MOVING_FOV_CIRCLE", 
+    Callback = function(Value) movingFOVCircleEnabled = Value; UpdateFOVCircle() end 
+}) 
+ 
+-- Triggerbot & Recoil 
+TriggerSection:CreateToggle({ 
+    Name = "Enable Triggerbot", 
+    CurrentValue = false, 
+    Flag = "TRIGGERBOT", 
+    Callback = function(Value) TriggerbotEnabled = Value end 
+}) 
+ 
+TriggerSection:CreateSlider({ 
+    Name = "Trigger Delay (ms)", 
+    Range = {0, 500}, 
+    Increment = 50, 
+    CurrentValue = 100, 
+    Flag = "TRIGGER_DELAY", 
+    Callback = function(Value) TriggerDelay = Value end 
+}) 
+ 
+TriggerSection:CreateToggle({ 
+    Name = "Anti-Recoil", 
+    CurrentValue = false, 
+    Flag = "ANTI_RECOIL", 
+    Callback = function(Value) AntiRecoilEnabled = Value end 
+}) 
+ 
+TriggerSection:CreateSlider({ 
+    Name = "Recoil Factor", 
+    Range = {0, 1}, 
+    Increment = 0.1, 
+    CurrentValue = 0.5, 
+    Flag = "RECOIL_FACTOR", 
+    Callback = function(Value) RecoilFactor = Value end 
+}) 
+ 
+-- Stats & Extras 
+StatsSection:CreateToggle({ 
+    Name = "Enable Stats", 
+    CurrentValue = false, 
+    Flag = "ENABLE_STATS", 
+    Callback = function(Value) EnableStats = Value end 
+}) 
+ 
+StatsSection:CreateToggle({ 
+    Name = "No Miss Bullets", 
+    CurrentValue = false, 
+    Flag = "NO_MISS_BULLETS", 
+    Callback = function(Value) NoMissBullets = Value end 
+}) 
+ 
+StatsSection:CreateSlider({ 
+    Name = "Bullet Magnet Strength", 
+    Range = {0, 1}, 
+    Increment = 0.1, 
+    CurrentValue = 0.5, 
+    Flag = "BULLET_MAGNET", 
+    Callback = function(Value) BulletMagnetStrength = Value end 
+}) 
+ 
 -- // TELEPORT SECTION  
 local TeleportTab = Window:CreateTab("Teleports", 4483362458)  
 local locations = {  
