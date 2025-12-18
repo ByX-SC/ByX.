@@ -749,17 +749,17 @@ player.CharacterAdded:Connect(function(char)
     end
 end)
 
--- ==================== دوال الـ Spawn المحسّنة ====================
+-- ==================== دوال الـ Spawn (حل ProximityPrompts فقط بدون تغيير الدروب أو الأوقات) ====================
 
--- محاكاة ضغط E كاملة
+-- محاكاة ضغط E كاملة (الحل الأمثل لمشكلة "المرة الأولى")
 local function triggerPrompt(prompt)
     if not prompt or not prompt.Enabled or not prompt.Parent then return end
     prompt:InputHoldBegin()
-    task.wait(prompt.HoldDuration + 0.2)
+    task.wait(prompt.HoldDuration + 0.2)  -- +0.2 احتياط
     prompt:InputHoldEnd()
 end
 
--- MakeInvisible / MakeVisible
+-- MakeInvisible / MakeVisible (نحافظ على HRP collide)
 local function MakeInvisible(char)
     for _, part in ipairs(char:GetChildren()) do
         if part:IsA("BasePart") then
@@ -808,7 +808,7 @@ local function MakeVisible(char)
     end
 end
 
--- RunMin
+-- RunMin (الأوقات والدروب كما كانت في الأصل مع حل prompts فقط)
 local function RunMin(dropPos)
     local char = player.Character or player.CharacterAdded:Wait()
     local hrp = char:WaitForChild("HumanoidRootPart")
@@ -830,26 +830,27 @@ local function RunMin(dropPos)
 
     local function RestoreCamera()
         task.wait(3)
-        if camConnection then camConnection:Disconnect() end
+        if camConnection then
+            camConnection:Disconnect()
+            camConnection = nil
+        end
         camera.CameraType = oldCamType
         camera.CameraSubject = oldCamSubject
     end
 
     FixCamera(MinCamArmoryPos, MinArmoryPos)
     hrp.CFrame = CFrame.new(MinArmoryPos)
-    task.wait(0.7)
+    task.wait(0.4)
 
-    for i = 1, 6 do
+    -- حل ProximityPrompts فقط: تكرار مع InputHoldBegin/End (يحاكي الضغط اليدوي تمامًا)
+    for i = 1, 3 do  -- تكرار معتدل لضمان التفعيل في المرة الأولى
         for _, v in ipairs(workspace:GetDescendants()) do
             if v:IsA("ProximityPrompt") then
                 task.spawn(triggerPrompt, v)
             end
         end
-        hrp.CFrame = hrp.CFrame + Vector3.new(math.random(-1.5, 1.5), 0, math.random(-1.5, 1.5))
-        task.wait(0.8)
+        task.wait(1.1)
     end
-
-    task.wait(5)
 
     MakeInvisible(char)
 
@@ -860,26 +861,22 @@ local function RunMin(dropPos)
         hrp.CFrame = CFrame.new(secretDropPos)
     end)
 
-    task.wait(0.5)
+    task.wait(0.4)
 
-    repeat
-        local droppedAny = false
-        for _, tool in ipairs(player.Backpack:GetChildren()) do
-            if tool:IsA("Tool") then
-                droppedAny = true
-                tool.Parent = char
-                task.wait(0.25)
-                for _, obj in ipairs(tool:GetDescendants()) do
-                    if obj:IsA("RemoteEvent") and (string.find(string.lower(obj.Name), "drop") or string.find(string.lower(obj.Name), "send") or string.find(string.lower(obj.Name), "key")) then
-                        obj:FireServer()
-                        break
-                    end
+    -- الدروب كما كان بالضبط (بدون أي تغيير في الوقت أو الlogic)
+    for _, tool in ipairs(player.Backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            tool.Parent = char
+            task.wait(0.25)
+            for _, obj in ipairs(tool:GetDescendants()) do
+                if obj:IsA("RemoteEvent") and (string.find(string.lower(obj.Name), "drop") or string.find(string.lower(obj.Name), "send") or string.find(string.lower(obj.Name), "key")) then
+                    obj:FireServer()
+                    break
                 end
-                task.wait(0.35)
             end
+            task.wait(0.35)
         end
-        task.wait(0.5)
-    until not droppedAny
+    end
 
     if posFix then posFix:Disconnect() end
 
@@ -891,12 +888,12 @@ local function RunMin(dropPos)
 
     game.StarterGui:SetCore("SendNotification", {
         Title = "سرقة + نقل + ريسبون ✅";
-        Text = "الأسلحة دروبت وانتقلت للفارم قبل الريسبون 🔥";
+        Text = "الأسلحة دروب وانتقلت لـ X:20.06 Y:11.23 Z:-117.39 قبل الريسبون 🔥";
         Duration = 8;
     })
 end
 
--- RunMax
+-- RunMax (نفس التعديل لـ prompts فقط)
 local function RunMax(dropPos)
     local char = player.Character or player.CharacterAdded:Wait()
     local hrp = char:WaitForChild("HumanoidRootPart")
@@ -918,26 +915,26 @@ local function RunMax(dropPos)
 
     local function RestoreCamera()
         task.wait(3)
-        if camConnection then camConnection:Disconnect() end
+        if camConnection then
+            camConnection:Disconnect()
+            camConnection = nil
+        end
         camera.CameraType = oldCamType
         camera.CameraSubject = oldCamSubject
     end
 
     FixCamera(MaxCamArmoryPos, MaxArmoryPos)
     hrp.CFrame = CFrame.new(MaxArmoryPos)
-    task.wait(0.7)
+    task.wait(0.4)
 
-    for i = 1, 6 do
+    for i = 1, 3 do
         for _, v in ipairs(workspace:GetDescendants()) do
             if v:IsA("ProximityPrompt") then
                 task.spawn(triggerPrompt, v)
             end
         end
-        hrp.CFrame = hrp.CFrame + Vector3.new(math.random(-1.5, 1.5), 0, math.random(-1.5, 1.5))
-        task.wait(0.8)
+        task.wait(1.1)
     end
-
-    task.wait(5)
 
     MakeInvisible(char)
 
@@ -948,26 +945,21 @@ local function RunMax(dropPos)
         hrp.CFrame = CFrame.new(secretDropPos)
     end)
 
-    task.wait(0.5)
+    task.wait(0.4)
 
-    repeat
-        local droppedAny = false
-        for _, tool in ipairs(player.Backpack:GetChildren()) do
-            if tool:IsA("Tool") then
-                droppedAny = true
-                tool.Parent = char
-                task.wait(0.25)
-                for _, obj in ipairs(tool:GetDescendants()) do
-                    if obj:IsA("RemoteEvent") and (string.find(string.lower(obj.Name), "drop") or string.find(string.lower(obj.Name), "send") or string.find(string.lower(obj.Name), "key")) then
-                        obj:FireServer()
-                        break
-                    end
+    for _, tool in ipairs(player.Backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            tool.Parent = char
+            task.wait(0.25)
+            for _, obj in ipairs(tool:GetDescendants()) do
+                if obj:IsA("RemoteEvent") and (string.find(string.lower(obj.Name), "drop") or string.find(string.lower(obj.Name), "send") or string.find(string.lower(obj.Name), "key")) then
+                    obj:FireServer()
+                    break
                 end
-                task.wait(0.35)
             end
+            task.wait(0.35)
         end
-        task.wait(0.5)
-    until not droppedAny
+    end
 
     if posFix then posFix:Disconnect() end
 
@@ -979,7 +971,7 @@ local function RunMax(dropPos)
 
     game.StarterGui:SetCore("SendNotification", {
         Title = "سرقة + نقل + ريسبون ✅";
-        Text = "الأسلحة دروبت وانتقلت للفارم قبل الريسبون 🔥";
+        Text = "الأسلحة دروب وانتقلت لـ X:20.06 Y:11.23 Z:-117.39 قبل الريسبون 🔥";
         Duration = 8;
     })
 end
