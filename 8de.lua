@@ -3013,8 +3013,8 @@ RunService.RenderStepped:Connect(function()
     local char = LocalPlayer.Character  
     if char and char:FindFirstChild("Humanoid") then  
         char.Humanoid.WalkSpeed = speed  
-    end  
-end)  
+    end  end)  
+
   
 UserInputService.JumpRequest:Connect(function()  
     local char = LocalPlayer.Character  
